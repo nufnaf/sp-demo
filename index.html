@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#eef4f7" />
+    <link rel="icon" type="image/png" href="./assets/syntropic-mark.png" />
+    <title>Syntropic · 招聘工作台</title>
+    <link rel="stylesheet" href="./styles.css?v=20260825-syntropic-v3" />
+  </head>
+  <body>
+    <main class="solo-os" id="soloOS">
+      <div class="wallpaper" aria-hidden="true">
+        <div class="light-field field-one"></div>
+        <div class="light-field field-two"></div>
+        <div class="texture"></div>
+      </div>
+
+      <header class="menu-bar">
+        <button class="solo-brand" type="button" data-action="desktop" aria-label="回到 Syntropic 桌面">
+          <span class="solo-symbol" aria-hidden="true"><img src="./assets/syntropic-mark.png" alt="" /></span>
+          <strong>Syntropic</strong>
+        </button>
+        <nav class="workspace-nav" aria-label="工作台空间">
+          <button class="workspace-switcher" id="workspaceSwitcher" type="button" aria-haspopup="dialog" aria-expanded="false">
+            <span class="workspace-dot"></span>
+            <span id="workspaceName">招聘工作台</span>
+            <span data-icon="chevron"></span>
+          </button>
+          <section class="workspace-popover" id="workspacePopover" aria-label="切换工作台" aria-hidden="true">
+            <header>
+              <div><strong>工作台</strong><span id="workspaceCount">1 个空间</span></div>
+              <button id="workspaceAdd" type="button" aria-label="新建工作台" title="新建工作台"><span data-icon="plus"></span></button>
+            </header>
+            <div class="workspace-strip" id="workspaceList"></div>
+          </section>
+        </nav>
+        <div class="system-status">
+          <button class="notification-button" type="button" data-action="notifications" aria-label="通知" aria-expanded="false"><span data-icon="bell"></span><i></i></button>
+          <span id="menuDate">7月16日 周四</span>
+          <span id="menuClock">16:42</span>
+          <button class="avatar" type="button" aria-label="账户">J</button>
+        </div>
+      </header>
+
+      <section class="notification-center" id="notificationCenter" aria-label="任务通知" aria-hidden="true" aria-live="polite">
+        <button class="notification-card" type="button" data-open="task-completed">
+          <span class="notification-app-icon" aria-hidden="true"><img src="./assets/syntropic-mark.png" alt="" /></span>
+          <em class="notification-status" data-notification-status>已完成</em>
+          <time class="notification-time" data-notification-time>现在</time>
+          <b class="notification-title"><span data-notification-title>竞品定价分析</span></b>
+          <small class="notification-summary" data-notification-summary>已完成 12 个来源的价格对比，并生成分析报告。</small>
+          <span class="notification-open"><span data-notification-open>查看</span> <i data-icon="arrow"></i></span>
+        </button>
+      </section>
+
+      <section class="desktop" id="desktop" aria-label="Syntropic 办公桌面">
+        <div class="canvas-toolbar" aria-label="画布工具" hidden>
+          <div class="canvas-mode"><button class="selected" type="button" data-canvas-mode="select" aria-label="选择与拖动对象"><span data-icon="pointer"></span></button><button type="button" data-canvas-mode="pan" aria-label="平移画布"><span data-icon="hand"></span></button></div>
+          <span class="toolbar-divider"></span>
+          <button type="button" data-canvas-mode="text" aria-label="添加文字标注" title="文字标注"><span data-icon="text"></span></button>
+          <button type="button" data-canvas-mode="connect" aria-label="连接画布元素" title="连接元素"><span data-icon="annotation-arrow"></span></button>
+          <span class="toolbar-divider"></span>
+          <button type="button" data-canvas-action="zoom-out" aria-label="缩小"><span data-icon="minus"></span></button>
+          <button class="zoom-label" id="zoomLabel" type="button" data-canvas-action="reset-view">100%</button>
+          <button type="button" data-canvas-action="zoom-in" aria-label="放大"><span data-icon="plus"></span></button>
+          <span class="toolbar-divider"></span>
+          <button type="button" data-canvas-action="arrange" aria-label="自动整理"><span data-icon="arrange"></span></button>
+        </div>
+        <section class="widget-picker" id="widgetPicker" aria-hidden="true" hidden>
+          <header><span><strong>桌面组件</strong><small>在工作台上固定显示</small></span><button type="button" data-widget-close aria-label="关闭组件面板"><span data-icon="close"></span></button></header>
+          <div class="widget-picker-list" id="widgetPickerList"></div>
+        </section>
+        <div class="canvas-hint" id="canvasHint" hidden><span data-icon="move"></span>拖动组件整理桌面</div>
+
+        <div class="canvas-world" id="canvasWorld">
+        <svg class="canvas-connections" viewBox="0 0 1800 1050" aria-hidden="true" hidden>
+          <defs><marker id="connectionArrowhead" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1 1 8 5 1 9" /></marker></defs>
+          <g id="canvasConnectionList"></g>
+          <path class="connection-draft" id="connectionDraft" d="" marker-end="url(#connectionArrowhead)"></path>
+        </svg>
+        <div class="connection-controls" id="connectionControls" hidden></div>
+        <article class="task-widget desktop-widget canvas-object" data-widget-name="当前任务" data-object-id="task-widget" style="--object-x: 70px; --object-y: 400px">
+          <header data-drag-handle>
+            <div><span data-icon="message"></span><strong>当前任务</strong><span class="task-header-count"><b data-task-summary-count>4</b> 个进行中</span></div>
+            <button type="button" data-action="all-tasks">查看全部</button>
+          </header>
+          <div class="task-widget-list">
+            <button class="task-widget-row" type="button" data-open="task-pricing">
+              <strong>分析竞品最近的定价变化</strong>
+              <small>已完成 8/12 个来源，正在核验套餐变化</small>
+              <span class="task-row-status running" aria-label="执行中"><i></i></span>
+            </button>
+            <button class="task-widget-row" type="button" data-open="task-launch">
+              <strong>准备 Q3 产品发布材料</strong>
+              <small>3 份发布材料已生成，等待确认</small>
+              <span class="task-row-status review" aria-label="待确认"><span data-icon="arrow"></span></span>
+            </button>
+            <button class="task-widget-row" type="button" data-open="task-roadmap">
+              <strong>更新产品路线图优先级</strong>
+              <small>已整理 6 项调整建议，等待确认</small>
+              <span class="task-row-status review" aria-label="待确认"><span data-icon="arrow"></span></span>
+            </button>
+            <button class="task-widget-row" type="button" data-open="task-release-check">
+              <strong>校验发布清单</strong>
+              <small>正在检查权限、文案与数据埋点</small>
+              <span class="task-row-status running" aria-label="执行中"><i></i></span>
+            </button>
+          </div>
+        </article>
+
+        <article class="schedule-widget desktop-widget canvas-object" data-widget-name="今日日程" data-object-id="schedule-widget" style="--object-x: 70px; --object-y: 160px">
+          <header data-drag-handle><span data-icon="calendar"></span><strong>日历</strong><time id="calendarDate">7月25日</time></header>
+          <div class="calendar-now"><span><strong id="calendarDay">25</strong><small id="calendarWeekday">周六</small></span><time id="calendarTime">19:55</time></div>
+          <div class="calendar-up-next">
+            <button class="schedule-meeting" type="button" data-action="lark-meetings"><time>20:30</time><span><strong>产品发布复盘</strong><small>飞书会议 · 30 分钟</small></span><i data-icon="arrow"></i></button>
+            <button class="schedule-meeting" type="button" data-action="lark-meetings"><time>明天</time><span><strong>客户反馈评审</strong><small>10:00 · 45 分钟</small></span><i data-icon="arrow"></i></button>
+          </div>
+        </article>
+
+        <article class="stock-widget desktop-widget canvas-object" data-widget-name="市场关注" data-object-id="stock-widget" style="--object-x: 330px; --object-y: 160px">
+          <header data-drag-handle><span data-icon="chart"></span><strong>NVDA</strong><time>NASDAQ · 实时</time></header>
+          <div class="stock-quote"><span><small>NVIDIA</small><strong>173.64</strong></span><span><b>+3.67%</b><small>+6.14 今日</small></span></div>
+          <svg class="stock-line-chart" viewBox="0 0 220 72" preserveAspectRatio="none" aria-label="NVDA 今日价格走势"><defs><linearGradient id="stockArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1f9d69" stop-opacity=".26"/><stop offset="1" stop-color="#1f9d69" stop-opacity="0"/></linearGradient></defs><path class="stock-area" d="M0 58 C18 55 24 48 40 50 S64 42 78 44 S99 31 116 36 S140 21 157 27 S182 17 195 20 S211 10 220 13 L220 72 L0 72 Z"/><path class="stock-line" d="M0 58 C18 55 24 48 40 50 S64 42 78 44 S99 31 116 36 S140 21 157 27 S182 17 195 20 S211 10 220 13"/><circle cx="220" cy="13" r="3"/></svg>
+          <footer><span>开 <b>168.14</b></span><span>高 <b>174.20</b></span><span>低 <b>167.82</b></span></footer>
+        </article>
+
+        <section class="object-group artifact-group" aria-label="产物">
+          <div class="artifact-grid">
+            <article class="artifact-object report-artifact canvas-object" data-object-id="artifact-report" style="--object-x: 720px; --object-y: 170px">
+              <button class="artifact-open" type="button" data-open="artifact-report" aria-label="打开竞品定价分析">
+              <span class="artifact-preview report-preview">
+                <i class="preview-kicker">COMPETITIVE INTELLIGENCE</i>
+                <strong>竞品定价<br />变化分析</strong>
+                <span class="preview-chart"><i></i><i></i><i></i><i></i><i></i></span>
+              </span>
+              <span class="object-name">竞品定价分析.html</span>
+              </button>
+              <div class="artifact-meta-row"><span class="object-meta">刚刚更新</span><span aria-hidden="true">·</span><button class="artifact-task-source" type="button" data-open="task-pricing" aria-label="查看来源任务：分析竞品最近的定价变化"><span>来自任务</span><strong>分析竞品最近的定价变化</strong><span data-icon="arrow"></span></button></div>
+              <button class="canvas-card-pin" type="button" data-canvas-pin="artifact-report" aria-label="从桌面取消固定" title="从桌面取消固定"><span data-icon="pin-off"></span></button>
+            </article>
+            <article class="artifact-object doc-artifact canvas-object" data-object-id="artifact-brief" style="--object-x: 990px; --object-y: 170px">
+              <button class="artifact-open" type="button" data-open="artifact-brief" aria-label="打开产品发布 Brief">
+              <span class="artifact-preview doc-preview">
+                <i class="preview-kicker">Syntropic / PRODUCT</i>
+                <strong>Q3 Launch<br />Brief</strong>
+                <span></span><span></span><span></span>
+              </span>
+              <span class="object-name">产品发布 Brief</span>
+              </button>
+              <div class="artifact-meta-row"><span class="object-meta">21 分钟前</span><span aria-hidden="true">·</span><button class="artifact-task-source" type="button" data-open="task-launch" aria-label="查看来源任务：准备 Q3 产品发布材料"><span>来自任务</span><strong>准备 Q3 产品发布材料</strong><span data-icon="arrow"></span></button></div>
+              <button class="canvas-card-pin" type="button" data-canvas-pin="artifact-brief" aria-label="从桌面取消固定" title="从桌面取消固定"><span data-icon="pin-off"></span></button>
+            </article>
+            <article class="artifact-object deck-artifact canvas-object" data-object-id="artifact-deck" style="--object-x: 1260px; --object-y: 170px">
+              <button class="artifact-open" type="button" data-open="artifact-deck" aria-label="打开发布策略演示">
+              <span class="artifact-preview deck-preview">
+                <i class="preview-kicker">GO TO MARKET</i>
+                <strong>ONE TEAM.<br />ONE LAUNCH.</strong>
+                <span class="deck-mark"></span>
+              </span>
+              <span class="object-name">发布策略演示</span>
+              </button>
+              <div class="artifact-meta-row"><span class="object-meta">昨天</span><span aria-hidden="true">·</span><button class="artifact-task-source" type="button" data-open="task-launch" aria-label="查看来源任务：准备 Q3 产品发布材料"><span>来自任务</span><strong>准备 Q3 产品发布材料</strong><span data-icon="arrow"></span></button></div>
+              <button class="canvas-card-pin" type="button" data-canvas-pin="artifact-deck" aria-label="从桌面取消固定" title="从桌面取消固定"><span data-icon="pin-off"></span></button>
+            </article>
+          </div>
+        </section>
+
+        <article class="task-output-object canvas-object" data-object-id="artifact-feedback" data-task-output="feedback-report" style="--object-x: 720px; --object-y: 470px" aria-live="polite" hidden>
+          <section class="task-output-result">
+            <button class="task-output-open" type="button" data-open="artifact-feedback" aria-label="打开用户反馈洞察网页">
+              <span class="feedback-preview">
+                <i class="preview-kicker">VOICE OF CUSTOMER</i>
+                <strong>本周用户<br />反馈洞察</strong>
+                <span class="feedback-topics"><i></i><i></i><i></i><i></i></span>
+              </span>
+              <span class="object-name">用户反馈洞察.html</span>
+            </button>
+            <div class="artifact-meta-row"><span class="object-meta">刚刚生成</span><span aria-hidden="true">·</span><button class="artifact-task-source task-output-source" type="button" aria-label="查看生成此产物的任务"><span>来自任务</span><strong data-output-origin-title>生成用户反馈洞察网页</strong><span data-icon="arrow"></span></button></div>
+            <button class="canvas-card-pin" type="button" data-canvas-pin="artifact-feedback" aria-label="从桌面取消固定" title="从桌面取消固定"><span data-icon="pin-off"></span></button>
+          </section>
+        </article>
+
+        </div>
+      </section>
+
+      <section class="window-layer" id="windowLayer" aria-live="polite"></section>
+
+      <aside class="mobile-preview-hint" id="mobilePreviewHint" aria-label="移动端预览提示">
+        <span class="mobile-preview-mark" aria-hidden="true"><img src="./assets/syntropic-mark.png" alt="" /></span>
+        <span class="mobile-preview-copy"><strong>移动端预览</strong><small>使用电脑访问，体验完整的 Agent OS</small></span>
+        <button type="button" data-mobile-preview-dismiss aria-label="关闭移动端预览提示"><span data-icon="close"></span></button>
+      </aside>
+
+      <section class="ai-surface" id="aiSurface" aria-label="全局 AI">
+        <div class="ai-suggestions" id="aiSuggestions" aria-hidden="true">
+          <header><span>你可能想问</span></header>
+          <button type="button" data-prompt="分析本周用户反馈，出一个总结报告。">分析本周用户反馈，出一个总结报告。</button>
+          <button type="button" data-prompt="继续推进竞品定价分析">继续推进竞品定价分析</button>
+          <button type="button" data-prompt="总结今天所有任务的进展">总结今天所有任务的进展</button>
+        </div>
+        <form class="ai-bar" id="aiForm" aria-expanded="false">
+          <span class="ai-compact-logo solo-symbol ai-symbol" aria-hidden="true"><img src="./assets/syntropic-mark.png" alt="" /></span>
+          <button class="attach-button" type="button" aria-label="添加上下文"><span data-icon="plus"></span></button>
+          <input id="aiInput" autocomplete="off" placeholder="与Syntropic协作" aria-label="与 Syntropic 协作" />
+          <span class="voice-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+          <button class="voice-button" id="voiceButton" type="button" aria-label="开始语音输入" aria-pressed="false"><span data-icon="mic"></span></button>
+          <button class="send-button" type="submit" aria-label="发起新任务" title="发起新任务"><span data-icon="arrow-up"></span></button>
+          <span class="voice-status" id="voiceStatus" aria-live="polite"></span>
+        </form>
+      </section>
+
+      <section class="launchpad" id="launchpad" aria-hidden="true">
+        <header class="launchpad-header">
+          <label class="launchpad-search"><span data-icon="search"></span><input id="launchpadSearch" placeholder="搜索应用" autocomplete="off" /></label>
+          <button class="launchpad-close" type="button" aria-label="关闭启动台"><span data-icon="close"></span></button>
+        </header>
+        <nav class="launchpad-categories" id="launchpadCategories" aria-label="应用分类">
+          <button class="selected" type="button" data-launch-category="全部">全部</button>
+          <button type="button" data-launch-category="产品开发">产品开发</button>
+          <button type="button" data-launch-category="调研设计">调研设计</button>
+          <button type="button" data-launch-category="内容创作">内容创作</button>
+          <button type="button" data-launch-category="效率提升">效率提升</button>
+          <button type="button" data-launch-category="生活服务">生活服务</button>
+        </nav>
+        <div class="launchpad-grid" id="launchpadGrid"></div>
+        <div class="launchpad-pages"><i class="selected"></i><i></i></div>
+      </section>
+
+      <nav class="dock" id="dock" aria-label="应用程序 Dock">
+        <button class="dock-item launchpad-dock" type="button" data-action="launchpad" data-label="启动台"><span data-icon="grid"></span></button>
+        <span class="dock-divider"></span>
+        <button class="dock-item hr-recruiting-dock running" type="button" data-open="hr-recruiting-app" data-label="人才招聘"><span data-icon="recruiting"></span></button>
+        <button class="dock-item" type="button" data-action="all-tasks" data-label="任务"><span data-icon="message"></span><i class="dock-badge">4</i></button>
+        <button class="dock-item" type="button" data-action="schedule" data-label="定时任务"><span data-icon="clock"></span></button>
+        <button class="dock-item" type="button" data-action="browser" data-label="Browser"><span data-icon="globe"></span></button>
+        <button class="dock-item market-dock" type="button" data-action="market" data-label="应用市场"><span data-icon="blocks"></span></button>
+        <span class="dock-divider"></span>
+        <button class="dock-item mini-app brand-app" type="button" data-open="source-lark" data-label="飞书"><img class="dock-brand-icon" src="./assets/feishu-logo.png" alt="" /></button>
+        <button class="dock-item mini-app brand-app" type="button" data-open="source-notion" data-label="Notion"><img class="dock-brand-icon notion-brand-icon" src="./assets/notion-logo.svg" alt="" /></button>
+      </nav>
+
+      <div class="toast" id="toast" role="status"></div>
+    </main>
+    <script src="./app.js?v=20260825-syntropic-v3"></script>
+  </body>
+</html>
