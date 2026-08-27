@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#eef4f7" />
     <link rel="icon" type="image/png" href="./assets/syntropic-mark.png" />
     <title>Syntropic · 招聘工作台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260825-syntropic-v3" />
+    <link rel="stylesheet" href="./styles.css?v=20260828-unified-menu-scale-v1" />
   </head>
   <body>
     <main class="solo-os" id="soloOS">
@@ -80,7 +80,7 @@
           <path class="connection-draft" id="connectionDraft" d="" marker-end="url(#connectionArrowhead)"></path>
         </svg>
         <div class="connection-controls" id="connectionControls" hidden></div>
-        <article class="task-widget desktop-widget canvas-object" data-widget-name="当前任务" data-object-id="task-widget" style="--object-x: 70px; --object-y: 400px">
+        <article class="task-widget desktop-widget canvas-object" data-widget-name="当前任务" data-object-id="task-widget" data-global-widget style="--object-x: 70px; --object-y: 400px">
           <header data-drag-handle>
             <div><span data-icon="message"></span><strong>当前任务</strong><span class="task-header-count"><b data-task-summary-count>4</b> 个进行中</span></div>
             <button type="button" data-action="all-tasks">查看全部</button>
@@ -109,7 +109,7 @@
           </div>
         </article>
 
-        <article class="schedule-widget desktop-widget canvas-object" data-widget-name="今日日程" data-object-id="schedule-widget" style="--object-x: 70px; --object-y: 160px">
+        <article class="schedule-widget desktop-widget canvas-object" data-widget-name="今日日程" data-object-id="schedule-widget" data-global-widget style="--object-x: 70px; --object-y: 160px">
           <header data-drag-handle><span data-icon="calendar"></span><strong>日历</strong><time id="calendarDate">7月25日</time></header>
           <div class="calendar-now"><span><strong id="calendarDay">25</strong><small id="calendarWeekday">周六</small></span><time id="calendarTime">19:55</time></div>
           <div class="calendar-up-next">
@@ -118,8 +118,8 @@
           </div>
         </article>
 
-        <article class="stock-widget desktop-widget canvas-object" data-widget-name="市场关注" data-object-id="stock-widget" style="--object-x: 330px; --object-y: 160px">
-          <header data-drag-handle><span data-icon="chart"></span><strong>NVDA</strong><time>NASDAQ · 实时</time></header>
+        <article class="stock-widget desktop-widget canvas-object" data-widget-name="市场关注" data-object-id="stock-widget" data-global-widget style="--object-x: 330px; --object-y: 160px">
+          <header data-drag-handle><span data-icon="chart"></span><strong>NVDA</strong><time>NASDAQ · 演示行情</time></header>
           <div class="stock-quote"><span><small>NVIDIA</small><strong>173.64</strong></span><span><b>+3.67%</b><small>+6.14 今日</small></span></div>
           <svg class="stock-line-chart" viewBox="0 0 220 72" preserveAspectRatio="none" aria-label="NVDA 今日价格走势"><defs><linearGradient id="stockArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1f9d69" stop-opacity=".26"/><stop offset="1" stop-color="#1f9d69" stop-opacity="0"/></linearGradient></defs><path class="stock-area" d="M0 58 C18 55 24 48 40 50 S64 42 78 44 S99 31 116 36 S140 21 157 27 S182 17 195 20 S211 10 220 13 L220 72 L0 72 Z"/><path class="stock-line" d="M0 58 C18 55 24 48 40 50 S64 42 78 44 S99 31 116 36 S140 21 157 27 S182 17 195 20 S211 10 220 13"/><circle cx="220" cy="13" r="3"/></svg>
           <footer><span>开 <b>168.14</b></span><span>高 <b>174.20</b></span><span>低 <b>167.82</b></span></footer>
@@ -230,18 +230,18 @@
       <nav class="dock" id="dock" aria-label="应用程序 Dock">
         <button class="dock-item launchpad-dock" type="button" data-action="launchpad" data-label="启动台"><span data-icon="grid"></span></button>
         <span class="dock-divider"></span>
-        <button class="dock-item hr-recruiting-dock running" type="button" data-open="hr-recruiting-app" data-label="人才招聘"><span data-icon="recruiting"></span></button>
-        <button class="dock-item" type="button" data-action="all-tasks" data-label="任务"><span data-icon="message"></span><i class="dock-badge">4</i></button>
+        <button class="dock-item" type="button" data-action="all-tasks" data-label="任务"><span data-icon="message"></span><i class="dock-badge" hidden>0</i></button>
         <button class="dock-item" type="button" data-action="schedule" data-label="定时任务"><span data-icon="clock"></span></button>
         <button class="dock-item" type="button" data-action="browser" data-label="Browser"><span data-icon="globe"></span></button>
         <button class="dock-item market-dock" type="button" data-action="market" data-label="应用市场"><span data-icon="blocks"></span></button>
-        <span class="dock-divider"></span>
-        <button class="dock-item mini-app brand-app" type="button" data-open="source-lark" data-label="飞书"><img class="dock-brand-icon" src="./assets/feishu-logo.png" alt="" /></button>
-        <button class="dock-item mini-app brand-app" type="button" data-open="source-notion" data-label="Notion"><img class="dock-brand-icon notion-brand-icon" src="./assets/notion-logo.svg" alt="" /></button>
+        <span class="dock-divider" id="installedAppsDivider" hidden></span>
+        <span class="dock-installed-apps" id="dockInstalledApps"></span>
       </nav>
 
       <div class="toast" id="toast" role="status"></div>
     </main>
-    <script src="./app.js?v=20260825-syntropic-v3"></script>
+    <script src="./app.js?v=20260828-persistent-recruiting-dock-v1"></script>
+    <script src="./onboarding.js?v=20260827-remove-demo-note-v1"></script>
+    <script src="./components.js?v=20260828-component-bugfixes-v1"></script>
   </body>
 </html>

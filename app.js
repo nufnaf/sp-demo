@@ -1,7 +1,42 @@
-// The demo is intentionally ephemeral: a browser refresh always starts the
-// presentation from its original state while leaving unrelated origin data alone.
-for (const key of Object.keys(localStorage)) {
-  if (key.startsWith('solo-') || key.startsWith('relay-')) localStorage.removeItem(key);
+// One codebase, two isolated experiences. Demo state lives in its own
+// namespace and persists across refreshes; debug mode shares plain storage.
+const syntropicModeParam = new URLSearchParams(location.search).get('mode');
+const syntropicMode = syntropicModeParam === 'debug' ? 'debug' : 'demo';
+
+// Namespaced view over localStorage so both modes stay isolated while every
+// change survives reloads. Keys are stored internally as `<prefix><key>`.
+function createNamespacedStorage(prefix) {
+  const base = window.localStorage;
+  return {
+    getItem: (key) => base.getItem(`${prefix}${key}`),
+    setItem: (key, value) => base.setItem(`${prefix}${key}`, String(value)),
+    removeItem: (key) => base.removeItem(`${prefix}${key}`),
+    prefixedKey: (key) => `${prefix}${key}`,
+  };
+}
+
+const demoStoragePrefix = 'syntropic-demo/';
+const localStorage = syntropicMode === 'demo'
+  ? createNamespacedStorage(demoStoragePrefix)
+  : window.localStorage;
+const syntropicStatePrefixes = ['solo-', 'relay-', 'syntropic-'];
+document.documentElement.dataset.syntropicMode = syntropicMode;
+document.body.classList.add(`mode-${syntropicMode}`);
+
+// Capture first-run state before the workspace registry creates its defaults.
+// The onboarding marker is stored in persistent storage regardless of mode, so
+// guidance runs once; "清除用户信息" (Debug console) restores the new-user state.
+const syntropicFirstRun = !window.localStorage.getItem('syntropic-user-onboarded-v1');
+// Hide the desktop behind the onboarding layer until the flow completes, so a
+// first-run refresh never flashes the workspace before the conversation starts.
+if (syntropicFirstRun) document.documentElement.classList.add('first-run-boot');
+
+// Persist demo progress between visits. Schema migrations are explicit so a
+// refresh never unexpectedly destroys a user's workspace or task progress.
+const syntropicStorageVersionKey = 'syntropic-storage-version';
+const syntropicStorageVersion = '1';
+if (localStorage.getItem(syntropicStorageVersionKey) !== syntropicStorageVersion) {
+  localStorage.setItem(syntropicStorageVersionKey, syntropicStorageVersion);
 }
 
 const icons = {
@@ -61,6 +96,8 @@ const icons = {
   widget: '<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M3 10h18M10 10v11"/><path d="M14 6h3M6 14h1M6 17h1"/>',
   pin: '<path d="M9 3h6l-1 5 3 3v2H7v-2l3-3Z"/><path d="M12 13v8"/>',
   'pin-off': '<path d="M9 3h6l-.7 3.5M16.4 10.4l.6.6v2H9.6M12 16v5M4 4l16 16"/>',
+  check: '<path d="m5 12 4 4L19 6"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.4 9.3a2.7 2.7 0 0 1 5.2.9c0 1.8-2.6 2.2-2.6 3.7"/><path d="M12 17h.01"/>',
 };
 
 function icon(name) {
@@ -130,17 +167,303 @@ const taskData = {
   }
 };
 
+const seededTaskIds = new Set(Object.keys(taskData));
+const visibleGeneralTaskIdsKey = 'syntropic-visible-task-ids-v1';
+let visibleGeneralTaskIds;
+try {
+  const storedVisibleTaskIds = JSON.parse(localStorage.getItem(visibleGeneralTaskIdsKey) || 'null');
+  visibleGeneralTaskIds = new Set(Array.isArray(storedVisibleTaskIds)
+    ? storedVisibleTaskIds.filter((id) => taskData[id])
+    : syntropicMode === 'debug' ? [...seededTaskIds] : []);
+} catch {
+  visibleGeneralTaskIds = new Set(syntropicMode === 'debug' ? [...seededTaskIds] : []);
+}
+
+function saveVisibleGeneralTasks() {
+  localStorage.setItem(visibleGeneralTaskIdsKey, JSON.stringify([...visibleGeneralTaskIds]));
+}
+
+function visibleGeneralTaskEntries() {
+  return Object.entries(taskData).filter(([id]) => visibleGeneralTaskIds.has(id));
+}
+
 const plugins = [
-  { id: 'lark', name: '飞书', maker: 'ByteDance', color: '#2c6bed', letter: 'L', desc: '搜索并使用文档、会议、任务和多维表格。' },
-  { id: 'notion', name: 'Notion', maker: 'Notion Labs', color: '#eeeeeb', letter: 'N', dark: true, desc: '让 Syntropic 访问团队知识库与项目文档。' },
-  { id: 'slack', name: 'Slack', maker: 'Salesforce', color: '#4a154b', letter: 'S', desc: '搜索频道、总结讨论并发送协作消息。' },
-  { id: 'github', name: 'GitHub', maker: 'GitHub', color: '#30343b', letter: 'G', desc: '读取仓库、Issue、Pull Request 与代码变更。' },
-  { id: 'drive', name: 'Google Drive', maker: 'Google', color: '#3d8b68', letter: 'D', desc: '连接云端文件、表格和团队共享空间。' },
-  { id: 'linear', name: 'Linear', maker: 'Linear', color: '#5b5ce2', letter: 'L', desc: '管理产品问题、项目进度和团队路线图。' },
-  { id: 'figma', name: 'Figma', maker: 'Figma', color: '#e75b42', letter: 'F', desc: '读取设计稿、评论和组件上下文。' },
-  { id: 'salesforce', name: 'Salesforce', maker: 'Salesforce', color: '#1796d2', letter: 'S', desc: '查询客户、商机和销售活动数据。' },
-  { id: 'calendar', name: 'Google Calendar', maker: 'Google', color: '#4b75df', letter: '31', desc: '查看日程、安排会议和分析时间分配。' }
+  { id: 'lark', name: '飞书', maker: 'ByteDance', color: '#2c6bed', letter: 'L', logo: './assets/feishu-logo.png', desc: '搜索并使用文档、会议、任务和多维表格。' },
+  { id: 'notion', name: 'Notion', maker: 'Notion Labs', color: '#eeeeeb', letter: 'N', logo: './assets/notion-logo.svg', dark: true, desc: '让 Syntropic 访问团队知识库与项目文档。' },
+  { id: 'moka', name: 'Moka', maker: 'Moka', color: '#6657d9', letter: 'M', logo: './assets/apps/moka.png', desc: '连接候选人、职位、招聘阶段和人才库。' },
+  { id: 'beisen', name: '北森', maker: 'Beisen', color: '#1684e8', letter: '北', logo: './assets/apps/beisen.ico', desc: '连接招聘流程、人才库和面试评价。' },
+  { id: 'dingtalk', name: '钉钉', maker: 'Alibaba', color: '#1688ff', letter: '钉', logo: './assets/apps/dingtalk.png', desc: '连接项目协作、审批和工作通知。' },
+  { id: 'wecom', name: '企业微信', maker: 'Tencent', color: '#2aab5f', letter: '企', logo: './assets/apps/wecom.png', desc: '连接客户群、用户反馈和团队沟通。' },
+  { id: 'slack', name: 'Slack', maker: 'Salesforce', color: '#4a154b', letter: 'S', logo: './assets/apps/slack.png', desc: '搜索频道、总结讨论并发送协作消息。' },
+  { id: 'github', name: 'GitHub', maker: 'GitHub', color: '#30343b', letter: 'G', logo: './assets/apps/github.svg', desc: '读取仓库、Issue、Pull Request 与代码变更。' },
+  { id: 'drive', name: 'Google Drive', maker: 'Google', color: '#3d8b68', letter: 'D', logo: './assets/apps/google-drive.png', desc: '连接云端文件、表格和团队共享空间。' },
+  { id: 'linear', name: 'Linear', maker: 'Linear', color: '#5b5ce2', letter: 'L', logo: './assets/apps/linear.png', desc: '管理产品问题、项目进度和团队路线图。' },
+  { id: 'figma', name: 'Figma', maker: 'Figma', color: '#e75b42', letter: 'F', logo: './assets/apps/figma.png', desc: '读取设计稿、评论和组件上下文。' },
+  { id: 'salesforce', name: 'Salesforce', maker: 'Salesforce', color: '#1796d2', letter: 'S', logo: './assets/apps/salesforce.svg', desc: '查询客户、商机和销售活动数据。' },
+  { id: 'calendar', name: 'Google Calendar', maker: 'Google', color: '#4b75df', letter: '31', logo: './assets/apps/google-calendar.svg', desc: '查看日程、安排会议和分析时间分配。' }
 ];
+
+const installedAppsKey = 'syntropic-installed-apps-v1';
+
+function loadInstalledAppIds() {
+  const stored = localStorage.getItem(installedAppsKey);
+  if (stored !== null) {
+    try { return new Set(JSON.parse(stored).filter((id) => plugins.some((plugin) => plugin.id === id))); } catch { return new Set(); }
+  }
+  try {
+    const profile = JSON.parse(localStorage.getItem('syntropic-user-profile-v1') || 'null');
+    return new Set((profile?.sources || []).filter((id) => plugins.some((plugin) => plugin.id === id)));
+  } catch { return new Set(); }
+}
+
+const installedAppIds = loadInstalledAppIds();
+
+// The dock's right section shows the components that belong to the current
+// workspace (its dynamic items), not globally installed data-source apps.
+const workspaceComponentLabels = {
+  'hr-goal': '招聘目标', 'hr-agent-status': 'Agent 状态', 'hr-schedule': '今日日程', 'hr-pipeline': '候选人管道',
+  'hr-insight-card': '洞察卡片', 'hr-insights': '招聘洞察', 'hr-activity': '最新动态', 'hr-artifact': '产出物', 'hr-files': '文件库',
+  'product-goal': '需求目标', 'product-progress': '项目进展', 'product-risks': '风险跟踪', 'product-activity': '产品动态',
+  text: '文本', 'hero-text': '标语', 'section-label': '分组标题', image: '图片', file: '文件',
+  'document-preview': '文档预览', zone: '分组', note: '便签',
+};
+
+const workspaceComponentIcons = {
+  'hr-goal': 'chart', 'product-goal': 'chart', 'product-progress': 'chart',
+  'hr-schedule': 'calendar', 'hr-pipeline': 'user', 'hr-insights': 'spark', 'hr-insight-card': 'spark',
+  'hr-activity': 'message', 'product-activity': 'message', 'product-risks': 'doc',
+  'hr-artifact': 'doc', 'hr-files': 'folder', text: 'text', 'hero-text': 'text',
+  'section-label': 'pin', image: 'image', file: 'doc', 'document-preview': 'doc', zone: 'grid', note: 'edit',
+};
+
+function workspaceComponentIcon(item) {
+  const icon = workspaceComponentIcons[item.type] || 'blocks';
+  return `<span class="workspace-component-icon" data-icon="${icon}"></span>`;
+}
+
+function renderDockWorkspaceComponents() {
+  const container = document.querySelector('#dockInstalledApps');
+  const divider = document.querySelector('#installedAppsDivider');
+  if (!container || !divider) return;
+  const canvas = getCurrentCanvas();
+  const items = (canvas?.dynamicItems || []).filter((item) => !['app', 'arrow'].includes(item.type));
+  const minimized = new Set(canvas?.minimizedItems || []);
+  const recruitingWindow = canvas?.id === 'hr-recruiting' ? findWorkspaceWindow('hr-recruiting-app', canvas.id) : null;
+  const recruitingVisible = Boolean(recruitingWindow?.classList.contains('open'));
+  // 人才招聘 is a persistent workspace component, so its Dock icon follows
+  // the same contract as every card: always present, with a minimized state.
+  const appEntryMarkup = canvas?.id === 'hr-recruiting'
+    ? `<button class="dock-item mini-app workspace-component workspace-window-entry${recruitingVisible ? '' : ' minimized'}" type="button" data-dock-app="hr-recruiting-app" data-label="人才招聘${recruitingVisible ? '' : '（已最小化）'}" aria-label="${recruitingVisible ? '人才招聘' : '恢复人才招聘窗口'}"><span class="workspace-component-icon" data-icon="recruiting"></span></button>`
+    : '';
+  divider.hidden = !items.length && !appEntryMarkup;
+  container.innerHTML = appEntryMarkup + items.map((item) => {
+    const label = item.title || workspaceComponentLabels[item.type] || '组件';
+    const state = minimized.has(item.id) ? ' minimized' : '';
+    return `<button class="dock-item mini-app workspace-component${state}" type="button" data-workspace-component="${workspaceNameHTML(item.id)}" data-label="${workspaceNameHTML(label)}${minimized.has(item.id) ? '（已最小化）' : ''}" aria-label="${workspaceNameHTML(label)}">${workspaceComponentIcon(item)}</button>`;
+  }).join('');
+  hydrateIcons(container);
+}
+
+// Every dynamic component gets a unified header: info on the left, minimize
+// and a three-dot "more" menu on the right. innerHTML refreshes re-run this.
+function attachMinimizeControl(object) {
+  const itemId = object.dataset.objectId;
+  const header = object.querySelector(':scope > header');
+  const menuButton = object.querySelector('[data-component-menu]');
+  const menuPopover = object.querySelector('[data-component-menu-popover]');
+  const removeButton = object.querySelector('.dynamic-remove');
+  object.querySelector(':scope > .component-header-actions')?.remove();
+
+  const minimizeButton = document.createElement('button');
+  minimizeButton.type = 'button';
+  minimizeButton.className = 'dynamic-minimize';
+  minimizeButton.title = '最小化组件';
+  minimizeButton.setAttribute('aria-label', '最小化组件');
+  minimizeButton.innerHTML = '<span data-icon="minimize"></span>';
+  minimizeButton.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    minimizeCanvasObject(itemId);
+  });
+
+  // Generated cards use the same action host and popover geometry as every
+  // template component. Their data attributes stay intact for CRUD dispatch.
+  if (menuButton) {
+    const actions = document.createElement('span');
+    actions.className = 'component-header-actions';
+    menuButton.classList.add('component-menu-toggle');
+    menuPopover?.classList.add('component-action-menu');
+    actions.append(minimizeButton, menuButton);
+    if (menuPopover) actions.appendChild(menuPopover);
+    header?.appendChild(actions);
+    hydrateIcons(actions);
+    return;
+  }
+  // Bare text-like objects keep the compact control next to their remove button.
+  if (!header) {
+    if (removeButton) removeButton.insertAdjacentElement('beforebegin', minimizeButton);
+    else object.appendChild(minimizeButton);
+    hydrateIcons(minimizeButton);
+    return;
+  }
+  const actions = document.createElement('span');
+  actions.className = 'component-header-actions';
+  actions.appendChild(minimizeButton);
+  const moreButton = document.createElement('button');
+  moreButton.type = 'button';
+  moreButton.className = 'component-more-toggle component-menu-toggle';
+  moreButton.title = '更多操作';
+  moreButton.setAttribute('aria-label', '更多操作');
+  moreButton.innerHTML = '<span data-icon="more"></span>';
+  const menu = document.createElement('div');
+  menu.className = 'component-header-menu component-action-menu';
+  // Managed (template/system) capabilities live here now — the old hover menu
+  // dispatch in components.js handles these data-managed-action buttons.
+  menu.innerHTML = `
+    <button type="button" data-managed-action="inspect" data-managed-id="${itemId}"><span data-icon="search"></span>查看与编辑</button>
+    <button type="button" data-managed-action="ai" data-managed-id="${itemId}"><span data-icon="spark"></span>用 Syntropic 修改</button>
+    <button type="button" data-managed-action="duplicate" data-managed-id="${itemId}"><span data-icon="plus"></span>复制为新组件</button>
+    <button type="button" data-header-action="minimize"><span data-icon="minimize"></span>最小化</button>
+    <button type="button" data-header-action="remove"><span data-icon="close"></span>从桌面移除</button>`;
+  actions.appendChild(moreButton);
+  actions.appendChild(menu);
+  header.appendChild(actions);
+  hydrateIcons(actions);
+}
+
+document.querySelector('#dockInstalledApps')?.addEventListener('click', (event) => {
+  const appButton = event.target.closest('[data-dock-app]');
+  if (appButton) {
+    if (appButton.dataset.dockApp === 'hr-recruiting-app') {
+      const recruitingWindow = findWorkspaceWindow('hr-recruiting-app');
+      if (recruitingWindow?.classList.contains('open')) hideWorkspaceWindow(recruitingWindow, { minimized:true });
+      else openHRRecruitingApp();
+    }
+    return;
+  }
+  const button = event.target.closest('[data-workspace-component]');
+  if (!button) return;
+  const itemId = button.dataset.workspaceComponent;
+  // Dock icons toggle the component: minimized -> restore, visible -> minimize.
+  if (button.classList.contains('minimized')) restoreWorkspaceComponent(itemId);
+  else minimizeCanvasObject(itemId);
+});
+
+function minimizeCanvasObject(itemId) {
+  const canvas = getCurrentCanvas();
+  if (canvas) {
+    canvas.minimizedItems ||= [];
+    if (!canvas.minimizedItems.includes(itemId)) canvas.minimizedItems.push(itemId);
+    saveCanvasRegistry();
+  }
+  const object = canvasObjects.find((entry) => entry.dataset.objectId === itemId);
+  if (object) {
+    canvasObjects = canvasObjects.filter((entry) => entry !== object);
+    object.classList.add('leaving');
+    setTimeout(() => object.remove(), 180);
+  }
+  renderDockWorkspaceComponents();
+  showToast('组件已最小化，在 Dock 点击图标可恢复');
+}
+
+function restoreWorkspaceComponent(itemId) {
+  const canvas = getCurrentCanvas();
+  if (!canvas) return;
+  canvas.minimizedItems = (canvas.minimizedItems || []).filter((id) => id !== itemId);
+  saveCanvasRegistry();
+  const item = (canvas.dynamicItems || []).find((entry) => entry.id === itemId);
+  if (item && !canvasObjects.some((entry) => entry.dataset.objectId === itemId)) {
+    addDynamicCanvasItem({ ...item, ...(canvas.layout?.[itemId] || {}) }, { persist: false });
+  }
+  renderDockWorkspaceComponents();
+  focusWorkspaceComponent(itemId);
+}
+
+function focusWorkspaceComponent(itemId) {
+  const canvas = getCurrentCanvas();
+  const item = canvas?.dynamicItems?.find((entry) => entry.id === itemId);
+  if (!item) return;
+  const position = canvas.layout?.[itemId] || item;
+  const scale = canvasView.scale || 1;
+  canvasView.x = Math.round(desktopViewportSize().width / 2 - (Number(position.x) + 160) * scale);
+  canvasView.y = Math.round(desktopViewportSize().height / 2 - (Number(position.y) + 90) * scale);
+  applyCanvasView();
+  const node = document.querySelector(`.dynamic-canvas-object[data-object-id="${itemId}"]`);
+  if (node) {
+    node.classList.add('dock-focus');
+    setTimeout(() => node.classList.remove('dock-focus'), 1500);
+  }
+}
+
+// Three-dot menus on component headers: toggle, action dispatch, outside close.
+// While a menu is open its host object is raised so sibling components can no
+// longer paint over the popover (every canvas object is its own stacking context).
+function closeComponentHeaderMenu(menu) {
+  menu.classList.remove('open');
+  menu.setAttribute('aria-hidden', 'true');
+  menu.closest('.canvas-object')?.classList.remove('menu-open');
+}
+
+document.addEventListener('click', (event) => {
+  const toggle = event.target.closest('.component-more-toggle');
+  const openMenus = document.querySelectorAll('.component-action-menu.open');
+  if (toggle) {
+    const own = toggle.parentElement.querySelector('.component-action-menu');
+    openMenus.forEach((menu) => { if (menu !== own) closeComponentHeaderMenu(menu); });
+    if (own) {
+      const opening = !own.classList.contains('open');
+      own.classList.toggle('open');
+      own.setAttribute('aria-hidden', String(!opening));
+      own.closest('.canvas-object')?.classList.toggle('menu-open', opening);
+    }
+    return;
+  }
+  const windowAction = event.target.closest('.window-header-menu [data-window-menu-action]');
+  if (windowAction) {
+    const win = windowAction.closest('.os-window');
+    closeComponentHeaderMenu(windowAction.closest('.component-header-menu'));
+    if (!win) return;
+    if (windowAction.dataset.windowMenuAction === 'close') {
+      win.remove();
+      syncWorkspaceWindows();
+      renderDockWorkspaceComponents();
+      showToast('窗口已关闭');
+    } else {
+      hideWorkspaceWindow(win, { minimized:true });
+    }
+    return;
+  }
+  const action = event.target.closest('.component-header-menu [data-header-action]');
+  if (action) {
+    const object = action.closest('.dynamic-canvas-object');
+    closeComponentHeaderMenu(action.closest('.component-header-menu'));
+    if (!object) return;
+    if (action.dataset.headerAction === 'minimize') minimizeCanvasObject(object.dataset.objectId);
+    if (action.dataset.headerAction === 'remove') removeDynamicCanvasItem(object.dataset.objectId, '组件已从桌面移除');
+    return;
+  }
+  openMenus.forEach(closeComponentHeaderMenu);
+});
+
+function setAppInstalled(id, installed, { silent = false } = {}) {
+  const plugin = plugins.find((item) => item.id === id);
+  if (!plugin) return false;
+  if (installed) installedAppIds.add(id); else installedAppIds.delete(id);
+  localStorage.setItem(installedAppsKey, JSON.stringify([...installedAppIds]));
+  if (!silent) showToast(installed ? `${plugin.name}已安装` : `${plugin.name}已卸载`);
+  return true;
+}
+
+function installAppsFromOnboarding(ids = []) {
+  ids.filter((id) => plugins.some((plugin) => plugin.id === id)).forEach((id) => installedAppIds.add(id));
+  localStorage.setItem(installedAppsKey, JSON.stringify([...installedAppIds]));
+}
+
+window.SyntropicApps = {
+  installFromOnboarding: installAppsFromOnboarding,
+  isInstalled: (id) => installedAppIds.has(id),
+  setInstalled: setAppInstalled,
+};
 
 const launchpadApps = [
   { name: '代码审查', icon: 'code', color: 'linear-gradient(145deg,#4e63dd,#3546a8)', category: '产品开发', action: 'placeholder' },
@@ -178,14 +501,16 @@ const windowLayer = document.querySelector('#windowLayer');
 let topZ = 80;
 let windowOffset = 0;
 
-function shell(id, title, titleIcon, body, className = '', size = {}) {
+function shell(id, title, titleIcon, body, className = '', size = {}, options = {}) {
   const workspaceId = currentCanvasId || 'default';
   const existing = findWorkspaceWindow(id, workspaceId);
   if (existing) {
     existing.classList.add('open');
     existing.classList.remove('workspace-hidden');
+    existing.dataset.minimized = 'false';
     existing.setAttribute('aria-hidden', 'false');
     front(existing);
+    renderDockWorkspaceComponents();
     return existing;
   }
   const win = document.createElement('article');
@@ -197,18 +522,33 @@ function shell(id, title, titleIcon, body, className = '', size = {}) {
   win.style.setProperty('--w', size.w || '980px');
   win.style.setProperty('--h', size.h || '680px');
   windowOffset += 1;
+  const headerControls = options.headerControls ? `
+      <div class="window-header-actions">
+        <button type="button" class="dynamic-minimize" data-window-action="minimize" title="最小化" aria-label="最小化窗口"><span data-icon="minimize"></span></button>
+        <button type="button" class="component-more-toggle component-menu-toggle" title="更多操作" aria-label="更多操作"><span data-icon="more"></span></button>
+        <div class="component-header-menu component-action-menu window-header-menu" aria-hidden="true">
+          <button type="button" data-window-menu-action="minimize"><span data-icon="minimize"></span>最小化窗口</button>
+          <button type="button" data-window-menu-action="close"><span data-icon="close"></span>关闭窗口</button>
+        </div>
+      </div>` : '';
   win.innerHTML = `
     <header class="window-bar">
       <div class="traffic"><button type="button" data-window-action="close" aria-label="关闭"></button><button type="button" data-window-action="minimize" aria-label="最小化"></button><button type="button" data-window-action="expand" aria-label="全屏"></button></div>
       <div class="window-title"><span data-icon="${titleIcon}"></span>${title}</div>
-      <div class="window-spacer"></div>
+      <div class="window-spacer">${headerControls}</div>
     </header>
     <div class="window-body">${body}</div>`;
   windowLayer.appendChild(win);
   syncWorkspaceWindows();
   hydrateIcons(win);
   bindWindow(win);
-  requestAnimationFrame(() => { win.classList.add('open'); win.setAttribute('aria-hidden', 'false'); front(win); });
+  requestAnimationFrame(() => {
+    win.classList.add('open');
+    win.dataset.minimized = 'false';
+    win.setAttribute('aria-hidden', 'false');
+    front(win);
+    renderDockWorkspaceComponents();
+  });
   return win;
 }
 
@@ -237,11 +577,18 @@ function front(win) {
   win.style.zIndex = String(++topZ);
 }
 
+function hideWorkspaceWindow(win, { minimized = false } = {}) {
+  if (!win) return;
+  win.classList.remove('open', 'front');
+  win.dataset.minimized = String(minimized);
+  win.setAttribute('aria-hidden', 'true');
+  renderDockWorkspaceComponents();
+}
+
 function bindWindow(win) {
   win.addEventListener('pointerdown', () => front(win));
-  const hideWindow = () => { win.classList.remove('open'); win.setAttribute('aria-hidden', 'true'); };
-  win.querySelector('[data-window-action="close"]').addEventListener('click', hideWindow);
-  win.querySelector('[data-window-action="minimize"]').addEventListener('click', hideWindow);
+  win.querySelectorAll('[data-window-action="close"]').forEach((button) => button.addEventListener('click', () => hideWorkspaceWindow(win)));
+  win.querySelectorAll('[data-window-action="minimize"]').forEach((button) => button.addEventListener('click', () => hideWorkspaceWindow(win, { minimized:true })));
   const toggleExpanded = () => {
     const expanded = win.classList.toggle('expanded');
     if (expanded) {
@@ -347,32 +694,106 @@ function bindWindow(win) {
 }
 
 function taskListMarkup(activeId) {
-  return Object.entries(taskData).map(([id, task]) => `
+  return visibleGeneralTaskEntries().map(([id, task]) => `
     <button class="task-list-item${id === activeId ? ' selected' : ''}" type="button" data-task-select="${id}">
       <i class="agent-face">${task.letter}</i><span><strong>${task.title}</strong><small>${task.agent}</small></span>
     </button>`).join('');
 }
 
-function taskConversationMarkup(task) {
+function generalTaskRecommendations() {
+  const ids = currentCanvasId === 'product-release'
+    ? ['task-release-check', 'task-roadmap', 'task-launch']
+    : ['task-pricing', 'task-weekly', 'task-release-check'];
+  return ids.map((id) => [id, taskData[id]]).filter(([, task]) => task);
+}
+
+function generalTaskEmptyMarkup() {
+  const recommendations = generalTaskRecommendations();
+  return `<main class="task-recommendation-panel">
+    <span class="task-recommendation-mark"><i data-icon="spark"></i></span>
+    <small>SYNTROPIC 推荐</small><h2>还没有任务，从一个目标开始</h2>
+    <p>我会根据当前工作台、已连接的数据源和你的角色推荐适合持续推进的任务。</p>
+    <section>${recommendations.map(([id, task]) => `<article><span data-icon="${id === 'task-weekly' ? 'clock' : id === 'task-roadmap' ? 'chart' : 'spark'}"></span><div><strong>${task.title}</strong><small>${task.description}</small></div><button type="button" data-task-recommend="${id}">开始任务</button></article>`).join('')}</section>
+  </main>`;
+}
+
+function taskConversationMarkup(task, taskId) {
   return `<section class="task-conversation-panel">
-    <header class="conversation-head"><span><strong>${task.title}</strong><small>${task.agent}</small></span><span>自动保存 · 可随时接管</span></header>
-    <div class="message-stream task-message-stream">
+    <header class="conversation-head"><span><strong>${task.title}</strong><small>${task.agent}</small></span><div class="task-head-actions"><span>自动保存 · 可随时接管</span><button type="button" data-task-create-component="${taskId}"><span data-icon="blocks"></span>生成组件</button></div></header>
+    <div class="message-stream task-message-stream" data-task-message-stream>
       <div class="message user">${task.user}</div>
       <div class="message agent"><i class="agent-face">${task.letter}</i><div><p>${task.reply}</p><div class="tool-call"><header><span data-icon="browser"></span><strong>${task.tool}</strong><time>刚刚</time></header><p>${task.detail}</p></div></div></div>
       <div class="message agent"><i class="agent-face">${task.letter}</i><div><p>任务会持续在后台推进。需要判断或确认时，我会把它带回桌面。</p></div></div>
     </div>
-    <div class="typing-row"><div class="typing-box"><span>给 Agent 发送消息，或输入 / 调用应用...</span><button type="button" data-task-send aria-label="发送消息"><span data-icon="arrow-up"></span></button></div></div>
+    <div class="typing-row"><div class="typing-box"><input data-task-input autocomplete="off" placeholder="继续任务，或让它生成桌面组件…" aria-label="继续当前任务" /><button type="button" data-task-send aria-label="发送消息"><span data-icon="arrow-up"></span></button></div></div>
   </section>`;
 }
 
 function renderTaskPanel(win, id) {
-  const task = taskData[id] || taskData['task-pricing'];
-  const activeId = taskData[id] ? id : 'task-pricing';
+  const entries = visibleGeneralTaskEntries();
+  const activeId = visibleGeneralTaskIds.has(id) ? id : entries[0]?.[0] || '';
+  const task = activeId ? taskData[activeId] : null;
   win.dataset.activeTask = activeId;
   win.querySelector('.task-center-body').innerHTML = `
-    <aside class="task-list-panel"><header><span data-icon="message"></span><strong>任务</strong><small>${Object.keys(taskData).length}</small></header><nav>${taskListMarkup(activeId)}</nav></aside>
-    ${taskConversationMarkup(task)}`;
+    <aside class="task-list-panel"><header><span data-icon="message"></span><strong>任务</strong><small>${entries.length}</small></header><nav>${taskListMarkup(activeId)}${entries.length ? '' : '<span class="task-list-empty">暂无任务</span>'}</nav></aside>
+    ${task ? taskConversationMarkup(task, activeId) : generalTaskEmptyMarkup()}`;
   hydrateIcons(win);
+}
+
+function startRecommendedGeneralTask(win, id) {
+  const task = taskData[id];
+  if (!task) return;
+  visibleGeneralTaskIds.add(id);
+  if (syntropicMode === 'demo') {
+    task.state = 'running';
+    task.stateText = '执行中';
+    task.reply = '任务已经创建。我正在读取当前工作台和已授权的数据源，并制定第一轮执行计划。';
+    task.tool = '正在同步任务上下文';
+    task.detail = '完成上下文整理后，我会持续更新进度并在需要确认时通知你。';
+  }
+  saveVisibleGeneralTasks();
+  updateTaskExperienceCounts();
+  renderTaskPanel(win, id);
+  showToast(`“${task.title}”已开始`);
+}
+
+function taskRequestsComponent(message) {
+  return /(生成|创建|做一张|做一个|放到|固定到).*(组件|卡片|看板|桌面)|(?:组件|卡片).*(生成|创建|放到|固定到)/.test(message);
+}
+
+function createTaskComponent(win, taskId, task, instruction = '', variant = 'default') {
+  const result = window.SyntropicComponents?.createFromTask?.(taskId, task, instruction);
+  if (!result) { showToast('组件能力正在加载，请稍后再试'); return false; }
+  const stream = win.querySelector(variant === 'hr' ? '[data-hr-message-stream]' : '[data-task-message-stream]');
+  if (!stream) return true;
+  const reply = document.createElement('div');
+  if (variant === 'hr') {
+    reply.className = 'hr-codex-message agent entering';
+    reply.innerHTML = `<i class="hr-agent-avatar">S</i><div><p>${result.updated ? '已根据这段任务对话更新外部组件。' : '已根据这段任务对话生成外部组件，并放到当前工作台。'}</p><section class="hr-codex-tool-card task-component-result"><header><span><i data-icon="blocks"></i><strong>${workspaceNameHTML(result.title)}</strong></span><em>${result.updated ? 'UPDATED' : 'CREATED'}</em></header><footer><span>来源：当前任务对话</span><button type="button" data-task-component-view="${result.id}">回到桌面查看 <i data-icon="arrow"></i></button></footer></section></div>`;
+  } else {
+    reply.className = 'message agent entering task-component-message';
+    reply.innerHTML = `<i class="agent-face">S</i><div><p>${result.updated ? '已根据当前对话更新桌面组件。' : '已生成外部组件，并放到当前工作台。'}</p><div class="tool-call task-component-result"><header><span data-icon="blocks"></span><strong>${workspaceNameHTML(result.title)}</strong><time>${result.updated ? '已更新' : '已生成'}</time></header><p>保留了任务、Agent、上下文和本次生成指令。</p><button type="button" data-task-component-view="${result.id}">回到桌面查看 <span data-icon="arrow"></span></button></div></div>`;
+  }
+  stream.append(reply); hydrateIcons(reply); stream.scrollTop = stream.scrollHeight;
+  return true;
+}
+
+function sendTaskMessage(win) {
+  const input = win.querySelector('[data-task-input]');
+  const stream = win.querySelector('[data-task-message-stream]');
+  const taskId = win.dataset.activeTask;
+  const task = taskData[taskId];
+  const message = input?.value.trim();
+  if (!message || !stream || !task) return;
+  const userMessage = document.createElement('div');
+  userMessage.className = 'message user entering'; userMessage.textContent = message;
+  stream.append(userMessage); input.value = ''; stream.scrollTop = stream.scrollHeight;
+  if (taskRequestsComponent(message)) { createTaskComponent(win, taskId, task, message); return; }
+  const reply = document.createElement('div');
+  reply.className = 'message agent entering';
+  reply.innerHTML = '<i class="agent-face">S</i><div><p>收到。我会把这条要求加入当前任务；你也可以直接让我把当前结果生成成桌面组件。</p></div>';
+  stream.append(reply); stream.scrollTop = stream.scrollHeight;
+  showToast('消息已发送给 Agent');
 }
 
 function openTask(id) {
@@ -382,8 +803,21 @@ function openTask(id) {
   win.dataset.taskCenterBound = 'true';
   win.addEventListener('click', (event) => {
     const taskButton = event.target.closest('[data-task-select]');
-    if (taskButton) renderTaskPanel(win, taskButton.dataset.taskSelect);
-    if (event.target.closest('[data-task-send]')) showToast('消息已发送给 Agent');
+    if (taskButton) { renderTaskPanel(win, taskButton.dataset.taskSelect); return; }
+    const recommendation = event.target.closest('[data-task-recommend]');
+    if (recommendation) { startRecommendedGeneralTask(win, recommendation.dataset.taskRecommend); return; }
+    const createButton = event.target.closest('[data-task-create-component]');
+    if (createButton) { createTaskComponent(win, createButton.dataset.taskCreateComponent, taskData[createButton.dataset.taskCreateComponent]); return; }
+    const viewButton = event.target.closest('[data-task-component-view]');
+    if (viewButton) {
+      win.querySelector('[data-window-action="close"]')?.click();
+      setTimeout(() => window.SyntropicComponents?.focusById?.(viewButton.dataset.taskComponentView), 180);
+      return;
+    }
+    if (event.target.closest('[data-task-send]')) sendTaskMessage(win);
+  });
+  win.addEventListener('keydown', (event) => {
+    if (event.target.matches('[data-task-input]') && event.key === 'Enter') { event.preventDefault(); sendTaskMessage(win); }
   });
 }
 
@@ -421,9 +855,9 @@ function feedbackArtifactMarkup() {
   return `<div class="artifact-window-body feedback-artifact-body">
     <main class="artifact-page feedback-artifact-page"><article>
       <span class="eyebrow">Syntropic · CONNECTED WORKFLOW INTELLIGENCE</span>
-      <h2>把真实办公数据变成下一步行动</h2>
+      <h2>把跨系统办公数据变成下一步行动</h2>
       <p class="lede">Syntropic 在授权范围内连接飞书会议、客服工单、客户群与产品数据，自动完成归集、去重、主题聚类和证据回溯，把分散的工作上下文整理成团队可以直接执行的洞察。</p>
-      <section class="workflow-source-strip" aria-label="已连接办公数据">
+      <section class="workflow-source-strip" aria-label="演示办公数据">
         <span><i data-icon="message"></i><b>飞书妙记</b><small>18 场访谈</small></span>
         <span><i data-icon="file"></i><b>客服工单</b><small>64 条记录</small></span>
         <span><i data-icon="message"></i><b>客户群</b><small>31 条反馈</small></span>
@@ -436,7 +870,7 @@ function feedbackArtifactMarkup() {
       </section>
       <section class="interactive-insight" data-feedback-insight>
         <header>
-          <span><b>客户反馈洞察</b><small>切换视角，探索真实工作数据</small></span>
+          <span><b>客户反馈洞察</b><small>切换视角，探索模拟工作数据</small></span>
           <span class="insight-view-switcher" role="group" aria-label="图表视角">
             <button class="selected" type="button" data-insight-view="theme" aria-pressed="true">主题</button>
             <button type="button" data-insight-view="source" aria-pressed="false">来源</button>
@@ -520,7 +954,14 @@ function openArtifact(id) {
 }
 
 function pluginCard(plugin) {
-  return `<button class="plugin-card" type="button" data-plugin="${plugin.id}"><header><span class="plugin-icon" style="--plugin-color:${plugin.color};${plugin.dark ? 'color:#111' : ''}">${plugin.letter}</span><span><h3>${plugin.name}</h3><small>${plugin.maker}</small></span></header><p>${plugin.desc}</p></button>`;
+  return `<button class="plugin-card" type="button" data-plugin="${plugin.id}"><header>${pluginLogoMarkup(plugin)}<span><h3>${plugin.name}</h3><small>${plugin.maker}</small></span></header><p>${plugin.desc}</p></button>`;
+}
+
+function pluginLogoMarkup(plugin, className = 'plugin-icon') {
+  if (!plugin.logo) {
+    return `<span class="${className}" style="--plugin-color:${plugin.color};${plugin.dark ? 'color:#111' : ''}">${plugin.letter}</span>`;
+  }
+  return `<span class="${className} app-logo-frame logo-${plugin.id}"><img src="${plugin.logo}" alt="" /></span>`;
 }
 
 function marketBody() {
@@ -528,7 +969,7 @@ function marketBody() {
     <aside class="market-sidebar"><strong>应用市场</strong><button class="selected"><span data-icon="blocks"></span>发现</button><button><span data-icon="database"></span>数据源</button><button><span data-icon="plug"></span>办公应用</button><button><span data-icon="browser"></span>Agent 工具</button><hr/><button><span data-icon="folder"></span>已安装</button></aside>
     <main class="market-content">
       <section class="market-home"><header class="market-top"><h2>扩展 Syntropic</h2><label class="market-search"><span data-icon="search"></span><input placeholder="搜索应用与数据源" /></label></header><p class="market-intro">连接团队正在使用的工具，让 Agent 在授权范围内理解上下文并完成工作。</p>
-        <article class="featured-plugin" data-plugin="lark"><span class="plugin-icon" style="--plugin-color:#2c6bed">L</span><h3>让工作上下文自然流入 Syntropic</h3><p>连接飞书文档、会议、任务与多维表格。Agent 可以搜索、引用和更新内容，并保留每一次操作记录。</p><button type="button">查看飞书插件</button></article>
+        <article class="featured-plugin" data-plugin="lark">${pluginLogoMarkup(plugins.find((item) => item.id === 'lark'))}<h3>让工作上下文自然流入 Syntropic</h3><p>连接飞书文档、会议、任务与多维表格。Agent 可以搜索、引用和更新内容，并保留每一次操作记录。</p><button type="button">查看飞书插件</button></article>
         <header class="market-section-title"><strong>团队常用</strong><span>查看全部</span></header><div class="plugin-grid">${plugins.map(pluginCard).join('')}</div>
       </section>
       <section class="plugin-detail"></section>
@@ -542,17 +983,18 @@ function renderPluginDetail(win, pluginId) {
   const detail = win.querySelector('.plugin-detail');
   detail.innerHTML = `
     <button class="detail-back" type="button"><span data-icon="chevron"></span>返回应用市场</button>
-    <header class="plugin-hero"><span class="plugin-icon" style="--plugin-color:${plugin.color};${plugin.dark ? 'color:#111' : ''}">${plugin.letter}</span><div><h2>${plugin.name}</h2><p>${plugin.maker} · 已验证的 Syntropic 插件</p></div><button class="install-button" type="button">${plugin.id === 'lark' || plugin.id === 'notion' ? '已连接' : '连接'}</button></header>
+    <header class="plugin-hero">${pluginLogoMarkup(plugin)}<div><h2>${plugin.name}</h2><p>${plugin.maker} · 演示插件</p></div><button class="install-button${installedAppIds.has(plugin.id) ? ' installed' : ''}" type="button">${installedAppIds.has(plugin.id) ? '已安装' : '安装'}</button></header>
     <nav class="detail-tabs"><button class="selected">概览</button><button>权限与数据</button><button>更新记录</button></nav>
-    <div class="detail-layout"><section class="plugin-screenshot"><header class="source-header"><span class="plugin-icon" style="--plugin-color:${plugin.color};${plugin.dark ? 'color:#111' : ''}">${plugin.letter}</span>${plugin.name} 工作空间</header><div class="source-demo"><div><strong>产品知识库</strong><span>128 个页面<br/>2 分钟前同步</span></div><div><strong>本周项目</strong><span>24 个任务<br/>实时同步</span></div><div><strong>团队动态</strong><span>8 个频道<br/>刚刚更新</span></div></div></section><aside class="detail-copy"><h3>在 Syntropic 中使用 ${plugin.name}</h3><p>${plugin.desc} 连接后，你可以在全局 AI 中直接引用这些上下文，也可以让任务 Agent 在后台调用。</p><div class="permission-list"><strong>权限始终由你控制</strong><p>只访问你选择的空间</p><p>所有写入操作可审计</p><p>随时暂停或断开连接</p></div></aside></div>`;
+    <div class="detail-layout"><section class="plugin-screenshot"><header class="source-header">${pluginLogoMarkup(plugin)}${plugin.name} 工作空间</header><div class="source-demo"><div><strong>产品知识库</strong><span>128 个页面<br/>2 分钟前同步</span></div><div><strong>本周项目</strong><span>24 个任务<br/>实时同步</span></div><div><strong>团队动态</strong><span>8 个频道<br/>刚刚更新</span></div></div></section><aside class="detail-copy"><h3>在 Syntropic 中使用 ${plugin.name}</h3><p>${plugin.desc} 连接后，你可以在全局 AI 中直接引用这些上下文，也可以让任务 Agent 在后台调用。</p><div class="permission-list"><strong>权限始终由你控制</strong><p>只访问你选择的空间</p><p>所有写入操作可审计</p><p>随时暂停或断开连接</p></div></aside></div>`;
   hydrateIcons(detail);
   content.classList.add('detail-mode');
   detail.querySelector('.detail-back').addEventListener('click', () => content.classList.remove('detail-mode'));
   const install = detail.querySelector('.install-button');
-  if (install.textContent === '已连接') install.classList.add('installed');
   install.addEventListener('click', () => {
-    install.textContent = install.classList.toggle('installed') ? '已连接' : '连接';
-    showToast(install.classList.contains('installed') ? `${plugin.name} 已连接到 Syntropic` : `${plugin.name} 已断开`);
+    const installed = !installedAppIds.has(plugin.id);
+    setAppInstalled(plugin.id, installed);
+    install.classList.toggle('installed', installed);
+    install.textContent = installed ? '已安装' : '安装';
   });
 }
 
@@ -689,9 +1131,7 @@ function openSource(id) {
   }
   const plugin = plugins.find((item) => item.id === source) || plugins[0];
   const rows = ['产品发布工作台', 'Q3 产品发布 Brief', '竞品分析资料库', '客户反馈汇总', '本周项目进展'];
-  const accountLogo = plugin.id === 'notion'
-    ? '<span class="app-brand-logo notion"><img src="./assets/notion-logo.svg" alt="" /></span>'
-    : `<span class="plugin-icon" style="--plugin-color:${plugin.color};${plugin.dark ? 'color:#111' : ''}">${plugin.letter}</span>`;
+  const accountLogo = pluginLogoMarkup(plugin, 'app-brand-logo source-brand-logo');
   const body = `<div class="source-window-body"><aside class="source-panel"><div class="source-account">${accountLogo}<span><strong>${plugin.name}</strong><span>已连接 · 实时同步</span></span></div><nav class="source-nav"><button class="selected"><span data-icon="folder"></span>最近使用</button><button><span data-icon="search"></span>搜索</button><button><span data-icon="database"></span>所有数据</button><button><span data-icon="settings"></span>连接设置</button></nav></aside><main class="source-content"><h2>${plugin.name}</h2><p>浏览并打开已授权的应用内容。</p><div class="data-list">${rows.map((row, index) => `<div class="data-row"><span data-icon="${index % 2 ? 'doc' : 'folder'}"></span><span><strong>${row}</strong><small>${index % 2 ? '文档' : '空间'}</small></span><time>${index + 2} 分钟前</time></div>`).join('')}</div></main></div>`;
   shell(id, plugin.name, 'database', body, 'source-window', { w: '860px', h: '590px' });
 }
@@ -743,6 +1183,12 @@ function showDesktop() {
   closeLaunchpad();
   windowLayer.querySelectorAll('.os-window.open').forEach((win) => {
     if (win.dataset.workspaceId === currentCanvasId) {
+      // 人才招聘 is the recruiting workspace's primary desktop card, not a
+      // transient app window. Returning from a task-generated component should
+      // close the task conversation without removing this workspace surface.
+      const isWorkspaceSurface = currentCanvasId === 'hr-recruiting'
+        && win.dataset.window === 'hr-recruiting-app';
+      if (isWorkspaceSurface) return;
       win.classList.remove('open');
       win.setAttribute('aria-hidden', 'true');
     }
@@ -822,8 +1268,7 @@ document.addEventListener('click', (event) => {
   if (action === 'settings') openSettings();
   if (action === 'all-tasks') {
     if (currentCanvasId === 'hr-recruiting') openHRTasks(defaultHRTaskId());
-    else if (currentCanvasId === 'product-release') openProductRequirement('billing');
-    else openTask('task-pricing');
+    else openTask(currentCanvasId === 'product-release' ? 'task-completed' : 'task-pricing');
   }
   if (action === 'all-files') openArtifact('artifact-report');
   if (action === 'notifications') setNotificationCenter(!notificationCenter.classList.contains('open'));
@@ -842,9 +1287,11 @@ function openItem(id) {
 const hrDemoStateKey = 'solo-hr-demo-state-v2';
 let hrDemoState = localStorage.getItem(hrDemoStateKey) || 'insight';
 const hrCreatedTasksKey = 'relay-hr-created-task-ids-v1';
-const initialHRCreatedTasks = hrDemoState === 'insight'
-  ? ['hr-task-monitor']
-  : ['hr-task-review', 'hr-task-followup', 'hr-task-interview', 'hr-task-monitor'];
+const initialHRCreatedTasks = syntropicMode === 'demo'
+  ? []
+  : hrDemoState === 'insight'
+    ? ['hr-task-monitor']
+    : ['hr-task-review', 'hr-task-followup', 'hr-task-interview', 'hr-task-monitor'];
 let hrCreatedTaskIds;
 try {
   const storedTaskIds = JSON.parse(localStorage.getItem(hrCreatedTasksKey) || 'null');
@@ -1230,6 +1677,7 @@ function createHRTask(taskId, { preserveInsight = false } = {}) {
   hrCreatedTaskIds.add(taskId);
   if (!hrTaskCreatedAt.has(taskId)) hrTaskCreatedAt.set(taskId, Date.now());
   saveHRCreatedTasks();
+  updateTaskExperienceCounts();
   refreshHRCanvasObjects();
   refreshOpenHRWindows({ preserveInsight });
   return created;
@@ -1239,30 +1687,52 @@ function hrTaskSortTime(taskId, task) {
   return task.createdAt || hrTaskCreatedAt.get(taskId) || 0;
 }
 
+function visibleHRTaskEntries() {
+  return Object.entries(getHRTaskDefinitions()).filter(([id]) => hrCreatedTaskIds.has(id));
+}
+
 function defaultHRTaskId() {
   const tasks = getHRTaskDefinitions();
-  const createdIds = Object.keys(tasks)
-    .filter((id) => hrCreatedTaskIds.has(id))
+  const createdIds = visibleHRTaskEntries()
+    .map(([id]) => id)
     .sort((a, b) => hrTaskSortTime(b, tasks[b]) - hrTaskSortTime(a, tasks[a]));
   return createdIds.find((id) => tasks[id].tone === 'running') || createdIds[0] || Object.keys(tasks)[0];
 }
 
 function hrTaskCenterMarkup(activeId = 'hr-task-review') {
   const hrTaskDefinitions = getHRTaskDefinitions();
-  const tasks = Object.entries(hrTaskDefinitions)
-    .filter(([id]) => hrCreatedTaskIds.has(id))
+  const tasks = visibleHRTaskEntries()
     .sort(([idA, a], [idB, b]) => hrTaskSortTime(idB, b) - hrTaskSortTime(idA, a));
+  if (!tasks.length) {
+    const recommendations = ['hr-task-monitor', 'hr-task-review', 'hr-task-interview']
+      .map((id) => [id, hrTaskDefinitions[id]])
+      .filter(([, task]) => task);
+    return `<div class="hr-codex-task-center empty">
+      <aside class="hr-codex-thread-panel">
+        <button class="hr-codex-new-task" type="button" data-hr-focus-input><i data-icon="plus"></i>新建任务</button>
+        <div class="hr-codex-thread-label"><span>任务列表</span><small>0 项任务</small></div>
+        <nav class="hr-codex-thread-list"><span class="hr-task-list-empty">任务会在创建后显示在这里</span></nav>
+      </aside>
+      <main class="hr-task-recommendation-panel">
+        <span class="task-recommendation-mark"><i data-icon="spark"></i></span>
+        <small>结合招聘目标推荐</small><h2>从第一个招聘任务开始</h2>
+        <p>目前还没有执行中的任务。Syntropic 可以根据刚刚导入的招聘数据持续推进这些目标。</p>
+        <section>${recommendations.map(([id, task]) => `<article><span data-icon="${task.icon}"></span><div><strong>${task.title}</strong><small>${task.goal}</small></div><button type="button" data-hr-task-recommend="${id}">开始任务</button></article>`).join('')}</section>
+        <em>你也可以点击“新建任务”，直接描述需要完成的工作。</em>
+      </main>
+    </div>`;
+  }
   if (!hrCreatedTaskIds.has(activeId)) activeId = defaultHRTaskId();
   const task = hrTaskDefinitions[activeId] || hrTaskDefinitions['hr-task-review'];
   const sourceChips = hrRecruitingReality.sources.map((source) => `<span><i data-icon="${source.icon}"></i><span><strong>${source.name}</strong><small>${source.updated}</small></span></span>`).join('');
   return `<div class="hr-codex-task-center">
     <aside class="hr-codex-thread-panel">
       <button class="hr-codex-new-task" type="button" data-hr-focus-input><i data-icon="plus"></i>新建任务</button>
-      <div class="hr-codex-thread-label"><span>任务列表</span><small>${tasks.filter(([,item]) => item.tone === 'running').length} 项运行中</small></div>
+      <div class="hr-codex-thread-label"><span>任务列表</span><small>${tasks.length} 项任务</small></div>
       <nav class="hr-codex-thread-list">${tasks.map(([id,item]) => `<button class="${id === activeId ? 'selected' : ''}" type="button" data-hr-task-select="${id}"><strong>${item.title}</strong>${item.tone === 'running' ? '<span class="hr-thread-running" role="status" aria-label="正在运行"><i></i></span>' : `<span class="hr-thread-state ${item.tone}">${item.tone === 'done' ? '已完成' : '待开始'}</span>`}</button>`).join('')}</nav>
     </aside>
     <main class="hr-codex-conversation">
-      <header><strong>${task.title}</strong><small>Agent 工程师招聘 · ${task.state}</small></header>
+      <header><strong>${task.title}</strong><small>Agent 工程师招聘 · ${task.state}</small><button type="button" data-hr-task-create-component="${activeId}"><i data-icon="blocks"></i>生成组件</button></header>
       <div class="hr-codex-message-stream" data-hr-message-stream>
         <div class="hr-codex-message agent"><i class="hr-agent-avatar">S</i><div><p>${task.why}</p><section class="hr-codex-tool-card hr-task-context-card"><header><span><i data-icon="database"></i><strong>招聘上下文已同步</strong></span><em>LIVE</em></header><div class="hr-task-source-chips">${sourceChips}</div></section><section class="hr-task-activity-card"><header><strong>活动记录</strong><small>今天 · 自动更新</small></header>${task.events.map(([time,title,detail,tone]) => `<article class="${tone}"><time>${time}</time><i></i><span><strong>${title}</strong><small>${detail}</small></span>${tone === 'running' ? '<b class="hr-task-event-spinner" role="status" aria-label="正在运行"></b>' : tone === 'review' ? '<em>需要确认</em>' : tone === 'pending' ? '<em>待开始</em>' : '<em>完成</em>'}</article>`).join('')}</section></div></div>
         <div class="hr-codex-message agent"><i class="hr-agent-avatar">S</i><div><p>${task.next}。涉及候选人邀请或日历变更时，我会在执行前带回给你确认。</p></div></div>
@@ -1296,6 +1766,20 @@ function sendHRTaskMessage(win) {
   stream.append(userMessage);
   input.value = '';
   stream.scrollTop = stream.scrollHeight;
+  if (taskRequestsComponent(message)) {
+    const taskId = win.dataset.activeHrTask;
+    const task = getHRTaskDefinitions()[taskId];
+    if (task) createTaskComponent(win, taskId, {
+      ...task,
+      stateText:task.state,
+      description:task.goal || task.why,
+      context:task.goal || 'Agent 工程师招聘',
+      agent:'Syntropic Recruiter',
+      tool:task.events?.at(-1)?.[1],
+      detail:task.events?.at(-1)?.[2],
+    }, message, 'hr');
+    return;
+  }
   const reply = document.createElement('div');
   reply.className = 'hr-codex-message agent entering';
   reply.innerHTML = '<i class="hr-agent-avatar">S</i><div><p>收到。我会把这条要求加入当前任务，并继续使用已有上下文推进；如果需要新的权限或对外动作，我会先向你确认。</p></div>';
@@ -1326,6 +1810,13 @@ function openHRTasks(activeId = 'hr-task-review') {
       renderHRTaskCenter(win, taskButton.dataset.hrTaskSelect);
       return;
     }
+    const recommendation = event.target.closest('[data-hr-task-recommend]');
+    if (recommendation) {
+      createHRTask(recommendation.dataset.hrTaskRecommend);
+      renderHRTaskCenter(win, recommendation.dataset.hrTaskRecommend);
+      showToast('推荐任务已开始');
+      return;
+    }
     if (event.target.closest('[data-hr-task-toggle-list]')) {
       const center = win.querySelector('.hr-codex-task-center');
       center?.classList.toggle('thread-panel-hidden');
@@ -1334,6 +1825,26 @@ function openHRTasks(activeId = 'hr-task-review') {
       const toggle = win.querySelector('[data-hr-task-toggle-list]');
       toggle?.setAttribute('aria-expanded', String(!listHidden));
       toggle?.setAttribute('aria-label', listHidden ? '显示任务列表' : '隐藏任务列表');
+      return;
+    }
+    const createButton = event.target.closest('[data-hr-task-create-component]');
+    if (createButton) {
+      const task = getHRTaskDefinitions()[createButton.dataset.hrTaskCreateComponent];
+      if (task) createTaskComponent(win, createButton.dataset.hrTaskCreateComponent, {
+        ...task,
+        stateText:task.state,
+        description:task.goal || task.why,
+        context:task.goal || 'Agent 工程师招聘',
+        agent:'Syntropic Recruiter',
+        tool:task.events?.at(-1)?.[1],
+        detail:task.events?.at(-1)?.[2],
+      }, '', 'hr');
+      return;
+    }
+    const viewButton = event.target.closest('[data-task-component-view]');
+    if (viewButton) {
+      win.querySelector('[data-window-action="close"]')?.click();
+      setTimeout(() => window.SyntropicComponents?.focusById?.(viewButton.dataset.taskComponentView), 180);
       return;
     }
     if (event.target.closest('[data-hr-task-send]')) sendHRTaskMessage(win);
@@ -1537,6 +2048,19 @@ aiForm.addEventListener('pointerdown', (event) => {
   if (!aiSurface.classList.contains('expanded') && event.target.closest('.voice-button')) return;
   setAIComposerExpanded(true);
 });
+// Hover previews the full composer. Focus is reserved for an explicit click so
+// a pointer-only preview can collapse naturally when the user moves away.
+aiSurface.addEventListener('mouseenter', () => {
+  setAIComposerExpanded(true);
+});
+aiSurface.addEventListener('mouseleave', () => {
+  const activelyEditing = document.activeElement === aiInput;
+  const hasDraft = Boolean(aiInput.value.trim());
+  const isListening = voiceButton.classList.contains('listening');
+  if (activelyEditing || hasDraft || isListening) return;
+  suggestions(false);
+  setAIComposerExpanded(false);
+});
 aiInput.addEventListener('focus', () => {
   setAIComposerExpanded(true);
   suggestions(!aiInput.value);
@@ -1590,6 +2114,8 @@ function addSubmittedTask(prompt) {
     reply: '任务已接收。我正在理解当前工作台中的任务、文档与产物，并整理接下来的执行步骤。',
     tool: '正在分析当前工作台上下文', detail: '任务已进入执行队列，进展会持续更新到桌面任务组件。'
   };
+  visibleGeneralTaskIds.add(id);
+  saveVisibleGeneralTasks();
 
   if (isHRTask) {
     hrUserTaskDefinitions[id] = {
@@ -1601,6 +2127,7 @@ function addSubmittedTask(prompt) {
     };
     hrCreatedTaskIds.add(id);
     saveHRCreatedTasks();
+    updateTaskExperienceCounts();
     refreshHRCanvasObjects();
     return { id, row: null, isHRTask: true };
   }
@@ -1630,11 +2157,22 @@ function addSubmittedTask(prompt) {
 }
 
 function updateTaskWidgetCount() {
-  const visibleRows = [...document.querySelectorAll('.task-widget-row')].filter((row) => !row.hidden);
+  updateTaskExperienceCounts();
+}
+
+function updateTaskExperienceCounts() {
+  document.querySelectorAll('.task-widget-row').forEach((row) => {
+    if (!row.dataset.open?.startsWith('task-')) return;
+    row.hidden = syntropicMode === 'demo' && !visibleGeneralTaskIds.has(row.dataset.open);
+  });
+  const count = currentCanvasId === 'hr-recruiting' ? visibleHRTaskEntries().length : visibleGeneralTaskEntries().length;
   const countLabel = document.querySelector('[data-task-summary-count]');
   const dockBadge = document.querySelector('[data-action="all-tasks"] .dock-badge');
-  if (countLabel) countLabel.textContent = String(visibleRows.length);
-  if (dockBadge) dockBadge.textContent = String(visibleRows.length);
+  if (countLabel) countLabel.textContent = String(count);
+  if (dockBadge) {
+    dockBadge.textContent = String(count);
+    dockBadge.hidden = count === 0;
+  }
 }
 
 const taskOutputObject = document.querySelector('[data-task-output="feedback-report"]');
@@ -1652,7 +2190,7 @@ function startFeedbackOutputTask(task) {
   taskOutputObject.hidden = true;
   taskOutputObject.classList.remove('revealing');
   const taskRecord = taskData[task.id];
-  taskRecord.description = '连接真实办公数据，完成归集、分析并生成可执行的 HTML 客户洞察。';
+  taskRecord.description = '连接演示办公数据，完成归集、分析并生成可执行的 HTML 客户洞察。';
   taskRecord.context = '飞书妙记、客服工单、客户群与产品数据';
   taskRecord.reply = '我正在授权范围内读取飞书会议、客服工单、客户群和产品数据，完成去重、主题聚类与证据关联。HTML 洞察完成后会直接回到当前工作台。';
   taskRecord.tool = '正在生成用户反馈洞察.html';
@@ -1771,6 +2309,16 @@ aiForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const prompt = aiInput.value.trim();
   if (!prompt) { aiInput.focus(); suggestions(true); return; }
+  if (window.SyntropicComponents?.handlePrompt(prompt)) {
+    aiInput.value = '';
+    stopVoiceDemo();
+    suggestions(false);
+    aiForm.classList.add('task-sent');
+    setTimeout(() => aiForm.classList.remove('task-sent'), 620);
+    aiInput.blur();
+    setAIComposerExpanded(false);
+    return;
+  }
   aiInput.value = '';
   stopVoiceDemo();
   suggestions(false);
@@ -1956,7 +2504,9 @@ function defaultCanvasView() {
   const scale = desktopScale();
   return {
     x: Math.max(0, Math.round((viewport.width - desktopCanvasSize.width * scale) / 2)),
-    y: Math.max(0, Math.round((viewport.height - desktopCanvasSize.height * scale) / 2)),
+    // Top-align the world (small margin) instead of centering, so the canvas
+    // top edge sits at the top of the screen and components reach y: 0.
+    y: Math.max(0, Math.min(Math.round((viewport.height - desktopCanvasSize.height * scale) / 2), 24)),
     scale,
   };
 }
@@ -1981,7 +2531,7 @@ function hrTemplateItems() {
   ];
 }
 
-function initialCanvasRegistry() {
+function workspaceCanvasTemplates() {
   const legacyLayout = readStored(legacyLayoutKey, {});
   const legacyView = readStored(legacyViewKey, defaultCanvasView());
   const legacyItems = readStored(legacyDynamicItemsKey, []);
@@ -2010,6 +2560,11 @@ function initialCanvasRegistry() {
       ], connections: [{ id: 'focus-connection', from: 'focus-note', to: 'focus-outcome' }],
     },
   ];
+}
+
+function initialCanvasRegistry() {
+  const templates = workspaceCanvasTemplates();
+  return syntropicMode === 'demo' ? [templates[0]] : templates;
 }
 
 function saveCanvasRegistry() {
@@ -2088,6 +2643,8 @@ function initializeCanvasRegistry() {
     view: canvas.view || defaultCanvasView(),
     hiddenObjects: Array.isArray(canvas.hiddenObjects) ? canvas.hiddenObjects : [],
     hiddenDynamicItems: Array.isArray(canvas.hiddenDynamicItems) ? canvas.hiddenDynamicItems : [],
+    minimizedItems: Array.isArray(canvas.minimizedItems) ? canvas.minimizedItems : [],
+    componentOverrides: canvas.componentOverrides && typeof canvas.componentOverrides === 'object' ? canvas.componentOverrides : {},
     widgetIds:Array.isArray(canvas.widgetIds) ? canvas.widgetIds.filter((id) => widgetCatalog[id]) : canvas.showBase ? [...enabledGlobalWidgets] : [],
     dynamicItems: Array.isArray(canvas.dynamicItems) ? canvas.dynamicItems
       .filter((item) => item.type !== 'app' && item.type !== 'arrow')
@@ -2201,19 +2758,110 @@ function setWorkspacePopover(open) {
   workspaceSwitcher.setAttribute('aria-expanded', String(open));
 }
 
+function workspaceNameHTML(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[character]);
+}
+
+function workspacePreviewMarkup(canvas) {
+  const hidden = new Set(canvas.hiddenDynamicItems || []);
+  const items = (canvas.dynamicItems || []).filter((item) => !hidden.has(item.id));
+  const widgets = (canvas.widgetIds || []).map((id) => ({
+    id,
+    type: `widget-${id.replace('-widget', '')}`,
+    ...(canvas.layout?.[id] || defaultWidgetPosition(canvas, id) || { x: 40, y: 520 }),
+  }));
+  // The 人才招聘 app lives in the window layer, not in dynamicItems, so the
+  // thumbnail adds a stand-in block using the live window's position when available.
+  const appEntry = (() => {
+    if (canvas.id !== 'hr-recruiting') return null;
+    const appWindow = findWorkspaceWindow('hr-recruiting-app', canvas.id);
+    const x = appWindow ? (parseFloat(appWindow.style.getPropertyValue('--x')) || 560) : 560;
+    const y = appWindow ? (parseFloat(appWindow.style.getPropertyValue('--y')) || 130) : 130;
+    return { id: 'hr-recruiting-app', type: 'hr-app', x, y };
+  })();
+  const previewItems = [ ...(appEntry ? [appEntry] : []), ...items, ...widgets].slice(0, 10);
+  if (!previewItems.length) return '<span class="workspace-thumbnail-empty"><i></i><i></i><i></i><em>空白工作台</em></span>';
+
+  const typeKind = (type = '') => {
+    if (type.startsWith('hr-') || type.startsWith('product-') || type.startsWith('widget-')) return type;
+    if (['text', 'hero-text', 'section-label', 'image', 'file', 'document-preview', 'ai-card', 'zone'].includes(type)) return type;
+    return 'generic';
+  };
+  const itemSize = (kind) => {
+    const sizes = {
+      'hr-goal':[25,19], 'hr-schedule':[25,25], 'hr-activity':[23,24], 'hr-insights':[23,27],
+      'hr-app':[40,46],
+      'product-goal':[22,18], 'product-progress':[49,52], 'product-risks':[22,25], 'product-activity':[22,24],
+      'widget-task':[34,28], 'widget-schedule':[18,25], 'widget-stock':[19,25],
+      text:[24,24], 'hero-text':[34,15], 'section-label':[22,9], image:[27,29], file:[22,14],
+      'document-preview':[25,28], 'ai-card':[28,25], zone:[34,30], generic:[22,18],
+    };
+    return sizes[kind] || sizes.generic;
+  };
+  return `<span class="workspace-thumbnail-stage" aria-hidden="true">${previewItems.map((item) => {
+    const kind = typeKind(item.type);
+    const position = canvas.layout?.[item.id] || item;
+    const [width, height] = itemSize(kind);
+    const left = Math.max(2, Math.min(96 - width, ((Number(position.x) || 0) / desktopCanvasSize.width) * 100));
+    const top = Math.max(3, Math.min(94 - height, ((Number(position.y) || 0) / desktopCanvasSize.height) * 100));
+    const image = kind === 'image' && item.src
+      ? `<img src="${workspaceNameHTML(item.src)}" alt="" />`
+      : '<i></i><i></i><i></i>';
+    return `<b class="workspace-thumb-item thumb-${kind}" style="--thumb-x:${left.toFixed(2)}%;--thumb-y:${top.toFixed(2)}%;--thumb-w:${width}%;--thumb-h:${height}%">${image}</b>`;
+  }).join('')}</span>`;
+}
+
 function renderWorkspaceList() {
   const current = getCurrentCanvas();
   workspaceName.textContent = current?.name || '工作台';
   workspaceCount.textContent = `${canvases.length} 个工作台`;
-  workspaceList.innerHTML = canvases.map((canvas) => `
+  workspaceList.innerHTML = canvases.map((canvas) => {
+    const safeName = workspaceNameHTML(canvas.name);
+    return `
     <article class="workspace-card${canvas.id === currentCanvasId ? ' selected' : ''}" data-canvas-id="${canvas.id}" style="--space-accent:${canvas.accent}">
-      <button class="workspace-delete" type="button" data-workspace-delete="${canvas.id}" aria-label="删除${canvas.name}" title="删除工作台"><span data-icon="close"></span></button>
-      <button class="workspace-preview" type="button" data-workspace-select="${canvas.id}" aria-label="切换到${canvas.name}">
-        <i class="workspace-mini-object one"></i><i class="workspace-mini-object two"></i><i class="workspace-mini-object three"></i>
+      <button class="workspace-delete" type="button" data-workspace-delete="${canvas.id}" aria-label="删除${safeName}" title="删除工作台"><span data-icon="close"></span></button>
+      <button class="workspace-preview" type="button" data-workspace-select="${canvas.id}" aria-label="切换到${safeName}">
+        ${workspacePreviewMarkup(canvas)}
       </button>
-      <div class="workspace-card-footer"><span>${canvas.name}</span></div>
-    </article>`).join('');
+      <div class="workspace-card-footer"><span title="${safeName}">${safeName}</span><button type="button" data-workspace-rename="${canvas.id}" aria-label="重命名${safeName}" title="重命名工作台"><span data-icon="edit"></span></button></div>
+    </article>`;
+  }).join('');
   hydrateIcons(workspaceList);
+}
+
+function beginWorkspaceRename(id) {
+  const canvas = canvases.find((item) => item.id === id);
+  const card = workspaceList.querySelector(`[data-canvas-id="${id}"]`);
+  const footer = card?.querySelector('.workspace-card-footer');
+  if (!canvas || !footer) return;
+  footer.classList.add('editing');
+  footer.innerHTML = '<input type="text" maxlength="24" aria-label="工作台名称" />';
+  const input = footer.querySelector('input');
+  input.value = canvas.name;
+  input.focus();
+  input.select();
+
+  let finished = false;
+  const finish = (save) => {
+    if (finished) return;
+    finished = true;
+    const nextName = input.value.trim().replace(/\s+/g, ' ').slice(0, 24);
+    if (save && nextName) {
+      canvas.name = nextName;
+      saveCanvasRegistry();
+      showToast(`工作台已重命名为“${nextName}”`);
+    } else if (save && !nextName) {
+      showToast('工作台名称不能为空');
+    }
+    renderWorkspaceList();
+  };
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') { event.preventDefault(); finish(true); }
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); finish(false); }
+  });
+  input.addEventListener('blur', () => finish(true));
 }
 
 function captureCurrentCanvasState() {
@@ -2232,6 +2880,10 @@ function applyCanvasView(animate = false) {
   if (desktopMode) canvasView = defaultCanvasView();
   canvasWorld.style.transition = animate ? 'transform 420ms var(--ease)' : 'none';
   canvasWorld.style.transform = `translate3d(${canvasView.x}px, ${canvasView.y}px, 0) scale(${canvasView.scale})`;
+  // Canvas components inherit this scale from the world. Window-layer menus
+  // consume the shared root value so both coordinate systems render alike.
+  canvasWorld.style.setProperty('--canvas-scale', String(canvasView.scale || 1));
+  document.documentElement.style.setProperty('--workspace-ui-scale', String(canvasView.scale || 1));
   if (zoomLabel) zoomLabel.textContent = `${Math.round(canvasView.scale * 100)}%`;
   if (animate) setTimeout(() => { canvasWorld.style.transition = 'none'; }, 450);
 }
@@ -2365,6 +3017,7 @@ function removeDynamicCanvasItem(itemId, message = '对象已从桌面移除') {
   saveConnections();
   saveLayout();
   renderConnections();
+  renderDockWorkspaceComponents();
   updateDocumentPinButtons();
   showToast(message);
   return true;
@@ -2821,15 +3474,7 @@ function renderHRRecruitingApp(win) {
 }
 
 function ensureHRRecruitingChrome(win) {
-  if (!win.querySelector('[data-hr-recruiting-toggle-sidebar]')) {
-    const sidebarButton = document.createElement('button');
-    sidebarButton.type = 'button';
-    sidebarButton.className = 'hr-window-sidebar-toggle hr-recruiting-sidebar-toggle';
-    sidebarButton.dataset.hrRecruitingToggleSidebar = '';
-    sidebarButton.setAttribute('aria-label', '隐藏岗位列表');
-    sidebarButton.innerHTML = '<span data-icon="sidebar"></span>';
-    win.querySelector('.traffic')?.after(sidebarButton);
-  }
+  win.querySelector('[data-hr-recruiting-toggle-sidebar]')?.remove();
   hydrateIcons(win.querySelector('.window-bar'));
 }
 
@@ -2859,7 +3504,7 @@ function openHRRecruitingApp() {
     h:`${height}px`,
     x:`${x}px`,
     y:`${y}px`,
-  });
+  }, { headerControls: true });
   win.style.setProperty('--x', `${x}px`);
   win.style.setProperty('--y', `${y}px`);
   win.style.setProperty('--w', `${width}px`);
@@ -2872,13 +3517,6 @@ function openHRRecruitingApp() {
   if (win.dataset.hrRecruitingBound) return;
   win.dataset.hrRecruitingBound = 'true';
   win.addEventListener('click', (event) => {
-    if (event.target.closest('[data-hr-recruiting-toggle-sidebar]')) {
-      win.dataset.hrRecruitingSidebar = win.dataset.hrRecruitingSidebar === 'hidden' ? 'visible' : 'hidden';
-      const hidden = win.dataset.hrRecruitingSidebar === 'hidden';
-      win.querySelector('[data-hr-recruiting-toggle-sidebar]')?.setAttribute('aria-label', hidden ? '显示岗位列表' : '隐藏岗位列表');
-      renderHRRecruitingApp(win);
-      return;
-    }
     const stageButton = event.target.closest('[data-hr-stage]');
     if (stageButton) {
       hrActiveRecruitingStage = stageButton.dataset.hrStage;
@@ -3006,7 +3644,10 @@ function refreshProductProgress() {
   if (currentCanvasId !== 'product-release') return;
   const item = dynamicItems.find((entry) => entry.type === 'product-progress');
   const object = canvasObjects.find((entry) => entry.dataset.objectId === item?.id);
-  if (item && object) renderProductCanvasObject(object, item);
+  if (item && object) {
+    renderProductCanvasObject(object, item);
+    attachMinimizeControl(object);
+  }
 }
 
 function openProductRequirement(id) {
@@ -3056,6 +3697,7 @@ function refreshHRCanvasObjects() {
     const object = canvasObjects.find((entry) => entry.dataset.objectId === item.id);
     if (!object) return;
     renderHRCanvasObject(object, item);
+    attachMinimizeControl(object);
     object.classList.remove('hr-state-changed');
     requestAnimationFrame(() => object.classList.add('hr-state-changed'));
   });
@@ -3129,6 +3771,7 @@ function publishProactiveInsight() {
 
 function scheduleProactiveInsight() {
   clearTimeout(proactiveInsightTimer);
+  if (syntropicMode === 'demo') return;
   proactiveInsightTimer = setTimeout(publishProactiveInsight, 10000);
 }
 
@@ -3142,8 +3785,9 @@ function resetHRDemo() {
     delete hrUserTaskDefinitions[id];
     delete taskData[id];
   });
-  hrCreatedTaskIds = new Set(['hr-task-monitor']);
+  hrCreatedTaskIds = new Set(syntropicMode === 'demo' ? [] : ['hr-task-monitor']);
   saveHRCreatedTasks();
+  updateTaskExperienceCounts();
   setHRDemoState('insight');
   notificationButton.classList.remove('has-alert');
   setNotificationCenter(false);
@@ -3153,6 +3797,32 @@ function resetHRDemo() {
   if (currentCanvasId === 'hr-recruiting') requestAnimationFrame(openHRRecruitingApp);
   scheduleProactiveInsight();
   showToast('招聘演示已重置');
+}
+
+function renderComposableCard(object, item) {
+  const safe = workspaceNameHTML;
+  const metrics = Array.isArray(item.metrics) ? item.metrics : [];
+  const rows = Array.isArray(item.items) ? item.items : [];
+  const sources = Array.isArray(item.sources) ? item.sources : [];
+  object.dataset.uiKind = item.createdBy === 'system' ? 'system-widget' : 'generated-widget';
+  object.dataset.componentId = item.id;
+  object.style.setProperty('--component-accent', item.accent || '#2d8060');
+  object.innerHTML = `
+    <header class="composable-card-header" data-drag-handle>
+      <span class="composable-card-icon" data-icon="${item.icon || 'spark'}"></span>
+      <span><small>${safe(item.eyebrow || (item.createdBy === 'system' ? '系统组件' : 'Syntropic 生成'))}</small><strong data-component-title>${safe(item.title || '未命名组件')}</strong></span>
+      <button type="button" data-component-menu="${item.id}" aria-label="${safe(item.title || '组件')}菜单"><span data-icon="more"></span></button>
+    </header>
+    ${item.summary ? `<p class="composable-card-summary" data-component-summary>${safe(item.summary)}</p>` : ''}
+    ${metrics.length ? `<section class="composable-card-metrics">${metrics.map((metric) => `<article><strong>${safe(metric.value)}</strong><small>${safe(metric.label)}</small>${metric.trend ? `<em class="${metric.tone || ''}">${safe(metric.trend)}</em>` : ''}</article>`).join('')}</section>` : ''}
+    ${rows.length ? `<section class="composable-card-list">${rows.map((row) => `<article><i class="${row.tone || ''}"></i><span><strong>${safe(row.title)}</strong><small>${safe(row.detail || '')}</small></span>${row.value ? `<em>${safe(row.value)}</em>` : ''}</article>`).join('')}</section>` : ''}
+    <footer class="composable-card-footer"><span>${sources.length ? `来源：${sources.map(safe).join(' · ')}` : '尚未连接数据源'}</span><time>${safe(item.updatedLabel || '刚刚更新')}</time></footer>
+    <div class="component-card-menu component-action-menu" data-component-menu-popover="${item.id}" aria-hidden="true">
+      <button type="button" data-component-action="inspect" data-component-id="${item.id}"><span data-icon="search"></span>查看详情</button>
+      <button type="button" data-component-action="edit" data-component-id="${item.id}"><span data-icon="spark"></span>用 Syntropic 修改</button>
+      <button type="button" data-component-action="duplicate" data-component-id="${item.id}"><span data-icon="plus"></span>复制组件</button>
+      <button type="button" data-component-action="remove" data-component-id="${item.id}"><span data-icon="close"></span>从桌面移除</button>
+    </div>`;
 }
 
 function addDynamicCanvasItem(item, { persist = true, focus = false } = {}) {
@@ -3215,6 +3885,7 @@ function addDynamicCanvasItem(item, { persist = true, focus = false } = {}) {
     if (item.open) object.dataset.open = item.open;
     object.dataset.appName = item.name;
   }
+  if (item.type === 'ai-card') renderComposableCard(object, item);
   if (item.type.startsWith('product-')) renderProductCanvasObject(object, item);
   if (item.type.startsWith('hr-')) renderHRCanvasObject(object, item);
 
@@ -3223,6 +3894,7 @@ function addDynamicCanvasItem(item, { persist = true, focus = false } = {}) {
   canvasObjects.push(object);
   defaultPositions[item.id] = { x: item.x, y: item.y };
   bindCanvasObject(object);
+  attachMinimizeControl(object);
   selectObject(object);
   setTimeout(() => object.classList.remove('entering'), 380);
 
@@ -3251,13 +3923,15 @@ function addDynamicCanvasItem(item, { persist = true, focus = false } = {}) {
     saveLayout();
   }
   if (focus && editables[0]) setTimeout(() => editables[0].focus({ preventScroll: true }), 80);
+  if (persist) renderDockWorkspaceComponents();
   return object;
 }
 
 function restoreDynamicItems(items = [], layout = {}, hiddenIds = []) {
   dynamicItems = items.map((item) => ({ ...item }));
   const hidden = new Set(hiddenIds);
-  dynamicItems.filter((item) => !hidden.has(item.id)).forEach((item) => addDynamicCanvasItem({ ...item, ...(layout[item.id] || {}) }, { persist: false }));
+  const minimized = new Set(getCurrentCanvas()?.minimizedItems || []);
+  dynamicItems.filter((item) => !hidden.has(item.id) && !minimized.has(item.id)).forEach((item) => addDynamicCanvasItem({ ...item, ...(layout[item.id] || {}) }, { persist: false }));
 }
 
 function addCanvasTextAt(point) {
@@ -3311,9 +3985,11 @@ function performCanvasLoad(id) {
   applyCanvasView();
   selectObject(null);
   renderWorkspaceList();
+  renderDockWorkspaceComponents();
   updateAISuggestionsForWorkspace();
   renderWidgetPicker();
   updateDocumentPinButtons();
+  updateTaskExperienceCounts();
   saveCanvasRegistry();
   if (target.id === 'hr-recruiting') requestAnimationFrame(() => {
     if (currentCanvasId === target.id) openHRRecruitingApp();
@@ -3352,6 +4028,10 @@ function createCanvas() {
   renderWorkspaceList();
   switchCanvas(canvas.id);
   showToast(`${canvas.name} 已创建`);
+  // Onboarding belongs to the moment a blank workspace is created. Existing
+  // workspaces retain their context and never interrupt the user on reload.
+  const newCanvasId = canvas.id;
+  setTimeout(() => startWorkspaceSetup(newCanvasId), matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 360);
 }
 
 function deleteCanvas(id) {
@@ -3384,14 +4064,13 @@ function selectObject(object) {
 }
 
 function clampObjectToDesktop(object, x, y) {
-  const scale = canvasView.scale || 1;
-  const safeWidth = desktopCanvas.clientWidth / scale;
-  const safeHeight = Math.max(360, (desktopCanvas.clientHeight - 145) / scale);
+  // Clamp against the full logical canvas world so components can reach the
+  // very top and bottom; panning/zooming already covers the visible range.
   const width = object.offsetWidth || 0;
   const height = object.offsetHeight || 0;
   return {
-    x: Math.min(Math.max(18, x), Math.max(18, safeWidth - width - 18)),
-    y: Math.min(Math.max(28, y), Math.max(28, safeHeight - height - 18)),
+    x: Math.min(Math.max(0, x), Math.max(0, desktopCanvasSize.width - width)),
+    y: Math.min(Math.max(0, y), Math.max(0, desktopCanvasSize.height - height)),
   };
 }
 
@@ -3513,7 +4192,13 @@ canvasObjects.forEach(bindCanvasObject);
 
 workspaceSwitcher.addEventListener('click', (event) => {
   event.stopPropagation();
-  setWorkspacePopover(!workspacePopover.classList.contains('open'));
+  const opening = !workspacePopover.classList.contains('open');
+  if (opening) {
+    captureCurrentCanvasState();
+    saveCanvasRegistry();
+    renderWorkspaceList();
+  }
+  setWorkspacePopover(opening);
 });
 
 workspaceAdd.addEventListener('click', (event) => {
@@ -3522,6 +4207,12 @@ workspaceAdd.addEventListener('click', (event) => {
 });
 
 workspaceList.addEventListener('click', (event) => {
+  const renameButton = event.target.closest('[data-workspace-rename]');
+  if (renameButton) {
+    event.stopPropagation();
+    beginWorkspaceRename(renameButton.dataset.workspaceRename);
+    return;
+  }
   const deleteButton = event.target.closest('[data-workspace-delete]');
   if (deleteButton) {
     event.stopPropagation();
@@ -3685,3 +4376,371 @@ window.addEventListener('resize', () => {
     }
   });
 });
+
+// --- Product experience layer -------------------------------------------------
+// Kept isolated from the domain demo so it can later move into its own module.
+const experienceKeys = {
+  tourComplete: 'syntropic-tour-complete-v1',
+  connectionMode: 'syntropic-connection-mode-v1',
+};
+
+function clearSyntropicDemoState() {
+  // Demo wipes only its namespaced slice; debug clears prefixed app state.
+  const keys = [];
+  for (let index = 0; index < window.localStorage.length; index++) keys.push(window.localStorage.key(index));
+  keys.forEach((key) => {
+    const matches = syntropicMode === 'demo'
+      ? key.startsWith(demoStoragePrefix)
+      : syntropicStatePrefixes.some((prefix) => key.startsWith(prefix));
+    if (matches) window.localStorage.removeItem(key);
+  });
+  location.reload();
+}
+
+function syntropicModeURL(mode) {
+  const url = new URL(location.href);
+  url.searchParams.set('mode', mode);
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function installExperienceChrome() {
+  const status = document.querySelector('.system-status');
+  if (!status || status.querySelector('[data-demo-status], [data-start-tour]')) return;
+  if (syntropicMode === 'debug') {
+    const badge = document.createElement('button');
+    badge.type = 'button';
+    badge.className = 'demo-data-badge mode-badge debug';
+    badge.dataset.demoStatus = '';
+    badge.setAttribute('aria-label', '打开 Debug 控制台');
+    badge.innerHTML = '<i></i><span>DEBUG</span>';
+    status.insertBefore(badge, status.firstChild);
+  }
+  const help = document.createElement('button');
+  help.type = 'button';
+  help.className = 'experience-help';
+  help.dataset.startTour = '';
+  help.setAttribute('aria-label', '查看产品引导');
+  help.title = '产品引导';
+  help.innerHTML = '<span data-icon="help"></span>';
+  status.insertBefore(help, status.querySelector('[data-demo-status]')?.nextSibling ?? status.firstChild);
+  hydrateIcons(status);
+  if (syntropicMode === 'debug') installDebugConsole();
+}
+
+function installDebugConsole() {
+  if (document.querySelector('[data-debug-console]')) return;
+  const panel = document.createElement('aside');
+  panel.className = 'debug-console';
+  panel.dataset.debugConsole = '';
+  panel.setAttribute('aria-hidden', 'true');
+  panel.innerHTML = `
+    <header><span><i></i><strong>演示控制台</strong><small>DEBUG MODE</small></span><button type="button" data-debug-close aria-label="收起控制台"><span data-icon="close"></span></button></header>
+    <section><small>场景</small><div class="debug-action-grid"><button type="button" data-debug-action="onboarding"><span data-icon="user"></span>新用户引导</button><button type="button" data-debug-workspace="hr-recruiting"><span data-icon="recruiting"></span>招聘工作台</button><button type="button" data-debug-workspace="product-release"><span data-icon="code"></span>产品工作台</button><button type="button" data-debug-action="tour"><span data-icon="spark"></span>产品引导</button></div></section>
+    <section><small>数据与状态</small><button class="debug-console-row" type="button" data-debug-action="clear-user"><span><strong>清除用户信息</strong><em>清空后下次进入将重新显示新用户引导</em></span><i data-icon="arrow"></i></button><button class="debug-console-row" type="button" data-debug-action="connection"><span><strong>数据源状态</strong><em data-debug-connection-state>正常</em></span><i data-icon="arrow"></i></button><button class="debug-console-row danger" type="button" data-debug-action="reset"><span><strong>重置 Debug 数据</strong><em>恢复初始招聘场景</em></span><i data-icon="arrow"></i></button></section>
+    <footer><span>当前修改仅保存在 Debug 数据空间</span><button type="button" data-switch-mode="demo">进入演示模式</button></footer>`;
+  document.body.appendChild(panel);
+  hydrateIcons(panel);
+  updateDebugConsoleState();
+}
+
+function setDebugConsole(open) {
+  const panel = document.querySelector('[data-debug-console]');
+  if (!panel) return;
+  panel.classList.toggle('open', open);
+  panel.setAttribute('aria-hidden', String(!open));
+  document.querySelector('[data-demo-status]')?.setAttribute('aria-expanded', String(open));
+}
+
+function updateDebugConsoleState() {
+  const offline = localStorage.getItem(experienceKeys.connectionMode) === 'offline';
+  document.querySelectorAll('[data-debug-connection-state]').forEach((node) => {
+    node.textContent = offline ? '异常 · 点击恢复' : '正常 · 点击模拟断连';
+    node.classList.toggle('warning', offline);
+  });
+}
+
+function showExperienceDialog(kind = 'status') {
+  document.querySelector('.experience-dialog-layer')?.remove();
+  const layer = document.createElement('div');
+  layer.className = 'experience-dialog-layer';
+  const isReset = kind === 'reset';
+  layer.innerHTML = `<section class="experience-dialog" role="dialog" aria-modal="true" aria-labelledby="experienceDialogTitle">
+    <header><span><i class="dialog-mark"></i><strong id="experienceDialogTitle">${isReset ? '重置演示？' : '数据与执行状态'}</strong></span><button type="button" data-dialog-close aria-label="关闭"><span data-icon="close"></span></button></header>
+    ${isReset ? `<div class="reset-dialog-copy"><p>这会清除当前 ${syntropicMode === 'debug' ? 'Debug' : '演示'} 数据空间中的布局、任务和引导进度，并恢复到初始招聘场景。</p><p class="reset-note">另一个模式的数据不会受到影响。</p></div><footer><button type="button" data-dialog-close>取消</button><button class="danger" type="button" data-confirm-reset>确认重置</button></footer>` : `
+    <div class="demo-trust-copy"><span class="demo-trust-pill">演示模式</span><h2>从新用户视角体验完整流程</h2><p>演示模式使用独立的临时数据，每次重新进入都会从新手对话开始，不会覆盖 Debug 模式中调整过的工作台。</p></div>
+    <div class="connection-list" data-connection-list></div>
+    <footer><button type="button" data-switch-mode="debug">进入 Debug 模式</button><span class="dialog-footer-actions"><button type="button" data-preview-onboarding>重新开始引导</button><button class="primary" type="button" data-dialog-close>继续体验</button></span></footer>`}
+  </section>`;
+  document.body.appendChild(layer);
+  hydrateIcons(layer);
+  renderConnectionState(layer);
+  requestAnimationFrame(() => layer.classList.add('visible'));
+  layer.querySelector('button')?.focus();
+}
+
+function renderConnectionState(root = document) {
+  const list = root.querySelector('[data-connection-list]');
+  const toggle = root.querySelector('[data-toggle-connection]');
+  if (!list || !toggle) return;
+  const offline = localStorage.getItem(experienceKeys.connectionMode) === 'offline';
+  const sources = [
+    ['飞书招聘', offline ? '同步失败' : '模拟 · 2 分钟前同步'],
+    ['团队日历', offline ? '等待重试' : '模拟 · 刚刚同步'],
+    ['面试评价表', offline ? '上次数据可用' : '模拟 · 12 分钟前同步'],
+  ];
+  list.innerHTML = sources.map(([name, detail]) => `<article class="${offline ? 'offline' : ''}"><i></i><span><strong>${name}</strong><small>${detail}</small></span><em>${offline ? '异常' : '可用'}</em></article>`).join('');
+  toggle.textContent = offline ? '恢复连接' : '模拟断连';
+  document.body.classList.toggle('demo-offline', offline);
+  const badge = document.querySelector('[data-demo-status]');
+  badge?.classList.toggle('has-warning', offline);
+  if (badge) badge.querySelector('span').textContent = syntropicMode === 'debug' ? 'DEBUG' : offline ? '数据源异常' : '演示模式';
+  updateDebugConsoleState();
+}
+
+const tourSteps = [
+  {
+    eyebrow: '新工作台', title: '这是一个独立的任务空间',
+    copy: '每个工作台会分别保存布局、任务与产物。你可以从顶部随时切换空间，已有工作台不会重复出现引导。',
+    target: '#workspaceSwitcher', action: () => showDesktop(), button: '继续',
+  },
+  {
+    eyebrow: '开始协作', title: '告诉 Syntropic 你想完成什么',
+    copy: '输入目标后会创建可持续推进的任务，并展示执行阶段、使用的数据和需要你确认的动作。',
+    target: '#aiSurface', action: () => { setAIComposerExpanded(true); suggestions(true); }, button: '了解应用',
+  },
+  {
+    eyebrow: '应用与上下文', title: '从 Dock 打开工具和数据源',
+    copy: '你可以打开任务中心、日程、浏览器与应用市场，把需要的上下文固定到当前工作台。按 Ctrl/⌘ + K 可随时唤起输入框。',
+    target: '#dock', action: () => { suggestions(false); setAIComposerExpanded(false); }, button: '开始使用',
+  },
+];
+let activeTourStep = 0;
+
+// New-blank-workspace setup runs inside the same corner tour before the
+// standard steps: pick a scenario, connect demo data sources, choose goals.
+let setupCanvasId = null;
+const workspaceSetupState = { role: null, goals: [] };
+const workspaceSetupSources = new Set();
+const setupRoleNames = { hr: '招聘工作台', product: '产品工作台', founder: '经营工作台', other: '我的工作台' };
+
+function setupSourcesFor(role) {
+  if (role === 'hr') return recruitingSources;
+  if (role === 'product') return productSources;
+  return [];
+}
+
+function activeTourSteps() {
+  const setup = setupCanvasId ? [
+    { id: 'setup-role', eyebrow: '新工作台 · 场景 1/3', title: '这个工作台主要用来做什么？', copy: '选择最贴近的场景，我会按它组织任务、数据与组件。' },
+    { id: 'setup-sources', eyebrow: '新工作台 · 数据 2/3', title: '要接入哪些数据源？', copy: '可多选；当前原型只模拟授权与数据导入，选择后点击下一步继续。' },
+    { id: 'setup-goals', eyebrow: '新工作台 · 目的 3/3', title: '你希望先改善什么？', copy: '可多选；选中的目标会成为这里的首批推进方向，完成后点击"完成设置"。' },
+  ] : [];
+  return [...setup, ...tourSteps];
+}
+
+function startWorkspaceSetup(canvasId) {
+  setupCanvasId = canvasId;
+  workspaceSetupState.role = null;
+  workspaceSetupState.goals = [];
+  workspaceSetupSources.clear();
+  renderProductTour(0);
+}
+
+function finishWorkspaceSetup() {
+  const canvas = canvases.find((item) => item.id === setupCanvasId);
+  if (canvas) {
+    canvas.name = setupRoleNames[workspaceSetupState.role] || canvas.name;
+    canvas.workspaceProfile = {
+      role: workspaceSetupState.role,
+      sources: [...workspaceSetupSources],
+      goals: [...workspaceSetupState.goals],
+    };
+    // Seeded panels: generate the matching preset workspace board for the
+    // chosen scenario so a "new" workspace lands ready-to-use, not blank.
+    // Item ids are namespaced to this canvas so duplicates never collide with
+    // an existing workspace using the same preset components.
+    const templateId = { hr: 'hr-recruiting', product: 'product-release', founder: 'personal-focus', other: '' }[workspaceSetupState.role];
+    const template = templateId ? workspaceCanvasTemplates().find((item) => item.id === templateId) : null;
+    if (template) {
+      const idMap = {};
+      const prefix = `${canvas.id}-`;
+      canvas.showBase = Boolean(template.showBase);
+      canvas.dynamicItems = JSON.parse(JSON.stringify(template.dynamicItems || [])).map((item) => {
+        idMap[item.id] = `${prefix}${item.id}`;
+        return { ...item, id: idMap[item.id] };
+      });
+      canvas.connections = JSON.parse(JSON.stringify(template.connections || [])).map((connection) => ({
+        ...connection, id: `${prefix}${connection.id}`, from: idMap[connection.from], to: idMap[connection.to],
+      }));
+      canvas.hiddenDynamicItems = [];
+    }
+    saveCanvasRegistry();
+    renderWorkspaceList();
+    performCanvasLoad(canvas.id);
+    showToast(`已根据你的选择生成${canvas.name}面板`);
+  }
+  setupCanvasId = null;
+}
+
+function renderSetupStepBody(stepId) {
+  if (stepId === 'setup-role') {
+    return `<div class="tour-setup-options">${onboardingRoles.map((role) => `<button type="button" data-setup-role="${role.id}" class="${workspaceSetupState.role === role.id ? 'selected' : ''}"><strong>${role.label}</strong><small>${role.detail}</small></button>`).join('')}</div>`;
+  }
+  if (stepId === 'setup-sources') {
+    const sources = setupSourcesFor(workspaceSetupState.role);
+    if (!sources.length) return '<p class="tour-setup-note">该场景暂无内置数据源，你可以稍后在应用市场中添加。</p>';
+    return `<div class="recruiting-source-grid compact">${sources.map((source) => `<button type="button" data-setup-source="${source.id}" class="${workspaceSetupSources.has(source.id) ? 'selected' : ''}">${onboardingSourceLogo(source)}<span><strong>${source.name}</strong><small>${source.detail}</small></span><em>${workspaceSetupSources.has(source.id) ? '已选择' : '选择'}</em></button>`).join('')}</div>`;
+  }
+  const goals = onboardingGoals[workspaceSetupState.role] || onboardingGoals.other;
+  return `<div class="onboarding-goals tour-goals">${goals.map((goal) => `<button type="button" data-setup-goal="${goal}" class="${workspaceSetupState.goals.includes(goal) ? 'selected' : ''}"><i></i>${goal}</button>`).join('')}</div>`;
+}
+
+function closeProductTour(completed = false) {
+  document.querySelector('.product-tour')?.remove();
+  document.querySelector('.tour-highlight')?.classList.remove('tour-highlight');
+  setupCanvasId = null;
+  if (completed) localStorage.setItem(experienceKeys.tourComplete, 'true');
+}
+
+function renderProductTour(index = 0) {
+  document.querySelector('.product-tour')?.remove();
+  document.querySelector('.tour-highlight')?.classList.remove('tour-highlight');
+  const list = activeTourSteps();
+  activeTourStep = Math.max(0, Math.min(list.length - 1, index));
+  const step = list[activeTourStep];
+  const isSetup = Boolean(step.id?.startsWith('setup-'));
+  if (!isSetup) {
+    step.action?.();
+    document.querySelector(step.target)?.classList.add('tour-highlight');
+  }
+  const body = isSetup ? renderSetupStepBody(step.id) : '';
+  const nextDisabled = step.id === 'setup-role' && !workspaceSetupState.role;
+  const nextAttrs = isSetup ? 'data-setup-next' : 'data-tour-next';
+  const nextLabel = isSetup ? (step.id === 'setup-goals' ? '完成设置' : '下一步') : step.button;
+  const tour = document.createElement('aside');
+  tour.className = 'product-tour';
+  tour.setAttribute('role', 'dialog');
+  tour.setAttribute('aria-modal', 'true');
+  tour.setAttribute('aria-labelledby', 'tourTitle');
+  tour.innerHTML = `<header><span>${step.eyebrow}</span><button type="button" data-tour-skip>跳过引导</button></header>
+    <div class="tour-progress" aria-label="第 ${activeTourStep + 1} 步，共 ${list.length} 步">${list.map((_, i) => `<i class="${i <= activeTourStep ? 'active' : ''}"></i>`).join('')}</div>
+    <h2 id="tourTitle">${step.title}</h2><p>${step.copy}</p>${body}
+    <footer>${activeTourStep ? '<button type="button" data-tour-back>上一步</button>' : '<span></span>'}<button class="primary" type="button" ${nextAttrs}${nextDisabled ? ' disabled' : ''}>${nextLabel}</button></footer>`;
+  document.body.appendChild(tour);
+  hydrateIcons(tour);
+  requestAnimationFrame(() => tour.classList.add('visible'));
+  tour.querySelector('[data-tour-next],[data-setup-next]')?.focus();
+}
+
+function installExperienceEvents() {
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('[data-demo-status]')) {
+      if (syntropicMode === 'debug') setDebugConsole(!document.querySelector('[data-debug-console]')?.classList.contains('open'));
+      else showExperienceDialog('status');
+    }
+    if (event.target.closest('[data-debug-close]')) setDebugConsole(false);
+    const modeSwitch = event.target.closest('[data-switch-mode]');
+    if (modeSwitch) location.href = syntropicModeURL(modeSwitch.dataset.switchMode);
+    const debugWorkspace = event.target.closest('[data-debug-workspace]');
+    if (debugWorkspace) {
+      setDebugConsole(false);
+      showDesktop();
+      performCanvasLoad(debugWorkspace.dataset.debugWorkspace);
+    }
+    const debugAction = event.target.closest('[data-debug-action]')?.dataset.debugAction;
+    if (debugAction === 'clear-user') {
+      ['syntropic-user-onboarded-v1', 'syntropic-user-profile-v1', 'solo-canvases-v1'].forEach((key) => window.localStorage.removeItem(key));
+      showToast('用户信息已清除，刷新页面将以新用户身份进入引导');
+    }
+    if (debugAction === 'onboarding') {
+      setDebugConsole(false);
+      document.querySelector('.first-run-onboarding')?.remove();
+      if (typeof startUserOnboarding === 'function') startUserOnboarding();
+    }
+    if (debugAction === 'tour') { setDebugConsole(false); renderProductTour(0); }
+    if (debugAction === 'reset') { setDebugConsole(false); showExperienceDialog('reset'); }
+    if (debugAction === 'connection') {
+      const offline = localStorage.getItem(experienceKeys.connectionMode) === 'offline';
+      localStorage.setItem(experienceKeys.connectionMode, offline ? 'online' : 'offline');
+      renderConnectionState();
+      showToast(offline ? '演示数据源已恢复' : '已切换到数据源异常演示');
+    }
+    if (event.target.closest('[data-start-tour]')) renderProductTour(0);
+    if (event.target.closest('[data-dialog-close]')) event.target.closest('.experience-dialog-layer')?.remove();
+    if (event.target.closest('[data-reset-demo]')) showExperienceDialog('reset');
+    if (event.target.closest('[data-preview-onboarding]')) {
+      event.target.closest('.experience-dialog-layer')?.remove();
+      document.querySelector('.first-run-onboarding')?.remove();
+      if (typeof startUserOnboarding === 'function') startUserOnboarding();
+    }
+    if (event.target.closest('[data-confirm-reset]')) clearSyntropicDemoState();
+    if (event.target.closest('[data-toggle-connection]')) {
+      const offline = localStorage.getItem(experienceKeys.connectionMode) === 'offline';
+      localStorage.setItem(experienceKeys.connectionMode, offline ? 'online' : 'offline');
+      renderConnectionState(event.target.closest('.experience-dialog-layer'));
+      showToast(offline ? '演示数据源已恢复' : '已切换到数据源异常演示');
+    }
+    if (event.target.closest('[data-tour-skip]')) closeProductTour(true);
+    if (event.target.closest('[data-tour-back]')) renderProductTour(activeTourStep - 1);
+    const setupRoleButton = event.target.closest('[data-setup-role]');
+    if (setupRoleButton) {
+      workspaceSetupState.role = setupRoleButton.dataset.setupRole;
+      workspaceSetupSources.clear();
+      workspaceSetupState.goals = [];
+      renderProductTour(activeTourStep + 1);
+      return;
+    }
+    const setupSourceButton = event.target.closest('[data-setup-source]');
+    if (setupSourceButton) {
+      const id = setupSourceButton.dataset.setupSource;
+      const selected = !workspaceSetupSources.has(id);
+      if (selected) workspaceSetupSources.add(id); else workspaceSetupSources.delete(id);
+      setupSourceButton.classList.toggle('selected', selected);
+      const label = setupSourceButton.querySelector('em');
+      if (label) label.textContent = selected ? '已选择' : '选择';
+      return;
+    }
+    const setupGoalButton = event.target.closest('[data-setup-goal]');
+    if (setupGoalButton) {
+      const goal = setupGoalButton.dataset.setupGoal;
+      workspaceSetupState.goals = workspaceSetupState.goals.includes(goal)
+        ? workspaceSetupState.goals.filter((item) => item !== goal)
+        : [...workspaceSetupState.goals, goal];
+      setupGoalButton.classList.toggle('selected', workspaceSetupState.goals.includes(goal));
+      return;
+    }
+    if (event.target.closest('[data-setup-next]')) {
+      const stepId = activeTourSteps()[activeTourStep]?.id;
+      if (stepId === 'setup-goals') {
+        finishWorkspaceSetup();
+        closeProductTour(true);
+      } else {
+        renderProductTour(activeTourStep + 1);
+      }
+      return;
+    }
+    if (event.target.closest('[data-tour-next]')) {
+      if (activeTourStep >= tourSteps.length - 1) closeProductTour(true);
+      else renderProductTour(activeTourStep + 1);
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (document.querySelector('.product-tour')) { closeProductTour(true); return; }
+    const dialog = document.querySelector('.experience-dialog-layer');
+    if (dialog) { dialog.remove(); return; }
+    if (document.querySelector('[data-debug-console].open')) { setDebugConsole(false); return; }
+    const openWindows = [...document.querySelectorAll('.os-window.open')].sort((a, b) => (+getComputedStyle(a).zIndex || 0) - (+getComputedStyle(b).zIndex || 0));
+    const topWindow = openWindows.at(-1);
+    if (topWindow) {
+      topWindow.classList.remove('open');
+      topWindow.setAttribute('aria-hidden', 'true');
+    }
+  });
+}
+
+installExperienceChrome();
+installExperienceEvents();
+renderConnectionState();
+updateTaskExperienceCounts();
