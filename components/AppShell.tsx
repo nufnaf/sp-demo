@@ -67,10 +67,20 @@ const TOP_BAR_ICON_BUTTON_SIZE = 36;
 const LANGUAGE_MENU_WIDTH = 176;
 const AGENT_PANEL_WIDTH = 420;
 
-export function AppShell() {
+interface AppShellProps {
+  /** Opens a concrete session when Pi Web is hosted inside the Agent OS task window. */
+  initialSessionId?: string | null;
+}
+
+export function AppShell({ initialSessionId: embeddedInitialSessionId }: AppShellProps = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [initialNavigation] = useState(() => getInitialNavigation(searchParams));
+  const [initialNavigation] = useState(() => {
+    const navigation = getInitialNavigation(searchParams);
+    return embeddedInitialSessionId
+      ? { requestedCwd: null, sessionId: embeddedInitialSessionId }
+      : navigation;
+  });
   const { preference, toggleTheme } = useTheme();
   const themeLabelKey =
     preference === "light" ? "theme.light" : preference === "dark" ? "theme.dark" : "theme.auto";
