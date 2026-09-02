@@ -6,6 +6,7 @@ import { listSessionFamilies } from "@/lib/session-family";
 import { loadExplorerOpen, saveExplorerOpen } from "@/lib/file-explorer-state";
 import { dispatchSessionRowContextMenu } from "@/lib/session-row-context-menu";
 import { skillExpansionToCommand } from "@/lib/slash-display";
+import { isInsightTaskSession } from "@/lib/insight-automation";
 import { getProjectActivity, getRecentProjects, sessionsForProject } from "@/lib/project-groups";
 import { workspaceKeyOf } from "@/lib/workspace-memory";
 import { formatRelativeTime } from "@/lib/i18n/format";
@@ -81,6 +82,8 @@ function ToolbarIconButton({
 }
 
 interface Props {
+  /** Keep the task rail focused on task creation and task selection. */
+  simplified?: boolean;
   selectedSessionId: string | null;
   onSelectSession: (session: SessionInfo, isRestore?: boolean) => void;
   onNewSession?: (sessionId: string, cwd: string) => void;
@@ -351,7 +354,7 @@ function PiWebTitle() {
   );
 }
 
-export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onOpenFile, explorerRefreshKey, onExplorerRefresh, onAtMention, onAtMentions, onBackgroundTaskDone, onRunningSessionIdsChange, onSessionsChange }: Props) {
+export function SessionSidebar({ simplified = false, selectedSessionId, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onOpenFile, explorerRefreshKey, onExplorerRefresh, onAtMention, onAtMentions, onBackgroundTaskDone, onRunningSessionIdsChange, onSessionsChange }: Props) {
   const { t } = useI18n();
   const [allSessions, setAllSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -391,6 +394,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   const previousRunningSessionIdsRef = useRef<Set<string>>(new Set());
   const currentSuppressedCompletionSessionIdsRef = useRef<Set<string>>(new Set());
   const previousSuppressedCompletionSessionIdsRef = useRef<Set<string>>(new Set());
+  const hiddenSessionIdsRef = useRef<Set<string>>(new Set());
   // Once polling has delivered a snapshot it is the source of truth for
   // running state; late /api/sessions responses must not overwrite it.
   const runningPollAuthoritativeRef = useRef(false);
@@ -410,19 +414,25 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
         runningSessionIds?: string[];
         completionNotificationSuppressedSessionIds?: string[];
       };
-      setAllSessions(data.sessions);
+      const visibleSessions = data.sessions.filter((session) => !isInsightTaskSession(session));
+      hiddenSessionIdsRef.current = new Set(
+        data.sessions.filter(isInsightTaskSession).map((session) => session.id),
+      );
+      setAllSessions(visibleSessions);
       // Treat the fetched running set as an initial fallback only. Once the
       // lightweight poll is live, a slow session-list fetch cannot overwrite it.
       if (!runningPollAuthoritativeRef.current) {
         currentSuppressedCompletionSessionIdsRef.current = new Set(
           data.completionNotificationSuppressedSessionIds ?? [],
         );
-        setRunningSessionIds(new Set(data.runningSessionIds ?? []));
+        setRunningSessionIds(new Set(
+          (data.runningSessionIds ?? []).filter((id) => !hiddenSessionIdsRef.current.has(id)),
+        ));
       }
       // Drop markers for deleted sessions and for subagents, whose completion
       // is intentionally silent even if an older client marked them unread.
       const unreadEligibleIds = new Set(
-        data.sessions
+        visibleSessions
           .filter((session) => session.relation?.kind !== "subagent")
           .map((session) => session.id),
       );
@@ -499,7 +509,9 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
         currentSuppressedCompletionSessionIdsRef.current = new Set(
           data.completionNotificationSuppressedSessionIds ?? [],
         );
-        setRunningSessionIds(new Set(data.runningSessionIds ?? []));
+        setRunningSessionIds(new Set(
+          (data.runningSessionIds ?? []).filter((id) => !hiddenSessionIdsRef.current.has(id)),
+        ));
       } catch {
         // Keep the last known state; the next visible-tab poll retries.
       } finally {
@@ -952,7 +964,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   const sessionFamilies = listSessionFamilies(filteredSessions);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+    <div className={simplified ? "session-sidebar-simple" : undefined} style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       {customPathOpen && (
         <DirectoryPicker
           initialPath={customPathValue}
@@ -977,18 +989,19 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
           <PiWebTitle />
           <div style={{ display: "flex", gap: 6 }}>
             <button
+              className="session-new-task-button"
               onClick={handleNewSession}
               disabled={!selectedCwd}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-                background: "var(--bg-hover)",
-                border: "1px solid var(--border)",
-                color: selectedCwd ? "var(--text-muted)" : "var(--text-dim)",
+                background: simplified ? "var(--accent)" : "var(--bg-hover)",
+                border: simplified ? "1px solid transparent" : "1px solid var(--border)",
+                color: simplified ? "#fff" : selectedCwd ? "var(--text-muted)" : "var(--text-dim)",
                 cursor: selectedCwd ? "pointer" : "not-allowed",
                 height: 32,
                 paddingLeft: 10,
                 paddingRight: 12,
-                borderRadius: 7,
+                borderRadius: simplified ? 10 : 7,
                 fontSize: 12,
                 fontWeight: 500,
                 letterSpacing: "-0.01em",
@@ -997,15 +1010,15 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
               }}
              title={selectedCwd ? t("sidebar.newSessionTitle", { path: selectedCwd }) : t("sidebar.selectProject")}
               onMouseEnter={(e) => {
-                if (!selectedCwd) return;
+                if (!selectedCwd || simplified) return;
                 e.currentTarget.style.background = "var(--bg-selected)";
                 e.currentTarget.style.color = "var(--accent)";
                 e.currentTarget.style.borderColor = "rgba(37,99,235,0.35)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "var(--bg-hover)";
-                e.currentTarget.style.color = selectedCwd ? "var(--text-muted)" : "var(--text-dim)";
-                e.currentTarget.style.borderColor = "var(--border)";
+                e.currentTarget.style.background = simplified ? "var(--accent)" : "var(--bg-hover)";
+                e.currentTarget.style.color = simplified ? "#fff" : selectedCwd ? "var(--text-muted)" : "var(--text-dim)";
+                e.currentTarget.style.borderColor = simplified ? "transparent" : "var(--border)";
               }}
             >
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
@@ -1014,7 +1027,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
               </svg>
               {t("sidebar.new")}
             </button>
-            <button
+            {!simplified && <button
               onClick={() => loadSessions(false, true)}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "center",
@@ -1052,10 +1065,11 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
                   <path d="M3 3v5h5" />
                 </svg>
               )}
-            </button>
+            </button>}
           </div>
         </div>
 
+        <div className="session-sidebar-advanced">
         {/* CWD picker */}
         <div ref={dropdownRef} style={{ position: "relative" }}>
           <button
@@ -1612,10 +1626,11 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
             <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{inactiveWorktreeSelector.label}</span>
           </button>
         )}
+        </div>
       </div>
 
       {/* Session list */}
-      <div style={{ flex: explorerOpen && (selectedCwdProp || selectedCwd) ? "1 1 0" : "1 1 auto", overflowY: "auto", padding: "0", minHeight: 80 }}>
+      <div className="session-task-list" style={{ flex: explorerOpen && (selectedCwdProp || selectedCwd) ? "1 1 0" : "1 1 auto", overflowY: "auto", padding: "0", minHeight: 80 }}>
         {loading && (
           <div style={{ padding: "16px 14px", color: "var(--text-muted)", fontSize: 12 }}>
             {t("sidebar.loading")}
@@ -1657,6 +1672,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
       {/* File Explorer section */}
       {(selectedCwdProp || selectedCwd) && (
         <div
+          className="session-file-explorer"
           style={{
             borderTop: "1px solid var(--border)",
             display: "flex",

@@ -16,13 +16,13 @@ const execFileAsync = promisify(execFile);
  * directly via the current `node` binary, which works identically on every
  * platform and needs no shell.
  */
-function findNpxCli(): string | null {
+function findNpmBin(script: "npm-cli.js" | "npx-cli.js"): string | null {
   const nodeDir = dirname(execPath);
   const candidates = [
     // Windows MSI installer layout: node.exe and node_modules share a dir
-    join(nodeDir, "node_modules", "npm", "bin", "npx-cli.js"),
+    join(nodeDir, "node_modules", "npm", "bin", script),
     // Unix layout: .../bin/node + .../lib/node_modules/npm/bin/npx-cli.js
-    join(nodeDir, "..", "lib", "node_modules", "npm", "bin", "npx-cli.js"),
+    join(nodeDir, "..", "lib", "node_modules", "npm", "bin", script),
   ];
   for (const p of candidates) {
     try {
@@ -50,7 +50,7 @@ export interface RunNpxResult {
  * shell, so user-controlled arguments are never interpreted as shell syntax.
  */
 export async function runNpx(args: string[], opts: RunNpxOptions = {}): Promise<RunNpxResult> {
-  const npxCli = findNpxCli();
+  const npxCli = findNpmBin("npx-cli.js");
   const { command, commandArgs } = npxCli
     ? { command: execPath, commandArgs: [npxCli, ...args] }
     : { command: "npx", commandArgs: args };
@@ -58,5 +58,19 @@ export async function runNpx(args: string[], opts: RunNpxOptions = {}): Promise<
     timeout: opts.timeout,
     cwd: opts.cwd,
     env: opts.env,
+  });
+}
+
+/** Run npm itself through its JavaScript entry point for the same quoting guarantees as runNpx. */
+export async function runNpm(args: string[], opts: RunNpxOptions = {}): Promise<RunNpxResult> {
+  const npmCli = findNpmBin("npm-cli.js");
+  const { command, commandArgs } = npmCli
+    ? { command: execPath, commandArgs: [npmCli, ...args] }
+    : { command: process.platform === "win32" ? "npm.cmd" : "npm", commandArgs: args };
+  return execFileAsync(command, commandArgs, {
+    timeout: opts.timeout,
+    cwd: opts.cwd,
+    env: opts.env,
+    shell: process.platform === "win32" && !npmCli,
   });
 }

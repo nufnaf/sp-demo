@@ -1252,6 +1252,103 @@ span.token.table {
   display: none;
 }
 
+/* Focused task workspace: task rail, conversation, and file preview only. */
+.pi-simple-shell {
+  --simple-hairline: color-mix(in srgb, var(--border) 72%, transparent);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+}
+.pi-simple-shell .sidebar-container,
+.pi-simple-shell .right-panel-container,
+.pi-simple-shell .simple-task-toolbar {
+  background: color-mix(in srgb, var(--bg-panel) 88%, transparent) !important;
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+}
+.pi-simple-shell .session-sidebar-advanced,
+.pi-simple-shell .session-file-explorer,
+.pi-simple-shell .sidebar-utility-footer,
+.pi-simple-shell .advanced-task-toolbar {
+  display: none !important;
+}
+.pi-simple-shell .chat-input-model-selector,
+.pi-simple-shell .chat-input-secondary-bar[data-streaming="false"] .chat-input-runtime-controls,
+.pi-simple-shell .chat-input-sound-toggle {
+  display: none !important;
+}
+.pi-simple-shell .extension-status-line,
+.pi-simple-shell .message-model-metadata,
+.pi-simple-shell .message-usage-metadata {
+  display: none !important;
+}
+.pi-simple-shell .chat-input-secondary-bar {
+  margin-top: 4px !important;
+}
+.pi-simple-shell .session-sidebar-simple > div:first-of-type {
+  padding: 14px 12px 12px !important;
+  border-bottom-color: var(--simple-hairline) !important;
+}
+.pi-simple-shell .session-sidebar-simple > div:first-of-type > div:first-child {
+  margin-bottom: 0 !important;
+}
+.pi-simple-shell .session-sidebar-simple button:active,
+.pi-simple-shell .simple-toolbar-button:active {
+  transform: scale(0.97);
+  transition: transform 100ms ease-out;
+}
+.pi-simple-shell .session-new-task-button {
+  min-height: 34px;
+  padding-inline: 12px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: var(--accent) !important;
+  color: white !important;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--accent) 32%, transparent),
+    inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.pi-simple-shell .session-new-task-button:hover {
+  filter: brightness(1.06);
+}
+.pi-simple-shell .session-task-list {
+  flex: 1 1 auto !important;
+  padding: 8px 8px 12px !important;
+  scrollbar-width: thin;
+}
+.pi-simple-shell .simple-task-title {
+  flex: 1;
+  min-width: 0;
+  padding: 0 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.pi-simple-shell .right-panel-container {
+  border-left-color: var(--simple-hairline) !important;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .pi-simple-shell .sidebar-container,
+  .pi-simple-shell .right-panel-container {
+    background: var(--bg-panel) !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+@media (prefers-contrast: more) {
+  .pi-simple-shell { --simple-hairline: var(--text-muted); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pi-simple-shell .sidebar-container,
+  .pi-simple-shell .right-panel-container,
+  .pi-simple-shell button {
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Desktop sidebar: animate width */
 @media (min-width: 641px) {
   .sidebar-overlay-backdrop {

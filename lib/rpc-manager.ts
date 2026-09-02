@@ -16,6 +16,7 @@ import { cacheSessionPath, invalidateSessionListCache, resolveSessionPath } from
 import { getProjectTrustStatus, projectTrustReloadOptions } from "./project-trust";
 import { persistExplicitStartupPreferences } from "./startup-preferences";
 import { notifySessionComplete } from "./web-push";
+import { hydrateAppConnectionEnvironment } from "./app-connections";
 import type { SlashCommandInfo } from "@earendil-works/pi-coding-agent";
 import type { AgentSessionLike, ExtensionUiContextLike, ToolInfo } from "./pi-types";
 import type {
@@ -143,6 +144,10 @@ export interface RpcSessionStartOptions {
 
 const CODING_TOOL_NAMES = ["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"];
 const THINKING_LEVEL_NAMES = new Set<ThinkingLevel>(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
+// Dashboard-launched tasks can request extension UI while no task window is
+// open. Never let an unattended auth/input prompt keep the agent running
+// forever; opening the task during this window still allows the user to reply.
+const DEFAULT_EXTENSION_UI_TIMEOUT_MS = 120_000;
 
 // Extensions require a complete Theme, while the web UI applies its own styling.
 class PlainTextTheme extends Theme {
@@ -1307,6 +1312,7 @@ export class AgentSessionWrapper {
       const finish = (value: T) => {
         if (completed) return;
         completed = true;
+        clearTimeout(timeoutId);
         resolve(value);
       };
       const done = (value: T) => {
@@ -1316,6 +1322,17 @@ export class AgentSessionWrapper {
           finish(value);
         }
       };
+      const timeoutId = setTimeout(() => {
+        const custom = this.activeCustomUis.get(id);
+        if (custom) this.closeCustomUi(id, undefined);
+        else finish(undefined as T);
+        this.emit({
+          type: "extension_error",
+          extensionPath: `custom-ui:${id}`,
+          event: "custom_ui_timeout",
+          error: "Extension input timed out while waiting for a response",
+        });
+      }, DEFAULT_EXTENSION_UI_TIMEOUT_MS);
 
       Promise.resolve()
         .then(() => factory(tui, PLAIN_TEXT_THEME, CUSTOM_UI_KEYBINDINGS, done))
@@ -1364,17 +1381,20 @@ export class AgentSessionWrapper {
     if (signal?.aborted) return Promise.resolve(defaultValue);
 
     const id = randomUUID();
+    const effectiveTimeout = timeout && timeout > 0
+      ? timeout
+      : DEFAULT_EXTENSION_UI_TIMEOUT_MS;
     const fullRequest = {
       type: "extension_ui_request",
       id,
       ...request,
-      ...(timeout ? { timeout, expiresAt: Date.now() + timeout } : {}),
+      timeout: effectiveTimeout,
+      expiresAt: Date.now() + effectiveTimeout,
     };
 
     return new Promise((resolve) => {
-      let timeoutId: ReturnType<typeof setTimeout> | undefined;
       const cleanup = () => {
-        if (timeoutId) clearTimeout(timeoutId);
+        clearTimeout(timeoutId);
         signal?.removeEventListener("abort", onAbort);
         this.pendingUiRequests.delete(id);
         this.pendingUiResponses.delete(id);
@@ -1385,7 +1405,7 @@ export class AgentSessionWrapper {
       };
       const onAbort = () => settle(defaultValue);
 
-      if (timeout) timeoutId = setTimeout(() => settle(defaultValue), timeout);
+      const timeoutId = setTimeout(() => settle(defaultValue), effectiveTimeout);
       signal?.addEventListener("abort", onAbort, { once: true });
 
       this.pendingUiRequests.set(id, fullRequest as AgentEvent);
@@ -1853,6 +1873,7 @@ export async function startRpcSession(
   cwd: string | undefined,
   options: RpcSessionStartOptions = {},
 ): Promise<{ session: AgentSessionWrapper; realSessionId: string }> {
+  await hydrateAppConnectionEnvironment();
   const { initialModel, allowInitialModelFallback, thinkingLevel } = options;
   const requestedToolNames = options.toolNames === undefined
     ? undefined

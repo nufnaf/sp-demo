@@ -1004,6 +1004,7 @@ export function AppShell({ initialSessionId: embeddedInitialSessionId }: AppShel
   const sidebarContent = (
     <>
       <SessionSidebar
+        simplified
         selectedSessionId={selectedSession?.id ?? null}
         onSelectSession={handleSelectSession}
         onNewSession={handleNewSession}
@@ -1023,7 +1024,7 @@ export function AppShell({ initialSessionId: embeddedInitialSessionId }: AppShel
         onRunningSessionIdsChange={handleRunningSessionIdsChange}
         onSessionsChange={handleSessionsChange}
       />
-      <div style={{ padding: "8px", flexShrink: 0, display: "flex", justifyContent: "space-between", gap: 4 }}>
+      <div className="sidebar-utility-footer" style={{ padding: "8px", flexShrink: 0, display: "flex", justifyContent: "space-between", gap: 4 }}>
         {([
           ["models", translate("common.models")],
           ["skills", translate("common.skills")],
@@ -1796,7 +1797,7 @@ export function AppShell({ initialSessionId: embeddedInitialSessionId }: AppShel
         }
       }
     `}</style>
-    <div style={{
+    <div className="pi-simple-shell" style={{
       display: "flex",
       width: "100%",
       height: "var(--app-viewport-height, 100dvh)",
@@ -1850,9 +1851,9 @@ export function AppShell({ initialSessionId: embeddedInitialSessionId }: AppShel
       )}
 
       {/* Center: chat */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+      <div className="task-conversation-column" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
         {/* Top bar with sidebar toggle */}
-        <div ref={topBarRef} style={{ flexShrink: 0, background: "var(--bg-panel)" }}>
+        <div ref={topBarRef} className="simple-task-toolbar" style={{ flexShrink: 0, background: "var(--bg-panel)" }}>
         <div style={{ display: "flex", alignItems: "center", position: "relative", borderBottom: "1px solid var(--border)", height: "calc(36px + env(safe-area-inset-top))", paddingTop: "env(safe-area-inset-top)" }}>
           <button
             onClick={handleSidebarToggle}
@@ -1877,6 +1878,7 @@ export function AppShell({ initialSessionId: embeddedInitialSessionId }: AppShel
               </svg>
             )}
           </button>
+          <div className="advanced-task-toolbar">
           {isMobile && (
             <div
               ref={mobileToolbarRef}
@@ -1973,6 +1975,11 @@ export function AppShell({ initialSessionId: embeddedInitialSessionId }: AppShel
               hideInlineButton
             />
           )}
+          </div>
+          <div className="simple-task-title" title={selectedSession?.name ?? selectedSession?.firstMessage ?? ""}>
+            {(selectedSession?.name?.trim() || selectedSession?.firstMessage?.trim() || translate("sidebar.new")).replace(/\s+/g, " ")}
+          </div>
+          {renderMainFileToggle(isMobile)}
           {/* Top panel dropdown — shared, only one active at a time */}
           {activeTopPanel && topPanelPos && (
             <div style={{

@@ -2060,7 +2060,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         )}
 
         {/* Bottom bar: left | center (context) | right */}
-        <div style={{
+        <div className="chat-input-secondary-bar" data-streaming={isStreaming ? "true" : "false"} style={{
           marginTop: 8,
           display: isMobile ? "grid" : "flex",
           gridTemplateColumns: isMobile ? "minmax(0, 1fr) auto" : undefined,
@@ -2100,14 +2100,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             </button>
             {/* Model selector - visible always, disabled while the session or switch is busy */}
             {(modelOptions.length > 0 || model || modelError) && onModelChange && (
-              <ModelSelector
+              <div className="chat-input-model-selector"><ModelSelector
                 options={modelOptions}
                 value={model}
                 onChange={onModelChange}
                 disabled={isStreaming}
                 busy={modelSwitching}
                 isAutoSelection={isAutoModelSelection}
-              />
+              /></div>
             )}
           </div>
 
@@ -2115,7 +2115,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
           {!isMobile && <div style={{ flex: 1 }} />}
 
           {/* RIGHT: thinking + tools preset + compact + sound (idle) | Stop + sound (streaming) */}
-          <div ref={controlsMenuRef} style={{
+          <div ref={controlsMenuRef} className="chat-input-runtime-controls" style={{
             flex: "0 0 auto",
             display: "flex",
             alignItems: "center",
@@ -2430,6 +2430,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
 
             {onSoundToggle !== undefined && (
               <button
+                className="chat-input-sound-toggle"
                 onClick={onSoundToggle}
                  title={soundEnabled ? t("chat.disableSound") : t("chat.enableSound")}
                  aria-label={soundEnabled ? t("chat.disableSound") : t("chat.enableSound")}

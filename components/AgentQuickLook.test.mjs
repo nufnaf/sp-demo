@@ -4,11 +4,13 @@ import test from "node:test";
 
 const desktopSource = await readFile(new URL("./AgentDesktop.tsx", import.meta.url), "utf8");
 const cssSource = await readFile(new URL("./AgentDesktop.css", import.meta.url), "utf8");
+const artifactLibrarySource = desktopSource.slice(desktopSource.indexOf("function ArtifactLibrary"), desktopSource.indexOf("function useClock"));
 
 test("new artifacts append independent full desktop windows without limiting their count", () => {
   assert.match(desktopSource, /const \[openArtifacts, setOpenArtifacts\] = useState<Artifact\[\]>\(\[\]\)/);
   assert.match(desktopSource, /const newlyGenerated = nextArtifacts\.filter/);
-  assert.match(desktopSource, /return \[\.\.\.current, \.\.\.newlyGenerated\.filter/);
+  assert.match(desktopSource, /const desktopArtifacts = newlyGenerated\.filter/);
+  assert.match(desktopSource, /return \[\.\.\.current, \.\.\.desktopArtifacts\.filter/);
   assert.match(desktopSource, /openArtifacts\.map\(\(artifact, index\) =>/);
   assert.match(desktopSource, /key=\{identity\}/);
   assert.doesNotMatch(desktopSource, /slice\(0, ARTIFACT_DESKTOP_SLOTS/);
@@ -24,7 +26,7 @@ test("closing a desktop window preserves the artifact in the library", () => {
 
 test("the Dock opens a flat artifact library with grid, list, and temporary Quick Look", () => {
   assert.match(desktopSource, /function ArtifactLibrary/);
-  assert.match(desktopSource, /data-label="产物库"/);
+  assert.match(desktopSource, /id: "system:library", name: "产物库"/);
   assert.match(desktopSource, /aria-label="Quick Look"/);
   assert.match(desktopSource, /useState<"grid" \| "list">\("grid"\)/);
   assert.match(desktopSource, /aria-label="图标视图"/);
@@ -32,7 +34,7 @@ test("the Dock opens a flat artifact library with grid, list, and temporary Quic
   assert.match(desktopSource, /viewMode === "grid" && isHtmlArtifact\(artifact\) \? <FileViewer/);
   assert.match(desktopSource, /initialDisplayMode="preview"[\s\S]*?watchEnabled=\{false\}/);
   assert.match(desktopSource, /return <div[\s\S]*?role="option"[\s\S]*?tabIndex=\{0\}/);
-  assert.doesNotMatch(desktopSource, /return <button[\s\S]*?role="option"/);
+  assert.doesNotMatch(artifactLibrarySource, /return <button[\s\S]*?role="option"/);
   assert.match(desktopSource, /<strong>名称<\/strong><span>最后修改时间<\/span><span>最后关联的任务<\/span>/);
   assert.match(desktopSource, /formatArtifactModified\(artifact\.modified\)/);
   assert.match(desktopSource, /agent-os-library-associated-task/);
@@ -63,7 +65,7 @@ test("file windows remain directly draggable and HTML opens in rendered preview"
 
 test("desktop windows open centered in the work area with macOS-style file cascading", () => {
   assert.match(desktopSource, /useState<\{ x: number; y: number \} \| null>\(null\)/);
-  assert.match(desktopSource, /const cascadeStep = kind === "file" \? cascadeIndex % 6 : 0/);
+  assert.match(desktopSource, /const cascadeStep = kind === "file" \|\| kind === "document" \? cascadeIndex % 6 : kind === "app" \? cascadeIndex % 4 : 0/);
   assert.match(desktopSource, /translate: "-50% -50%"/);
   assert.match(desktopSource, /getBoundingClientRect\(\)/);
   assert.match(desktopSource, /windowRect\.left - layerRect\.left/);
@@ -75,8 +77,8 @@ test("desktop windows open centered in the work area with macOS-style file casca
 
 test("the Dock uses neutral controls, open indicators, and semantic badges", () => {
   assert.doesNotMatch(desktopSource, /updateDockMagnification|resetDockMagnification/);
-  assert.match(desktopSource, /aria-label="产物库"/);
-  assert.match(desktopSource, /dock-library\$\{artifactLibraryOpen \? " is-open" : ""\}/);
+  assert.match(desktopSource, /item\.id === "system:library"/);
+  assert.match(desktopSource, /openArtifactLibrary\(\)/);
   assert.doesNotMatch(desktopSource, /artifacts\.length > 0 && <em>/);
   assert.match(cssSource, /\.agent-os-dock > button\.is-open::after/);
   assert.doesNotMatch(cssSource, /#c9f0db|#8ed8af|#d6f3e3|#9addba/);

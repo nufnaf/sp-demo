@@ -730,6 +730,7 @@ function AssistantMessageView({
     >
       {/* Model label */}
       <div
+        className="message-model-metadata"
         style={{
           fontSize: 11,
           color: "var(--text-dim)",
@@ -805,7 +806,7 @@ function AssistantMessageView({
         display: "flex", alignItems: "center", gap: 8, marginTop: 4,
       }}>
         {message.usage && !isStreaming && (
-          <div style={{ fontSize: 11, color: "var(--text-dim)" }}>
+          <div className="message-usage-metadata" style={{ fontSize: 11, color: "var(--text-dim)" }}>
             {formatUsage(message.usage)}
           </div>
         )}

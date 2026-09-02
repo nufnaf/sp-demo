@@ -72,6 +72,19 @@ async function updateStoredCredentials<T>(
   }
 }
 
+/** Update a non-model service section in auth.json under the same lock as Pi auth writes. */
+export function updateStoredAuthSection(
+  sectionId: string,
+  value: Record<string, unknown> | undefined,
+  authPath = join(getAgentDir(), "auth.json"),
+): Promise<void> {
+  return updateStoredCredentials(authPath, (credentials) => {
+    if (value === undefined) delete credentials[sectionId];
+    else credentials[sectionId] = value;
+    return { result: undefined, changed: true };
+  });
+}
+
 /** Store a provider credential without triggering a model-catalog refresh. */
 export function storeProviderCredential(
   providerId: string,
