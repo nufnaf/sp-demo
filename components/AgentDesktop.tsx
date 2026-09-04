@@ -14,7 +14,7 @@ import {
 } from "react";
 import { AppShell } from "./AppShell";
 import { AppStore, AppStoreBrandIcon } from "./AppStore";
-import { DesktopReminders, type ReminderItem } from "./DesktopReminders";
+import { clearDesktopReminders, DesktopReminders, type ReminderItem } from "./DesktopReminders";
 import { DraggableDesktopWidget } from "./DraggableDesktopWidget";
 import { FileViewer } from "./FileViewer";
 import { extractTurnWrittenFiles } from "@/lib/turn-written-files";
@@ -120,6 +120,12 @@ interface Artifact {
 
 interface SessionDetailResponse {
   context?: SessionContext;
+}
+
+interface WorkspaceOption {
+  cwd: string;
+  name: string;
+  managed: boolean;
 }
 
 const INSIGHT_STORAGE_PREFIX = "pi-web:insight-automation:";
@@ -1147,7 +1153,9 @@ export function AgentDesktop() {
   const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const [runningIds, setRunningIds] = useState<Set<string>>(() => new Set());
   const [activeCwd, setActiveCwd] = useState<string | null>(null);
+  const [managedWorkspaces, setManagedWorkspaces] = useState<WorkspaceOption[]>([]);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [workspaceBusy, setWorkspaceBusy] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [composerFocused, setComposerFocused] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -1183,15 +1191,21 @@ export function AgentDesktop() {
 
   const refreshSessions = useCallback(async () => {
     try {
-      const response = await fetch("/api/sessions", { cache: "no-store" });
+      const [response, workspaceResponse] = await Promise.all([
+        fetch("/api/sessions", { cache: "no-store" }),
+        fetch("/api/workspaces", { cache: "no-store" }),
+      ]);
       const data = await response.json() as { sessions?: SessionInfo[]; runningSessionIds?: string[] };
+      const workspaceData = await workspaceResponse.json() as { workspaces?: WorkspaceOption[] };
       if (!response.ok || !data.sessions) return;
       const nextSessions = data.sessions
         .filter((session) => session.relation?.kind !== "subagent")
         .sort((a, b) => Date.parse(b.modified) - Date.parse(a.modified));
+      const nextWorkspaces = workspaceResponse.ok ? workspaceData.workspaces ?? [] : [];
       setSessions(nextSessions);
+      setManagedWorkspaces(nextWorkspaces);
       setRunningIds(new Set(data.runningSessionIds ?? []));
-      setActiveCwd((current) => current ?? nextSessions[0]?.cwd ?? null);
+      setActiveCwd((current) => current ?? nextWorkspaces[0]?.cwd ?? nextSessions[0]?.cwd ?? null);
       setSessionsLoaded(true);
     } catch {
       // The desktop stays usable while a transient refresh fails.
@@ -1260,14 +1274,22 @@ export function AgentDesktop() {
     setInsightAutomation((current) => current ? observeCompletedTasks(current, completedIds) : current);
   }, [activeCwd, insightHydratedCwd, runningIds, sessions, sessionsLoaded]);
 
-  const artifactRefreshKey = sessions.map((session) => `${session.id}:${session.modified}`).join("|");
+  const workspaceSessions = useMemo(
+    () => activeCwd ? sessions.filter((session) => session.cwd === activeCwd) : [],
+    [activeCwd, sessions],
+  );
+  const artifactRefreshKey = `${activeCwd ?? ""}|${workspaceSessions.map((session) => `${session.id}:${session.modified}`).join("|")}`;
   useEffect(() => {
-    if (!artifactRefreshKey) {
+    if (!activeCwd || workspaceSessions.length === 0) {
       setArtifacts([]);
+      // Keep the sentinel uninitialized. On refresh, sessions arrive after the
+      // first render; treating that gap as an empty baseline makes every
+      // historical artifact look newly generated and opens a window for each.
+      knownArtifactIdsRef.current = null;
       return;
     }
     const controller = new AbortController();
-    void Promise.all(sessions.map(async (session) => {
+    void Promise.all(workspaceSessions.map(async (session) => {
       try {
         const response = await fetch(`/api/sessions/${encodeURIComponent(session.id)}?tail=200&deferThinking=1&deferMedia=1`, {
           cache: "no-store",
@@ -1289,7 +1311,7 @@ export function AgentDesktop() {
       if (knownIds) {
         const newlyGenerated = nextArtifacts.filter((artifact) => !knownIds.has(artifactIdentity(artifact))).reverse();
         const insightSessionIds = new Set(
-          sessions.filter(isInsightTaskSession).map((session) => session.id),
+          workspaceSessions.filter(isInsightTaskSession).map((session) => session.id),
         );
         const desktopArtifacts = newlyGenerated.filter((artifact) => !insightSessionIds.has(artifact.sessionId));
         if (desktopArtifacts.length) {
@@ -1347,30 +1369,160 @@ export function AgentDesktop() {
   }, [dockContextMenu]);
 
   useEffect(() => {
+    if (!workspaceOpen) return;
+    const closeOnOutsidePress = (event: globalThis.PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest(".agent-os-workspace-wrap")) return;
+      setWorkspaceOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setWorkspaceOpen(false);
+    };
+    window.addEventListener("pointerdown", closeOnOutsidePress);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("pointerdown", closeOnOutsidePress);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [workspaceOpen]);
+
+  useEffect(() => {
     if (!notice) return;
     const timer = window.setTimeout(() => setNotice(null), 3_200);
     return () => window.clearTimeout(timer);
   }, [notice]);
 
   const workspaces = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const session of sessions) map.set(session.cwd, session.cwd.split(/[\\/]/).filter(Boolean).at(-1) ?? session.cwd);
-    if (activeCwd && !map.has(activeCwd)) map.set(activeCwd, activeCwd.split(/[\\/]/).filter(Boolean).at(-1) ?? activeCwd);
-    return [...map.entries()].map(([cwd, name]) => ({ cwd, name }));
-  }, [activeCwd, sessions]);
+    const map = new Map<string, WorkspaceOption>();
+    for (const workspace of managedWorkspaces) map.set(workspace.cwd, workspace);
+    // The Agent OS desktop owns only registered workspaces. Arbitrary session
+    // directories belong in the session browser and must not become phantom
+    // workspace cards here.
+    if (activeCwd && !map.has(activeCwd)) map.set(activeCwd, {
+      cwd: activeCwd,
+      name: activeCwd.split(/[\\/]/).filter(Boolean).at(-1) ?? activeCwd,
+      managed: false,
+    });
+    return [...map.values()];
+  }, [activeCwd, managedWorkspaces]);
+
+  const workspaceStats = useMemo(() => new Map(workspaces.map((workspace) => {
+    const workspaceTasks = sessions.filter((session) => (
+      session.cwd === workspace.cwd && !isInsightTaskSession(session)
+    ));
+    return [workspace.cwd, {
+      taskCount: workspaceTasks.length,
+      runningCount: workspaceTasks.filter((session) => runningIds.has(session.id)).length,
+      latest: workspaceTasks[0]?.modified ?? null,
+    }];
+  })), [runningIds, sessions, workspaces]);
+
+  const switchWorkspace = useCallback((cwd: string) => {
+    if (cwd === activeCwd) {
+      setWorkspaceOpen(false);
+      return;
+    }
+    setActiveCwd(cwd);
+    setWorkspaceOpen(false);
+    setTaskSessionId(null);
+    setArtifacts([]);
+    setOpenArtifacts([]);
+    setSelectedLibraryArtifactId(null);
+    setInsightNotification(null);
+    setNotificationCenterOpen(false);
+    knownArtifactIdsRef.current = null;
+    window.history.replaceState(null, "", "/");
+  }, [activeCwd]);
+
+  const createWorkspace = useCallback(async () => {
+    const nextNumber = workspaces.filter((workspace) => workspace.name.startsWith("新工作台")).length + 1;
+    const name = `新工作台 ${nextNumber}`;
+    setWorkspaceBusy(true);
+    try {
+      const response = await fetch("/api/workspaces", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await response.json() as { workspace?: WorkspaceOption; error?: string };
+      if (!response.ok || !data.workspace) throw new Error(data.error ?? "工作台创建失败");
+      setManagedWorkspaces((current) => [data.workspace!, ...current]);
+      switchWorkspace(data.workspace.cwd);
+      setNotice(`已创建“${data.workspace.name}”`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : String(error));
+    } finally {
+      setWorkspaceBusy(false);
+    }
+  }, [switchWorkspace, workspaces]);
+
+  const deleteWorkspace = useCallback(async (workspace: WorkspaceOption) => {
+    const taskCount = sessions.filter((session) => session.cwd === workspace.cwd).length;
+    const detail = taskCount
+      ? `这会同时删除其中的 ${taskCount} 个任务、洞察和产物。`
+      : "这会同时删除其中的所有文件。";
+    if (!window.confirm(`确定永久删除“${workspace.name}”吗？${detail}此操作无法撤销。`)) return;
+    setWorkspaceBusy(true);
+    try {
+      const response = await fetch("/api/workspaces", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cwd: workspace.cwd }),
+      });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "工作台删除失败");
+      try {
+        window.localStorage.removeItem(insightStorageKey(workspace.cwd));
+        clearDesktopReminders(workspace.cwd);
+      } catch {
+        // Server-side deletion is complete even if browser storage is unavailable.
+      }
+      setManagedWorkspaces((current) => current.filter((item) => item.cwd !== workspace.cwd));
+      setSessions((current) => current.filter((session) => session.cwd !== workspace.cwd));
+      if (activeCwd === workspace.cwd) {
+        const next = workspaces.find((item) => item.cwd !== workspace.cwd);
+        if (next) switchWorkspace(next.cwd);
+        else {
+          setActiveCwd(null);
+          setWorkspaceOpen(false);
+          setTaskSessionId(null);
+          setArtifacts([]);
+          setOpenArtifacts([]);
+          window.history.replaceState(null, "", "/");
+        }
+      }
+      setNotice(`已删除“${workspace.name}”`);
+      void refreshSessions();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : String(error));
+    } finally {
+      setWorkspaceBusy(false);
+    }
+  }, [activeCwd, refreshSessions, sessions, switchWorkspace, workspaces]);
 
   const visibleTasks = useMemo(() => {
-    const userSessions = sessions.filter((session) => !isInsightTaskSession(session));
+    const userSessions = workspaceSessions.filter((session) => !isInsightTaskSession(session));
     const running = userSessions.filter((session) => runningIds.has(session.id));
     const recent = userSessions.filter((session) => !runningIds.has(session.id));
     return [...running, ...recent].slice(0, 4);
-  }, [runningIds, sessions]);
+  }, [runningIds, workspaceSessions]);
 
   const openTask = useCallback((sessionId: string) => {
     setTaskSessionId(sessionId);
     setFrontWindow("tasks");
     window.history.replaceState(null, "", `?session=${encodeURIComponent(sessionId)}`);
   }, []);
+
+  useEffect(() => {
+    if (!taskSessionId) return;
+    const task = sessions.find((session) => session.id === taskSessionId);
+    if (!task || task.cwd === activeCwd) return;
+    setActiveCwd(task.cwd);
+    setArtifacts([]);
+    setOpenArtifacts([]);
+    knownArtifactIdsRef.current = null;
+  }, [activeCwd, sessions, taskSessionId]);
 
   const openArtifact = useCallback((artifact: Artifact) => {
     const identity = artifactIdentity(artifact);
@@ -1700,7 +1852,7 @@ export function AgentDesktop() {
 
   const formatDate = new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", weekday: "short" }).format(now);
   const formatTime = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
-  const runningCount = sessions.filter((session) => runningIds.has(session.id) && !isInsightTaskSession(session)).length;
+  const runningCount = workspaceSessions.filter((session) => runningIds.has(session.id) && !isInsightTaskSession(session)).length;
   const insightRunning = Boolean(insightAutomation?.analysisSessionId && runningIds.has(insightAutomation.analysisSessionId));
   const insightResults = insightAutomation?.results ?? [];
   const dockContextApp = dockContextMenu ? dockApps.find((app) => app.id === dockContextMenu.appId) : null;
@@ -1736,12 +1888,25 @@ export function AgentDesktop() {
           <BrandMark/><strong>Syntropic</strong>
         </button>
         <div className="agent-os-workspace-wrap">
-          <button className="agent-os-workspace" type="button" aria-expanded={workspaceOpen} onClick={() => setWorkspaceOpen((value) => !value)}>
-            <i/><span>{workspaces.find((item) => item.cwd === activeCwd)?.name ?? "Agent 工作台"}</span><small>⌄</small>
+          <button className="agent-os-workspace" type="button" aria-haspopup="dialog" aria-expanded={workspaceOpen} onClick={() => setWorkspaceOpen((value) => !value)}>
+            <i/><span>{workspaces.find((item) => item.cwd === activeCwd)?.name ?? "Agent 工作台"}</span><small className={workspaceOpen ? "open" : ""}>⌄</small>
           </button>
-          {workspaceOpen && <section className="agent-os-workspace-menu">
-            <header><strong>工作空间</strong><small>{workspaces.length || 1} 个目录</small></header>
-            {workspaces.length ? workspaces.map((workspace) => <button key={workspace.cwd} type="button" className={workspace.cwd === activeCwd ? "active" : ""} onClick={() => { setActiveCwd(workspace.cwd); setWorkspaceOpen(false); }}><span>{workspace.name}</span><small>{workspace.cwd}</small></button>) : <p>首次发送任务时自动创建工作目录</p>}
+          {workspaceOpen && <section className="agent-os-workspace-menu" role="dialog" aria-label="管理工作台">
+            <header>
+              <span><strong>工作台</strong><small>{workspaces.length} 个工作台</small></span>
+              <button type="button" onClick={() => void createWorkspace()} disabled={workspaceBusy} aria-label="新建工作台" title="新建工作台"><Icon name="plus" size={15}/></button>
+            </header>
+            {workspaces.length ? <div className="agent-os-workspace-grid" role="list">{workspaces.map((workspace, index) => {
+              const stats = workspaceStats.get(workspace.cwd) ?? { taskCount: 0, runningCount: 0, latest: null };
+              const active = workspace.cwd === activeCwd;
+              return <article className={`agent-os-workspace-tile tone-${index % 4}${active ? " active" : ""}`} role="listitem" key={workspace.cwd}>
+                {workspace.managed && <button className="delete" type="button" aria-label={`删除 ${workspace.name}`} title="删除工作台" disabled={workspaceBusy} onClick={() => void deleteWorkspace(workspace)}><Icon name="close" size={10}/></button>}
+                <button className="select" type="button" onClick={() => switchWorkspace(workspace.cwd)} aria-current={active ? "true" : undefined} aria-label={`切换到${workspace.name}，${stats.taskCount} 个任务，${stats.runningCount} 个运行中`}>
+                  <span className="agent-os-workspace-preview" aria-hidden="true"><i className="one"/><i className="two"/><i className="three"/></span>
+                  <span className="agent-os-workspace-copy"><strong>{workspace.name}</strong></span>
+                </button>
+              </article>;
+            })}</div> : <div className="agent-os-workspace-empty"><span><Icon name="grid" size={24}/></span><strong>还没有工作台</strong><small>新建一个工作台，让任务、洞察和产物彼此独立。</small></div>}
           </section>}
         </div>
         <div className="agent-os-system-status">

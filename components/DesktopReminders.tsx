@@ -23,6 +23,10 @@ function storageKey(workspaceKey: string): string {
   return `${STORAGE_PREFIX}${workspaceKey}`;
 }
 
+export function clearDesktopReminders(workspaceKey: string): void {
+  window.localStorage.removeItem(storageKey(workspaceKey));
+}
+
 function readItems(workspaceKey: string): ReminderItem[] {
   try {
     const value = window.localStorage.getItem(storageKey(workspaceKey));

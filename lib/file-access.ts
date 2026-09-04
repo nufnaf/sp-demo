@@ -34,7 +34,7 @@ export async function getAllowedFileRoots(): Promise<Set<string>> {
   // Also allow ~/pi-cwd-* directories created by the default-cwd endpoint.
   try {
     for (const name of readdirSync(homedir())) {
-      if (/^pi-cwd-\d{8}$/.test(name)) {
+      if (/^pi-cwd-\d{8}(?:-\d{6}(?:-\d+)?)?$/.test(name)) {
         roots.add(normalizeSlashes(path.join(homedir(), name)));
       }
     }
