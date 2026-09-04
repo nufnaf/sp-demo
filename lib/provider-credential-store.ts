@@ -85,6 +85,20 @@ export function updateStoredAuthSection(
   });
 }
 
+/** Read a non-model service section while holding the same auth.json lock used by writers. */
+export function readStoredAuthSection(
+  sectionId: string,
+  authPath = join(getAgentDir(), "auth.json"),
+): Promise<Record<string, unknown> | undefined> {
+  return updateStoredCredentials(authPath, (credentials) => {
+    const value = credentials[sectionId];
+    return {
+      result: isRecord(value) ? { ...value } : undefined,
+      changed: false,
+    };
+  });
+}
+
 /** Store a provider credential without triggering a model-catalog refresh. */
 export function storeProviderCredential(
   providerId: string,

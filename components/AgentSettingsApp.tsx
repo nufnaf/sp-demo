@@ -9,6 +9,7 @@ import {
   type SettingsSection,
 } from "@/lib/settings-navigation";
 import { ModelsConfig } from "./ModelsConfig";
+import { VoiceConfig } from "./VoiceConfig";
 import { SkillsConfig } from "./SkillsConfig";
 import { AgentsConfig } from "./AgentsConfig";
 import { PluginsConfig } from "./PluginsConfig";
@@ -50,9 +51,11 @@ function ChevronIcon() {
 function GeneralSettings({
   cwd,
   onOpenModels,
+  onOpenVoice,
 }: {
   cwd: string | null;
   onOpenModels: () => void;
+  onOpenVoice: () => void;
 }) {
   const { locale, setLocale, supportedLocales, t } = useI18n();
   const { preference, setThemePreference } = useTheme();
@@ -97,6 +100,7 @@ function GeneralSettings({
         <h2>Agent</h2>
         <div className="agent-settings-form-list">
           <button type="button" onClick={onOpenModels}><span><strong>模型与 API Key</strong><small>配置 DeepSeek 等 Provider，并选择 Agent 使用的模型</small></span><ChevronIcon/></button>
+          <button type="button" onClick={onOpenVoice}><span><strong>实时语音</strong><small>配置豆包 ASR、Seed TTS 和本机凭证</small></span><ChevronIcon/></button>
           <div><span><strong>当前工作目录</strong><small>{cwd ?? "首次创建任务时自动生成"}</small></span><em>{cwd ? "已连接" : "自动"}</em></div>
           <div><span><strong>凭据存储</strong><small>API Key 只保存在本机 ~/.pi/agent/auth.json</small></span><em className="secure">本机</em></div>
         </div>
@@ -118,6 +122,7 @@ export function AgentSettingsApp({ cwd, sessionId, onClose, onSessionReloaded }:
   const navItems = useMemo<SettingsNavItem[]>(() => [
     { id: "general", label: t("settings.general"), description: "外观、语言和默认行为", color: "#7f8b99", requiresProject: false },
     { id: "models", label: t("common.models"), description: "Provider、API Key 和模型", color: "#3478f6", requiresProject: false },
+    { id: "voice", label: t("voiceSettings.title"), description: "豆包实时输入、播报与凭证", color: "#e45a84", requiresProject: false },
     { id: "agents", label: t("common.agents"), description: "内置与自定义子代理", color: "#7c5ce5", requiresProject: true },
     { id: "skills", label: t("common.skills"), description: "Agent 可调用的专业能力", color: "#ef8a35", requiresProject: true },
     { id: "plugins", label: t("common.plugins"), description: "扩展、工具与资源", color: "#27a66f", requiresProject: true },
@@ -172,8 +177,9 @@ export function AgentSettingsApp({ cwd, sessionId, onClose, onSessionReloaded }:
         <footer><span className="agent-settings-pi-mark">π</span><span><strong>Pi Agent</strong><small>Agent OS Runtime</small></span><i>已连接</i></footer>
       </aside>
       <main className="agent-settings-content">
-        {host("general", <GeneralSettings cwd={cwd} onOpenModels={() => activate("models")}/>)}
+        {host("general", <GeneralSettings cwd={cwd} onOpenModels={() => activate("models")} onOpenVoice={() => activate("voice")}/>)}
         {host("models", <ModelsConfig embedded onClose={onClose}/>)}
+        {host("voice", <VoiceConfig embedded onClose={onClose}/>)}
         {host("agents", cwd ? <AgentsConfig embedded cwd={cwd} sessionId={sessionId} onClose={onClose} onReloaded={onSessionReloaded}/> : <ProjectRequired label="子代理"/>)}
         {host("skills", cwd ? <SkillsConfig embedded cwd={cwd} onClose={onClose}/> : <ProjectRequired label="Skills"/>)}
         {host("plugins", cwd ? <PluginsConfig embedded cwd={cwd} sessionId={sessionId} onClose={onClose} onReloaded={onSessionReloaded}/> : <ProjectRequired label="Plugins"/>)}

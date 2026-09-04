@@ -13,10 +13,10 @@ test("Agent OS dock opens a real settings application", () => {
 });
 
 test("Agent OS settings reuses every Pi configuration surface", () => {
-  for (const component of ["ModelsConfig", "AgentsConfig", "SkillsConfig", "PluginsConfig"]) {
+  for (const component of ["ModelsConfig", "VoiceConfig", "AgentsConfig", "SkillsConfig", "PluginsConfig"]) {
     assert.match(settingsSource, new RegExp(`<${component} embedded`));
   }
-  for (const section of ["general", "models", "agents", "skills", "plugins"]) {
+  for (const section of ["general", "models", "voice", "agents", "skills", "plugins"]) {
     assert.match(settingsSource, new RegExp(`id: "${section}"`));
   }
 });

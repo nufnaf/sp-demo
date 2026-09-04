@@ -24,6 +24,8 @@ import type { AppConnectResponse, AppConnectionStatus, AppDataResponse, Connecte
 import type { PluginsResponse } from "@/lib/api-types";
 import type { AgentMessage, SessionContext, SessionInfo, ToolResultMessage } from "@/lib/types";
 import { showBrowserNotification } from "@/lib/browser-notifications";
+import { markVoiceReplyPending, useRealtimeVoice } from "@/hooks/useRealtimeVoice";
+import { VoiceActivityIndicator } from "./VoiceActivityIndicator";
 import {
   INSIGHT_BATCH_SIZE,
   buildInsightAnalysisPrompt,
@@ -1527,6 +1529,27 @@ export function AgentDesktop() {
     }
   }, [ensureCwd, refreshSessions]);
 
+  const handleDesktopVoicePrompt = useCallback((message: string) => {
+    void startTask(message).then((sessionId) => {
+      if (!sessionId) return;
+      markVoiceReplyPending(sessionId);
+      openTask(sessionId);
+    });
+  }, [openTask, startTask]);
+
+  const desktopVoice = useRealtimeVoice({
+    agentRunning: submitting,
+    latestAssistantText: "",
+    onPrompt: handleDesktopVoicePrompt,
+    onSteer: () => {},
+    onAbort: () => {},
+    expectReply: false,
+  });
+
+  useEffect(() => {
+    if (desktopVoice.error) setNotice(desktopVoice.error);
+  }, [desktopVoice.error]);
+
   const startInsightAnalysis = useCallback(async (message: string, cwd: string) => {
     try {
       const response = await fetch("/api/agent/new", {
@@ -1891,13 +1914,37 @@ export function AgentDesktop() {
         })}
       </section>
 
-      <section className={`agent-os-ai-surface${composerFocused || prompt ? " expanded" : ""}`}>
+      <section className={`agent-os-ai-surface${composerFocused || prompt || desktopVoice.state !== "idle" ? " expanded" : ""}${desktopVoice.state !== "idle" ? ` voice-active voice-${desktopVoice.state}` : ""}`}>
         {(composerFocused || prompt) && <div className="agent-os-suggestion"><small>你可能想做</small><button type="button" onClick={() => setPrompt("分析当前项目，给出最值得优先处理的三个改进，并直接完成第一项。")}>分析当前项目，给出最值得优先处理的三个改进，并直接完成第一项。</button></div>}
         <form className="agent-os-composer" onSubmit={submitPrompt}>
           <BrandMark compact/>
           <button className="attach" type="button" aria-label="添加上下文"><Icon name="plus" size={19}/></button>
-          <input value={prompt} onChange={(event) => setPrompt(event.target.value)} onFocus={() => setComposerFocused(true)} onBlur={() => { if (!prompt) window.setTimeout(() => setComposerFocused(false), 120); }} placeholder="向 Pi Agent 交付任务" aria-label="向 Pi Agent 交付任务"/>
-          <button className="voice" type="button" aria-label="语音输入"><Icon name="mic" size={19}/></button>
+          {desktopVoice.state !== "idle" ? (
+            <VoiceActivityIndicator
+              compact
+              state={desktopVoice.state}
+              transcript={desktopVoice.transcript}
+              error={desktopVoice.error}
+              level={desktopVoice.voiceLevel}
+              labels={{
+                connecting: "正在准备聆听…",
+                listening: "正在聆听",
+                transcribing: "正在整理你说的话…",
+                "agent-working": "已听到，正在交给 Pi…",
+                speaking: "正在播报",
+                error: "语音连接失败",
+              }}
+            />
+          ) : (
+            <input value={prompt} onChange={(event) => setPrompt(event.target.value)} onFocus={() => setComposerFocused(true)} onBlur={() => { if (!prompt) window.setTimeout(() => setComposerFocused(false), 120); }} placeholder="向 Pi Agent 交付任务" aria-label="向 Pi Agent 交付任务"/>
+          )}
+          <button
+            className="voice"
+            type="button"
+            aria-label={desktopVoice.isListening ? "停止并发送语音输入" : desktopVoice.isSpeaking ? "打断语音播报" : "语音输入"}
+            aria-pressed={desktopVoice.isListening}
+            onClick={desktopVoice.toggleListening}
+          >{desktopVoice.isListening ? <span className="agent-os-voice-stop" aria-hidden="true"/> : <Icon name="mic" size={19}/>}</button>
           <button className="send" type="submit" aria-label="发送任务" disabled={!prompt.trim() || submitting}>{submitting ? <span className="agent-os-spinner"/> : <Icon name="arrow-up" size={19}/>}</button>
         </form>
       </section>

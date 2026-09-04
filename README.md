@@ -49,6 +49,14 @@ For port and hostname, command-line options override the corresponding environme
 | `PI_WEB_SKIP_VERSION_CHECK=1` | Disable Pi Web update checks | Unset |
 | `PI_WEB_ALLOWED_HOSTS` | Additional exact proxy or custom hostnames, comma-separated | Unset |
 | `PI_WEB_PASSWORD` | Enable HTTP Basic Auth; the username is always `pi` | Authentication disabled |
+| `DOUBAO_SPEECH_APP_ID` | Volcengine Doubao Speech application ID used to mint short-lived browser tokens | Voice input disabled |
+| `DOUBAO_SPEECH_ACCESS_KEY` | Volcengine Doubao Speech access key; kept on the Pi Web server | Voice input disabled |
+| `DOUBAO_ASR_RESOURCE_ID` | Streaming ASR resource ID enabled for the application | `volc.bigasr.sauc.duration` |
+| `DOUBAO_TTS_RESOURCE_ID` | Bidirectional TTS resource ID enabled for the application | `seed-tts-2.0` |
+| `DOUBAO_TTS_SPEAKER` | Doubao TTS speaker/voice ID | `zh_female_vv_uranus_bigtts` |
+| `DOUBAO_TTS_SAMPLE_RATE` | TTS output sample rate | `24000` |
+
+Doubao voice credentials can also be configured from **Settings → Voice**. Settings take precedence over the environment variables and are stored locally in `~/.pi/agent/auth.json` with restricted file permissions; the access key is never returned by the settings API.
 
 For example:
 

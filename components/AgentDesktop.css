@@ -300,12 +300,23 @@
 
 .agent-os-ai-surface { position: absolute; z-index: 150; left: 50%; bottom: 112px; width: min(360px, calc(100vw - 28px)); transform: translateX(-50%); transition: width 240ms var(--os-ease-out); }
 .agent-os-ai-surface.expanded { width: min(720px, calc(100vw - 28px)); }
+.agent-os-ai-surface.voice-active { width: min(480px, calc(100vw - 28px)); }
 .agent-os-composer { height: 48px; border: 1px solid rgba(255,255,255,.92); border-radius: 25px; padding: 0 6px 0 10px; display: flex; align-items: center; gap: 5px; background: linear-gradient(145deg, rgba(255,255,255,.86), rgba(239,246,249,.68)); box-shadow: inset 0 1px white, inset 0 -1px rgba(85,111,125,.07), 0 18px 46px rgba(67,99,117,.17); backdrop-filter: blur(34px) saturate(1.45); transition: height 240ms var(--os-ease-out), border-radius 240ms var(--os-ease-out), box-shadow 180ms ease; }
+.agent-os-ai-surface.voice-active .agent-os-composer { height: 58px; border-color: color-mix(in srgb, var(--voice-color, #0a84ff) 20%, rgba(255,255,255,.92)); border-radius: 21px; box-shadow: inset 0 1px white, 0 22px 58px rgba(67,99,117,.22); }
+.agent-os-ai-surface.voice-listening { --voice-color: #ff453a; }
+.agent-os-ai-surface.voice-transcribing { --voice-color: #ff9f0a; }
+.agent-os-ai-surface.voice-agent-working { --voice-color: #30b77a; }
+.agent-os-ai-surface.voice-speaking { --voice-color: #0a84ff; }
 .agent-os-ai-surface.expanded .agent-os-composer { height: 60px; border-radius: 20px; box-shadow: inset 0 1px white, 0 26px 66px rgba(67,99,117,.23); }
 .agent-os-composer > .agent-os-brand-mark { transition: width 160ms ease, opacity 140ms ease; }.agent-os-ai-surface.expanded .agent-os-composer > .agent-os-brand-mark { width: 0; flex-basis: 0; overflow: hidden; opacity: 0; }
 .agent-os-composer input { min-width: 0; flex: 1; border: 0; outline: 0; padding: 0 7px; color: #20262b; background: transparent; font-size: 11px; }.agent-os-composer input::placeholder { color: rgba(31,40,45,.43); }
 .agent-os-composer button { flex: 0 0 auto; border: 0; display: grid; place-items: center; cursor: pointer; transition: transform 140ms var(--os-ease-out), opacity 140ms ease, background 160ms ease; }.agent-os-composer button:active { transform: scale(.94); }
 .agent-os-composer .attach, .agent-os-composer .voice { width: 36px; height: 36px; border-radius: 11px; color: var(--os-muted); background: transparent; }.agent-os-composer .attach:hover, .agent-os-composer .voice:hover { color: #252c30; background: rgba(255,255,255,.7); }
+.agent-os-ai-surface.voice-active .agent-os-composer > .agent-os-brand-mark,
+.agent-os-ai-surface.voice-active .agent-os-composer > .attach { width: 0; flex-basis: 0; overflow: hidden; opacity: 0; pointer-events: none; }
+.agent-os-ai-surface.voice-active .agent-os-composer > .voice { width: 38px; height: 38px; border-radius: 50%; color: var(--voice-color); background: color-mix(in srgb, var(--voice-color) 12%, white); }
+.agent-os-ai-surface.voice-listening .agent-os-composer > .voice { color: white; background: #ff453a; box-shadow: 0 5px 16px rgba(255,69,58,.24); }
+.agent-os-voice-stop { width: 9px; height: 9px; border-radius: 2.5px; background: currentColor; }
 .agent-os-ai-surface:not(.expanded) .attach { width: 0; opacity: 0; overflow: hidden; pointer-events: none; }.agent-os-ai-surface:not(.expanded) .voice { margin-left: auto; }
 .agent-os-composer .send { width: 40px; height: 40px; border-radius: 13px; color: white; background: #24282d; box-shadow: 0 6px 17px rgba(37,43,48,.18); }.agent-os-composer .send:disabled { opacity: .25; cursor: default; }.agent-os-ai-surface:not(.expanded) .send { width: 0; opacity: 0; overflow: hidden; pointer-events: none; }
 .agent-os-suggestion { position: absolute; left: 0; right: 0; bottom: calc(100% + 10px); border: 1px solid rgba(255,255,255,.9); border-radius: 15px; padding: 12px 14px; background: linear-gradient(145deg, rgba(255,255,255,.84), rgba(241,247,249,.72)); box-shadow: inset 0 1px white, 0 20px 50px rgba(65,94,109,.16); backdrop-filter: blur(30px); transform-origin: bottom; }
