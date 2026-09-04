@@ -6,7 +6,7 @@ const source = await readFile(new URL("./AgentDesktop.tsx", import.meta.url), "u
 const route = await readFile(new URL("../app/api/workspaces/route.ts", import.meta.url), "utf8");
 
 test("desktop scopes tasks, counts, and artifact extraction to the active workspace", () => {
-  assert.match(source, /sessions\.filter\(\(session\) => session\.cwd === activeCwd\)/);
+  assert.match(source, /sessions\.filter\(\(session\) => \([\s\S]*?session\.cwd === activeCwd[\s\S]*?session\.id !== jarvisSessionId/);
   assert.match(source, /workspaceSessions\.filter\(\(session\) => !isInsightTaskSession\(session\)\)/);
   assert.match(source, /Promise\.all\(workspaceSessions\.map/);
   assert.match(source, /const runningCount = workspaceSessions\.filter/);

@@ -1,9 +1,15 @@
 export type VoiceState =
-  | "idle"
+  /** Conversation mode is off. */
+  | "off"
+  /** Opening the microphone and speech services. */
   | "connecting"
+  /** Microphone open, waiting for the user. */
   | "listening"
-  | "transcribing"
-  | "agent-working"
+  /** The user is talking. */
+  | "hearing"
+  /** The user's turn was sent and the agent has not answered yet. */
+  | "thinking"
+  /** Playing the assistant's reply. */
   | "speaking"
   | "error";
 
@@ -23,8 +29,13 @@ export interface DoubaoVoiceSession {
   };
 }
 
-export interface VoiceUiState {
+export interface VoiceSnapshot {
   state: VoiceState;
+  /** Live transcript of what the user is saying. */
   transcript: string;
+  /** Sentence currently being spoken. */
+  caption: string;
   error: string | null;
+  /** Microphone or playback loudness in the 0..1 range. */
+  level: number;
 }

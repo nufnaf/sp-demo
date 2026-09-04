@@ -26,8 +26,6 @@ import { FolderIcon, getFileIcon } from "./FileIcons";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/hooks/useI18n";
 import type { ToolPreset } from "@/lib/tool-presets";
-import type { VoiceState } from "@/lib/voice/types";
-import { VoiceActivityIndicator } from "./VoiceActivityIndicator";
 import { ModelSelector, type ModelSelectorOption } from "./ModelSelector";
 
 export { filterModelOptions } from "./ModelSelector";
@@ -76,11 +74,6 @@ interface Props {
   soundEnabled?: boolean;
   onSoundToggle?: () => void;
   onAudioUnlock?: () => void;
-  voiceState?: VoiceState;
-  voiceTranscript?: string;
-  voiceError?: string | null;
-  voiceLevel?: number;
-  onVoiceToggle?: () => void;
   draftKey?: string;
   /** Session working directory — enables the @ file autocomplete menu */
   cwd?: string | null;
@@ -449,7 +442,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   slashCommands, slashCommandsLoading, onLoadSlashCommands,
   onBuiltinCommand,
   soundEnabled, onSoundToggle, onAudioUnlock,
-  voiceState = "idle", voiceTranscript = "", voiceError, voiceLevel = 0, onVoiceToggle,
   onPromptWithStreamingBehavior,
   draftKey,
   cwd,
@@ -1430,23 +1422,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
       <div style={{ maxWidth: 820, margin: "0 auto" }}>
         <ModelErrorBanner error={modelError} />
         <ModelScopeWarningBanner warnings={modelScopeWarnings} />
-        {(voiceTranscript || voiceError || voiceState !== "idle") && (
-          <VoiceActivityIndicator
-            state={voiceState}
-            transcript={voiceTranscript}
-            error={voiceError}
-            level={voiceLevel}
-            labels={{
-              idle: t("chat.voiceStartListening"),
-              connecting: t("chat.voiceConnecting"),
-              listening: t("chat.voiceListening"),
-              transcribing: t("chat.voiceTranscribing"),
-              "agent-working": t("chat.voiceAgentWorking"),
-              speaking: t("chat.voiceSpeaking"),
-              error: t("chat.voiceError"),
-            }}
-          />
-        )}
         {/* Queued steering / follow-up messages (delivered by pi on upcoming turns) */}
         {((queuedMessages?.steering.length ?? 0) + (queuedMessages?.followUp.length ?? 0)) > 0 && (
           <div style={{
@@ -2123,56 +2098,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                 <polyline points="21 15 16 10 5 21" />
               </svg>
             </button>
-            {onVoiceToggle && (
-              <button
-                type="button"
-                onClick={onVoiceToggle}
-                title={t(
-                  voiceState === "listening" || voiceState === "connecting" || voiceState === "transcribing"
-                    ? "chat.voiceStopListening"
-                    : voiceState === "speaking"
-                      ? "chat.voiceInterrupt"
-                      : "chat.voiceStartListening",
-                )}
-                aria-label={t(
-                  voiceState === "listening" || voiceState === "connecting" || voiceState === "transcribing"
-                    ? "chat.voiceStopListening"
-                    : voiceState === "speaking"
-                      ? "chat.voiceInterrupt"
-                      : "chat.voiceStartListening",
-                )}
-                aria-pressed={voiceState === "listening"}
-                style={{
-                  flexShrink: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 32,
-                  height: 32,
-                  padding: 0,
-                  background: voiceState === "listening" ? "rgba(239,68,68,0.10)" : voiceState === "speaking" ? "color-mix(in srgb, var(--accent) 12%, transparent)" : "none",
-                  border: "none",
-                  borderRadius: 9,
-                  color: voiceState === "listening" ? "#ef4444" : voiceState === "speaking" ? "var(--accent)" : "var(--text-muted)",
-                  cursor: "pointer",
-                  transition: "background 0.12s, color 0.12s",
-                }}
-              >
-                {voiceState === "speaking" ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                    <line x1="6" y1="9" x2="6" y2="15" /><line x1="10" y1="5" x2="10" y2="19" />
-                    <line x1="14" y1="7" x2="14" y2="17" /><line x1="18" y1="10" x2="18" y2="14" />
-                  </svg>
-                ) : voiceState === "listening" || voiceState === "connecting" || voiceState === "transcribing" ? (
-                  <span className="voice-stop-icon" aria-hidden="true" />
-                ) : (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <rect x="9" y="2" width="6" height="12" rx="3" />
-                    <path d="M5 10a7 7 0 0 0 14 0" /><line x1="12" y1="17" x2="12" y2="22" /><line x1="8" y1="22" x2="16" y2="22" />
-                  </svg>
-                )}
-              </button>
-            )}
             {/* Model selector - visible always, disabled while the session or switch is busy */}
             {(modelOptions.length > 0 || model || modelError) && onModelChange && (
               <div className="chat-input-model-selector"><ModelSelector

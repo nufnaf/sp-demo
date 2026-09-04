@@ -15,7 +15,6 @@ import { useI18n } from "@/hooks/useI18n";
 import { useAgentSession, type AgentPhase, type NoticeItem } from "@/hooks/useAgentSession";
 import { useDragDrop } from "@/hooks/useDragDrop";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { useRealtimeVoice } from "@/hooks/useRealtimeVoice";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import type { AppUpdateResponse } from "@/lib/api-types";
 import type { ToolEntry } from "@/lib/tool-presets";
@@ -145,19 +144,6 @@ function hasFinalAssistantAnswer(message: AgentMessage): boolean {
   return splitFinalAssistantBlocks(message as AssistantMessage).answerBlocks.some((block) => (
     block.type === "image" || (block.type === "text" && block.text.trim().length > 0)
   ));
-}
-
-function getLatestAssistantSpeechText(messages: AgentMessage[]): string {
-  for (let index = messages.length - 1; index >= 0; index--) {
-    const message = messages[index];
-    if (message?.role !== "assistant") continue;
-    return splitFinalAssistantBlocks(message as AssistantMessage).answerBlocks
-      .filter((block): block is Extract<AssistantContentBlock, { type: "text" }> => block.type === "text")
-      .map((block) => block.text)
-      .join("\n")
-      .trim();
-  }
-  return "";
 }
 
 function findFinalAssistantIndex(messages: AgentMessage[], userIdx: number, endIdx: number): number {
@@ -570,20 +556,6 @@ export function ChatWindow({ session, sessionRunning, newSessionCwd, newSessionD
     ? (modelThinkingLevelMaps[`${displayModelValue.provider}:${displayModelValue.modelId}`] ?? null)
     : null;
 
-  const latestAssistantSpeechText = useMemo(
-    () => getLatestAssistantSpeechText(messages),
-    [messages],
-  );
-  const voice = useRealtimeVoice({
-    sessionId: session?.id ?? sessionIdRef.current,
-    agentRunning,
-    latestAssistantText: latestAssistantSpeechText,
-    onPrompt: handleSend,
-    onSteer: handleSteer,
-    onAbort: handleAbort,
-    onAudioUnlock: unlockAudio,
-  });
-
   const chatInputElement = (
     <ChatInput
       ref={chatInputRef}
@@ -623,11 +595,6 @@ export function ChatWindow({ session, sessionRunning, newSessionCwd, newSessionD
       soundEnabled={soundEnabled}
       onSoundToggle={onSoundToggle}
       onAudioUnlock={unlockAudio}
-      voiceState={voice.state}
-      voiceTranscript={voice.transcript}
-      voiceError={voice.error}
-      voiceLevel={voice.voiceLevel}
-      onVoiceToggle={voice.toggleListening}
       draftKey={session?.id ?? newSessionDraftKey ?? undefined}
       cwd={session?.cwd ?? newSessionCwd}
     />

@@ -24,8 +24,11 @@ import type { AppConnectResponse, AppConnectionStatus, AppDataResponse, Connecte
 import type { PluginsResponse } from "@/lib/api-types";
 import type { AgentMessage, SessionContext, SessionInfo, ToolResultMessage } from "@/lib/types";
 import { showBrowserNotification } from "@/lib/browser-notifications";
-import { markVoiceReplyPending, useRealtimeVoice } from "@/hooks/useRealtimeVoice";
+import { useRealtimeVoice } from "@/hooks/useRealtimeVoice";
+import { useJarvis, type JarvisTask } from "@/hooks/useJarvis";
 import { VoiceActivityIndicator } from "./VoiceActivityIndicator";
+import { BrowserApp } from "./BrowserApp";
+import type { BrowserSystemEvent } from "@/lib/browser/types";
 import {
   INSIGHT_BATCH_SIZE,
   buildInsightAnalysisPrompt,
@@ -48,10 +51,11 @@ const AgentSettingsApp = dynamic(
 
 type IconName =
   | "arrow-up" | "bell" | "chat" | "clock" | "close"
+  | "browser"
   | "eye" | "file" | "grid" | "insight" | "list" | "maximize" | "mic" | "minimize"
   | "files" | "plus" | "search" | "settings" | "tasks" | "tiles";
 
-type SystemDockAppId = "system:tasks" | "system:library" | "system:store" | "system:settings";
+type SystemDockAppId = "system:tasks" | "system:library" | "system:browser" | "system:store" | "system:settings";
 
 interface SystemDockApp {
   kind: "system";
@@ -68,13 +72,15 @@ type DockItem = LaunchpadApp | SystemDockApp;
 const SYSTEM_DOCK_APPS: SystemDockApp[] = [
   { kind: "system", id: "system:tasks", name: "任务", description: "查看当前正在推进的任务", category: "其他", icon: "tasks", rank: 1 },
   { kind: "system", id: "system:library", name: "产物库", description: "浏览 Agent 生成的文件产物", category: "其他", icon: "files", rank: 2 },
-  { kind: "system", id: "system:store", name: "应用商店", description: "发现和管理 Pi 应用", category: "其他", icon: "grid", rank: 3 },
-  { kind: "system", id: "system:settings", name: "设置", description: "配置模型、技能与 Agent", category: "其他", icon: "settings", rank: 4 },
+  { kind: "system", id: "system:browser", name: "浏览器", description: "和 Agent 共同浏览并操作网页", category: "知识办公", icon: "browser", rank: 3 },
+  { kind: "system", id: "system:store", name: "应用商店", description: "发现和管理 Pi 应用", category: "其他", icon: "grid", rank: 4 },
+  { kind: "system", id: "system:settings", name: "设置", description: "配置模型、技能与 Agent", category: "其他", icon: "settings", rank: 5 },
 ];
 
 const ICONS: Record<IconName, ReactNode> = {
   "arrow-up": <><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></>,
   bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></>,
+  browser: <><circle cx="12" cy="12" r="9"/><path d="M3 9h18"/><path d="M8 3.8c1.3 1.5 2 4.3 2 8.2s-.7 6.7-2 8.2M16 3.8c-1.3 1.5-2 4.3-2 8.2s.7 6.7 2 8.2"/><path d="M3.8 15h16.4"/></>,
   chat: <><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"/><path d="M8 9h8M8 13h5"/></>,
   clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
   close: <path d="m7 7 10 10M17 7 7 17"/>,
@@ -1051,6 +1057,7 @@ function useClock() {
 }
 
 function DesktopWindow({
+  className,
   title,
   titleIcon,
   kind,
@@ -1060,6 +1067,7 @@ function DesktopWindow({
   children,
   cascadeIndex = 0,
 }: {
+  className?: string;
   title: string;
   titleIcon?: ReactNode;
   kind: "tasks" | "file" | "document" | "library" | "settings" | "app" | "store";
@@ -1120,7 +1128,7 @@ function DesktopWindow({
 
   return (
     <article
-      className={`agent-os-window agent-os-window-${kind}${front ? " is-front" : ""}${maximized ? " is-maximized" : ""}`}
+      className={`agent-os-window agent-os-window-${kind}${className ? ` ${className}` : ""}${front ? " is-front" : ""}${maximized ? " is-maximized" : ""}`}
       style={maximized ? undefined : position
         ? { left: position.x, top: position.y, translate: "none" }
         : centeredPosition}
@@ -1161,12 +1169,15 @@ export function AgentDesktop() {
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [taskSessionId, setTaskSessionId] = useState<string | null>(null);
+  const [jarvisSessionId, setJarvisSessionId] = useState<string | null>(null);
   const [openArtifacts, setOpenArtifacts] = useState<Artifact[]>([]);
   const [openFeishuDocuments, setOpenFeishuDocuments] = useState<FeishuDocument[]>([]);
   const [artifactLibraryOpen, setArtifactLibraryOpen] = useState(false);
   const [selectedLibraryArtifactId, setSelectedLibraryArtifactId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [appStoreOpen, setAppStoreOpen] = useState(false);
+  const [browserOpen, setBrowserOpen] = useState(false);
+  const [browserPageId, setBrowserPageId] = useState<string | null>(null);
   const [launchpadOpen, setLaunchpadOpen] = useState(false);
   const [openApps, setOpenApps] = useState<LaunchpadApp[]>([]);
   const [dockApps, setDockApps] = useState<DockItem[]>([]);
@@ -1188,6 +1199,24 @@ export function AgentDesktop() {
     setReminderHistory(items);
     setReminderHistoryLoaded(true);
   }, []);
+
+  useEffect(() => {
+    const stream = new EventSource("/api/browser/events");
+    stream.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data) as BrowserSystemEvent | { type: "browser.ready" };
+        if (message.type !== "browser.opened" || !message.foreground) return;
+        if (activeCwd && message.page.cwd !== activeCwd) {
+          setNotice(`浏览器已在其他工作台打开：${message.page.title || message.page.url}`);
+          return;
+        }
+        setBrowserPageId(message.page.pageId);
+        setBrowserOpen(true);
+        setFrontWindow("browser");
+      } catch { /* ignore malformed browser events */ }
+    };
+    return () => stream.close();
+  }, [activeCwd]);
 
   const refreshSessions = useCallback(async () => {
     try {
@@ -1275,8 +1304,14 @@ export function AgentDesktop() {
   }, [activeCwd, insightHydratedCwd, runningIds, sessions, sessionsLoaded]);
 
   const workspaceSessions = useMemo(
-    () => activeCwd ? sessions.filter((session) => session.cwd === activeCwd) : [],
-    [activeCwd, sessions],
+    () => activeCwd
+      ? sessions.filter((session) => (
+        session.cwd === activeCwd
+        && session.id !== jarvisSessionId
+        && session.name !== "Jarvis"
+      ))
+      : [],
+    [activeCwd, jarvisSessionId, sessions],
   );
   const artifactRefreshKey = `${activeCwd ?? ""}|${workspaceSessions.map((session) => `${session.id}:${session.modified}`).join("|")}`;
   useEffect(() => {
@@ -1588,6 +1623,9 @@ export function AgentDesktop() {
       if (sessions[0]) openTask(sessions[0].id);
     } else if (item.id === "system:library") {
       openArtifactLibrary();
+    } else if (item.id === "system:browser") {
+      setBrowserOpen(true);
+      setFrontWindow("browser");
     } else if (item.id === "system:store") {
       setAppStoreOpen(true);
       setFrontWindow("store");
@@ -1601,9 +1639,10 @@ export function AgentDesktop() {
     if (item.kind !== "system") return openApps.some((openApp) => openApp.id === item.id);
     if (item.id === "system:tasks") return Boolean(taskSessionId) && frontWindow === "tasks";
     if (item.id === "system:library") return artifactLibraryOpen;
+    if (item.id === "system:browser") return browserOpen;
     if (item.id === "system:store") return appStoreOpen;
     return settingsOpen;
-  }, [appStoreOpen, artifactLibraryOpen, frontWindow, openApps, settingsOpen, taskSessionId]);
+  }, [appStoreOpen, artifactLibraryOpen, browserOpen, frontWindow, openApps, settingsOpen, taskSessionId]);
 
   const toggleDockAppPin = useCallback((app: DockItem) => {
     setPinnedDockAppIds((current) => {
@@ -1681,22 +1720,74 @@ export function AgentDesktop() {
     }
   }, [ensureCwd, refreshSessions]);
 
-  const handleDesktopVoicePrompt = useCallback((message: string) => {
-    void startTask(message).then((sessionId) => {
-      if (!sessionId) return;
-      markVoiceReplyPending(sessionId);
-      openTask(sessionId);
+  // Jarvis is the desktop's conversation partner. It only talks and delegates;
+  // real work runs in background Pi sessions that show up as tasks here.
+  const handleJarvisTaskStarted = useCallback((task: JarvisTask) => {
+    setNotice(`Jarvis 已派出任务：${task.description}`);
+    setRunningIds((current) => new Set(current).add(task.sessionId));
+    window.setTimeout(() => void refreshSessions(), 450);
+  }, [refreshSessions]);
+  const handleJarvisTaskSettled = useCallback((task: JarvisTask) => {
+    setNotice(`任务「${task.description}」${task.status === "aborted" ? "已停止" : "已完成"}`);
+    setRunningIds((current) => {
+      const next = new Set(current);
+      next.delete(task.sessionId);
+      return next;
     });
-  }, [openTask, startTask]);
+    window.setTimeout(() => void refreshSessions(), 450);
+  }, [refreshSessions]);
+  const jarvis = useJarvis({ cwd: activeCwd, onTaskStarted: handleJarvisTaskStarted, onTaskSettled: handleJarvisTaskSettled });
 
+  // Outranks the task window's ChatWindow so the voice conversation stays with
+  // Jarvis even while a task window is open.
   const desktopVoice = useRealtimeVoice({
-    agentRunning: submitting,
-    latestAssistantText: "",
-    onPrompt: handleDesktopVoicePrompt,
-    onSteer: () => {},
-    onAbort: () => {},
-    expectReply: false,
+    priority: 20,
+    agentRunning: jarvis.running,
+    speechText: jarvis.speechText,
+    onPrompt: jarvis.send,
+    // Spoken turns take precedence over whatever Jarvis was still working on.
+    onSteer: jarvis.interruptAndSend,
+    onInterrupt: jarvis.interruptAndSend,
+    onAbort: jarvis.abort,
   });
+
+  useEffect(() => {
+    if (jarvis.error) setNotice(jarvis.error);
+  }, [jarvis.error]);
+  useEffect(() => {
+    setJarvisSessionId(jarvis.sessionId);
+  }, [jarvis.sessionId]);
+  // The Jarvis panel opens itself when the conversation is active and stays
+  // closed once the user dismisses it, until the next exchange.
+  const [jarvisPanelOpen, setJarvisPanelOpen] = useState(false);
+  const latestJarvisTurnId = jarvis.turns.length ? jarvis.turns[jarvis.turns.length - 1].id : 0;
+  useEffect(() => {
+    if (latestJarvisTurnId) setJarvisPanelOpen(true);
+  }, [latestJarvisTurnId]);
+  useEffect(() => {
+    if (desktopVoice.isActive) setJarvisPanelOpen(true);
+  }, [desktopVoice.isActive]);
+  const jarvisTranscriptRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const element = jarvisTranscriptRef.current;
+    if (element) element.scrollTop = element.scrollHeight;
+  }, [jarvisPanelOpen, latestJarvisTurnId, jarvis.streamingText]);
+
+  // Tell the server when the user is talking or Jarvis is speaking, so task
+  // results wait for a pause instead of talking over the conversation.
+  const voiceBusy = desktopVoice.state === "hearing" || desktopVoice.state === "speaking";
+  useEffect(() => {
+    if (!jarvis.sessionId) return;
+    const sessionId = jarvis.sessionId;
+    const timer = window.setTimeout(() => {
+      void fetch("/api/jarvis", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, busy: voiceBusy }),
+      }).catch(() => {});
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [jarvis.sessionId, voiceBusy]);
 
   useEffect(() => {
     if (desktopVoice.error) setNotice(desktopVoice.error);
@@ -1846,9 +1937,24 @@ export function AgentDesktop() {
   const submitPrompt = async (event: FormEvent) => {
     event.preventDefault();
     const message = prompt.trim();
-    if (!message || submitting) return;
-    await startTask(message);
+    if (!message) return;
+    setPrompt("");
+    setJarvisPanelOpen(true);
+    desktopVoice.noteUserInput();
+    await jarvis.send(message);
   };
+  const jarvisRunningTasks = jarvis.tasks.filter((task) => task.status === "running");
+  const jarvisStateLabel = desktopVoice.error
+    ? "语音连接失败"
+    : ({
+      off: jarvis.running ? "正在想…" : jarvis.ready ? "在线，点麦克风开始语音对话" : "正在启动…",
+      connecting: "正在准备聆听…",
+      listening: "我在听，随时说",
+      hearing: "正在听你说…",
+      thinking: "正在想…",
+      speaking: "正在说话，开口即可打断",
+      error: "语音连接失败",
+    } as Record<string, string>)[desktopVoice.state] ?? "";
 
   const formatDate = new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", weekday: "short" }).format(now);
   const formatTime = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
@@ -2061,6 +2167,12 @@ export function AgentDesktop() {
         {appStoreOpen && <DesktopWindow title="应用商店" kind="store" front={frontWindow === "store"} onFocus={() => setFrontWindow("store")} onClose={closeAppStore} titleIcon={<AppStoreBrandIcon className="agent-store-title-icon"/>}>
           <AppStore cwd={activeCwd} ensureCwd={ensureCwd} onOpenApp={openLaunchpadApp} onNotice={setNotice}/>
         </DesktopWindow>}
+        {browserOpen && activeCwd && <DesktopWindow className="agent-os-window-browser" title="浏览器" kind="app" front={frontWindow === "browser"} onFocus={() => setFrontWindow("browser")} onClose={() => {
+          setBrowserOpen(false);
+          releaseTemporaryDockItem("system:browser");
+        }} titleIcon={<Icon name="browser" size={16}/> }>
+          <BrowserApp key={activeCwd} cwd={activeCwd} initialPageId={browserPageId}/>
+        </DesktopWindow>}
         {openApps.map((app, index) => {
           const windowId = `app:${app.id}`;
           return <DesktopWindow key={app.id} title={app.name} titleIcon={<AppLogo app={app} compact/>} kind="app" cascadeIndex={index} front={frontWindow === windowId} onFocus={() => setFrontWindow(windowId)} onClose={() => {
@@ -2079,38 +2191,81 @@ export function AgentDesktop() {
         })}
       </section>
 
-      <section className={`agent-os-ai-surface${composerFocused || prompt || desktopVoice.state !== "idle" ? " expanded" : ""}${desktopVoice.state !== "idle" ? ` voice-active voice-${desktopVoice.state}` : ""}`}>
-        {(composerFocused || prompt) && <div className="agent-os-suggestion"><small>你可能想做</small><button type="button" onClick={() => setPrompt("分析当前项目，给出最值得优先处理的三个改进，并直接完成第一项。")}>分析当前项目，给出最值得优先处理的三个改进，并直接完成第一项。</button></div>}
+      <section className={`agent-os-ai-surface${composerFocused || prompt || desktopVoice.isActive ? " expanded" : ""}${desktopVoice.isActive ? ` voice-active voice-${desktopVoice.state}` : ""}`}>
+        {jarvisPanelOpen ? (
+          <section className={`agent-os-jarvis-panel voice-${desktopVoice.state}${jarvis.running ? " is-running" : ""}`} aria-label="Jarvis 对话">
+            <header>
+              <span className="agent-os-jarvis-orb" aria-hidden="true"><i style={{ "--voice-level": desktopVoice.voiceLevel } as React.CSSProperties}/></span>
+              <strong>Jarvis</strong>
+              <small aria-live="polite">{jarvisStateLabel}</small>
+              <button type="button" onClick={jarvis.reset} title="开始一段新的对话">新对话</button>
+              <button type="button" aria-label="收起 Jarvis 面板" onClick={() => setJarvisPanelOpen(false)}><Icon name="close" size={14}/></button>
+            </header>
+            <div className="agent-os-jarvis-transcript" ref={jarvisTranscriptRef}>
+              {jarvis.turns.length === 0 && !jarvis.running ? (
+                <p className="agent-os-jarvis-empty">你好，我是 Jarvis。想聊什么、想做什么，直接说就行；需要动手的活我会派给后台的 Pi Agent，做完再告诉你。</p>
+              ) : null}
+              {jarvis.turns.map((turn) => turn.role === "task" && turn.task ? (
+                <button
+                  key={turn.id}
+                  type="button"
+                  className={`agent-os-jarvis-task is-${turn.task.status}${turn.taskEvent === "settled" ? " is-settled" : ""}`}
+                  onClick={() => openTask(turn.task!.sessionId)}
+                  title="打开任务窗口查看细节"
+                >
+                  <i/>
+                  <span>{turn.task.description}</span>
+                  <em>{turn.taskEvent === "started" ? "已派出" : turn.task.status === "aborted" ? "已停止" : "已完成"}</em>
+                </button>
+              ) : (
+                <div key={turn.id} className={`agent-os-jarvis-bubble is-${turn.role}`}>{turn.text}</div>
+              ))}
+              {jarvis.streamingText ? <div className="agent-os-jarvis-bubble is-assistant is-live">{jarvis.streamingText}</div> : null}
+              {jarvis.running && !jarvis.streamingText ? <div className="agent-os-jarvis-bubble is-assistant is-thinking"><i/><i/><i/></div> : null}
+              {desktopVoice.transcript ? <div className="agent-os-jarvis-bubble is-user is-live">{desktopVoice.transcript}</div> : null}
+            </div>
+            {jarvisRunningTasks.length ? (
+              <footer>
+                <small>后台进行中</small>
+                {jarvisRunningTasks.map((task) => (
+                  <button key={task.sessionId} type="button" onClick={() => openTask(task.sessionId)}><i/>{task.description}</button>
+                ))}
+              </footer>
+            ) : null}
+          </section>
+        ) : null}
         <form className="agent-os-composer" onSubmit={submitPrompt}>
-          <BrandMark compact/>
+          <button className="jarvis-toggle" type="button" aria-label={jarvisPanelOpen ? "收起 Jarvis 面板" : "打开 Jarvis 面板"} aria-pressed={jarvisPanelOpen} onClick={() => setJarvisPanelOpen((value) => !value)}><BrandMark compact/></button>
           <button className="attach" type="button" aria-label="添加上下文"><Icon name="plus" size={19}/></button>
-          {desktopVoice.state !== "idle" ? (
+          {desktopVoice.isActive ? (
             <VoiceActivityIndicator
               compact
               state={desktopVoice.state}
               transcript={desktopVoice.transcript}
+              caption={desktopVoice.caption}
               error={desktopVoice.error}
               level={desktopVoice.voiceLevel}
+              onInterrupt={desktopVoice.interrupt}
               labels={{
                 connecting: "正在准备聆听…",
-                listening: "正在聆听",
-                transcribing: "正在整理你说的话…",
-                "agent-working": "已听到，正在交给 Pi…",
-                speaking: "正在播报",
+                listening: "我在听，随时说",
+                hearing: "正在听你说…",
+                thinking: "已听到，正在想…",
+                speaking: "正在说话，开口即可打断",
                 error: "语音连接失败",
               }}
             />
           ) : (
-            <input value={prompt} onChange={(event) => setPrompt(event.target.value)} onFocus={() => setComposerFocused(true)} onBlur={() => { if (!prompt) window.setTimeout(() => setComposerFocused(false), 120); }} placeholder="向 Pi Agent 交付任务" aria-label="向 Pi Agent 交付任务"/>
+            <input value={prompt} onChange={(event) => setPrompt(event.target.value)} onFocus={() => setComposerFocused(true)} onBlur={() => { if (!prompt) window.setTimeout(() => setComposerFocused(false), 120); }} placeholder={jarvis.ready ? "和 Jarvis 说点什么" : "Jarvis 正在启动…"} aria-label="和 Jarvis 对话"/>
           )}
           <button
             className="voice"
             type="button"
-            aria-label={desktopVoice.isListening ? "停止并发送语音输入" : desktopVoice.isSpeaking ? "打断语音播报" : "语音输入"}
-            aria-pressed={desktopVoice.isListening}
-            onClick={desktopVoice.toggleListening}
-          >{desktopVoice.isListening ? <span className="agent-os-voice-stop" aria-hidden="true"/> : <Icon name="mic" size={19}/>}</button>
-          <button className="send" type="submit" aria-label="发送任务" disabled={!prompt.trim() || submitting}>{submitting ? <span className="agent-os-spinner"/> : <Icon name="arrow-up" size={19}/>}</button>
+            aria-label={desktopVoice.isActive ? "结束语音对话" : "开始语音对话"}
+            aria-pressed={desktopVoice.isActive}
+            onClick={desktopVoice.toggle}
+          >{desktopVoice.isActive ? <span className="agent-os-voice-stop" aria-hidden="true"/> : <Icon name="mic" size={19}/>}</button>
+          <button className="send" type="submit" aria-label="发送给 Jarvis" disabled={!prompt.trim() || !jarvis.sessionId}>{submitting ? <span className="agent-os-spinner"/> : <Icon name="arrow-up" size={19}/>}</button>
         </form>
       </section>
 

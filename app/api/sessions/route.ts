@@ -9,6 +9,7 @@ import {
   getRpcSessionInfos,
   getRunningRpcSessionIds,
 } from "@/lib/rpc-manager";
+import { listKnownJarvisSessionIds } from "@/lib/jarvis-registry";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,10 @@ export async function GET(req: Request) {
       listAllSessions({ force }),
       attachSessionProjectInfo(getRpcSessionInfos()),
     ]);
-    const sessions = mergeSessionLists(persistedSessions, runtimeSessions);
+    // Jarvis conversations are the desktop's voice assistant, not tasks.
+    const jarvisIds = listKnownJarvisSessionIds();
+    const sessions = mergeSessionLists(persistedSessions, runtimeSessions)
+      .filter((session) => !jarvisIds.has(session.id));
     return NextResponse.json(
       {
         sessions,

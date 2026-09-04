@@ -43,6 +43,24 @@ import { isBuiltInSubagentsEnabled } from "./subagent-settings";
 import { resolveShellTools } from "./powershell-settings";
 import { CHAT_ONLY_RESOURCE_LOADER_OPTIONS, contextFilesSystemPrompt } from "./chat-only";
 import {
+  buildJarvisSystemPrompt,
+  createJarvisExtension,
+  isJarvisSession,
+  JARVIS_META_TYPE,
+  JARVIS_SESSION_NAME,
+  JARVIS_TASK_NOTIFICATION_TYPE,
+  JARVIS_TASK_ORIGIN_TYPE,
+  JARVIS_TOOL_NAMES,
+  jarvisTaskBatchMessage,
+  trimTaskSummary,
+  type JarvisMetadata,
+  type JarvisRuntime,
+  type JarvisTaskInfo,
+  type JarvisTaskOrigin,
+} from "./jarvis";
+import { allowFileRoot } from "./file-access";
+import { BROWSER_MUTATING_TOOL_NAMES, createBrowserExtension } from "./browser/extension";
+import {
   appendSessionToolSelection,
   readSessionToolSelection,
   validateSessionToolSelection,
@@ -115,6 +133,7 @@ type AgentSessionWrapperOptions = {
   chatOnly?: boolean;
   onAgentRunComplete?: AgentRunCompleteListener;
   suppressCompletionNotifications?: boolean;
+  role?: "jarvis";
 };
 
 const IDLE_RESET_EVENT_TYPES = new Set([
@@ -140,9 +159,12 @@ export interface RpcSessionStartOptions {
   initialModel?: { provider: string; modelId: string };
   allowInitialModelFallback?: boolean;
   thinkingLevel?: ThinkingLevel;
+  /** Create the session as the desktop's Jarvis voice assistant. */
+  role?: "jarvis";
 }
 
 const CODING_TOOL_NAMES = ["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"];
+const READ_ONLY_CODING_TOOL_NAMES = new Set(["read", "grep", "find", "ls"]);
 const THINKING_LEVEL_NAMES = new Set<ThinkingLevel>(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 // Dashboard-launched tasks can request extension UI while no task window is
 // open. Never let an unattended auth/input prompt keep the agent running
@@ -182,10 +204,14 @@ function withExtensionTools(session: AgentSessionLike, toolNames: string[]): str
 
   const codingToolNames = new Set(CODING_TOOL_NAMES);
   const selectedToolNames = resolveShellTools(toolNames, session.settingsManager.getDefaultTools());
+  const readOnly = selectedToolNames.length > 0
+    && selectedToolNames.every((name) => READ_ONLY_CODING_TOOL_NAMES.has(name));
+  const browserMutatingToolNames = new Set<string>(BROWSER_MUTATING_TOOL_NAMES);
   const extensionToolNames = session
     .getAllTools()
     .map((t) => t.name)
-    .filter((name) => !codingToolNames.has(name));
+    .filter((name) => !codingToolNames.has(name))
+    .filter((name) => !readOnly || !browserMutatingToolNames.has(name));
 
   return [...new Set([...selectedToolNames, ...extensionToolNames])];
 }
@@ -217,6 +243,7 @@ export class AgentSessionWrapper {
   private readonly chatOnly: boolean;
   private readonly onAgentRunComplete?: AgentRunCompleteListener;
   private readonly suppressCompletionNotifications: boolean;
+  private readonly role: "jarvis" | undefined;
   private unsubscribe: (() => void) | null = null;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private onDestroyCallback: (() => void) | null = null;
@@ -233,6 +260,7 @@ export class AgentSessionWrapper {
     this.chatOnly = options.chatOnly ?? false;
     this.onAgentRunComplete = options.onAgentRunComplete;
     this.suppressCompletionNotifications = options.suppressCompletionNotifications ?? false;
+    this.role = options.role;
     this.installExactSystemPromptContinuation();
     this.applyExactSystemPrompt();
   }
@@ -273,6 +301,10 @@ export class AgentSessionWrapper {
     return this.suppressCompletionNotifications;
   }
 
+  isJarvis(): boolean {
+    return this.role === "jarvis";
+  }
+
   start(): void {
     this.unsubscribe = this.inner.subscribe((event: AgentEvent) => {
       if (event.type === "agent_start") this.agentRunNeedsCompletion = true;
@@ -289,6 +321,13 @@ export class AgentSessionWrapper {
   private notifyAgentRunCompleteIfIdle(): void {
     if (!this.agentRunNeedsCompletion || this.isRunning()) return;
     this.agentRunNeedsCompletion = false;
+    if (this.role === "jarvis") {
+      JARVIS_TASKS.flushReports(this.sessionId);
+    } else {
+      void JARVIS_TASKS.handleTaskSettled(this.sessionId).catch((error) => {
+        console.error("[pi-web] failed to report a task to Jarvis:", error instanceof Error ? error.message : error);
+      });
+    }
     if (this.suppressCompletionNotifications) return;
     try {
       this.onAgentRunComplete?.(this.sessionId);
@@ -1634,6 +1673,233 @@ const SUBAGENT_CONTROLLER = createSubagentController({
   isBuiltInSubagentsEnabled,
 });
 
+// ============================================================================
+// Jarvis tasks: full Pi sessions started by the desktop voice assistant that
+// report back into the Jarvis conversation when they settle.
+// ============================================================================
+
+type StoredJarvisTask = JarvisTaskInfo & { abortRequested: boolean };
+
+/** Results waiting for a good moment to be told to the user. */
+type JarvisInbox = {
+  pending: JarvisTaskInfo[];
+  /** The user is talking or Jarvis is speaking; hold reports until this clears. */
+  busySince: number | null;
+  flushTimer: ReturnType<typeof setTimeout> | null;
+  delivering: boolean;
+};
+
+declare global {
+  var __piJarvisTasks: Map<string, StoredJarvisTask> | undefined;
+  var __piJarvisInboxes: Map<string, JarvisInbox> | undefined;
+}
+
+function getJarvisTaskStore(): Map<string, StoredJarvisTask> {
+  globalThis.__piJarvisTasks ??= new Map();
+  return globalThis.__piJarvisTasks;
+}
+
+function getJarvisInbox(jarvisSessionId: string): JarvisInbox {
+  globalThis.__piJarvisInboxes ??= new Map();
+  let inbox = globalThis.__piJarvisInboxes.get(jarvisSessionId);
+  if (!inbox) {
+    inbox = { pending: [], busySince: null, flushTimer: null, delivering: false };
+    globalThis.__piJarvisInboxes.set(jarvisSessionId, inbox);
+  }
+  return inbox;
+}
+
+/** Never sit on a result longer than this, even mid-conversation. */
+const JARVIS_MAX_HOLD_MS = 45_000;
+/** Let the conversation settle for a beat before interjecting. */
+const JARVIS_SETTLE_MS = 1_200;
+
+function jarvisTaskSnapshot(task: StoredJarvisTask, wrapper?: AgentSessionWrapper): JarvisTaskInfo {
+  const summary = trimTaskSummary(wrapper?.inner.getLastAssistantText());
+  return {
+    sessionId: task.sessionId,
+    jarvisSessionId: task.jarvisSessionId,
+    description: task.description,
+    status: task.status,
+    createdAt: task.createdAt,
+    ...(task.completedAt ? { completedAt: task.completedAt } : {}),
+    ...(summary ? { summary } : {}),
+  };
+}
+
+function createJarvisTaskRuntime(): JarvisRuntime & {
+  handleTaskSettled(sessionId: string): Promise<void>;
+  setAttention(jarvisSessionId: string, busy: boolean): void;
+  flushReports(jarvisSessionId: string): void;
+} {
+  const store = getJarvisTaskStore();
+
+  const scheduleFlush = (jarvisSessionId: string, delay: number) => {
+    const inbox = getJarvisInbox(jarvisSessionId);
+    if (inbox.flushTimer) clearTimeout(inbox.flushTimer);
+    inbox.flushTimer = setTimeout(() => {
+      inbox.flushTimer = null;
+      void flush(jarvisSessionId).catch((error) => {
+        console.error("[pi-web] failed to report tasks to Jarvis:", error instanceof Error ? error.message : error);
+      });
+    }, delay);
+  };
+
+  // Deliver every settled task as one message, and only when the user and
+  // Jarvis are not in the middle of something, like a colleague who waits for
+  // a pause before speaking up.
+  const flush = async (jarvisSessionId: string): Promise<void> => {
+    const inbox = getJarvisInbox(jarvisSessionId);
+    if (inbox.delivering || !inbox.pending.length) return;
+    const heldTooLong = inbox.busySince !== null && Date.now() - inbox.busySince > JARVIS_MAX_HOLD_MS;
+    if (inbox.busySince !== null && !heldTooLong) {
+      scheduleFlush(jarvisSessionId, JARVIS_MAX_HOLD_MS - (Date.now() - inbox.busySince) + 50);
+      return;
+    }
+    let jarvis = getRegistry().get(jarvisSessionId);
+    if (!jarvis?.isAlive()) {
+      const sessionFile = await resolveSessionPath(jarvisSessionId);
+      if (!sessionFile) {
+        inbox.pending = [];
+        return;
+      }
+      jarvis = (await startRpcSession(jarvisSessionId, sessionFile, undefined)).session;
+    }
+    await jarvis.waitUntilReady();
+    if (jarvis.isRunning()) {
+      // Jarvis is mid-turn; its completion hook calls flushReports again.
+      return;
+    }
+    inbox.delivering = true;
+    const batch = inbox.pending.splice(0);
+    try {
+      const message = jarvisTaskBatchMessage(batch);
+      await jarvis.inner.sendCustomMessage({
+        customType: JARVIS_TASK_NOTIFICATION_TYPE,
+        content: message.content,
+        display: true,
+        details: message.details,
+      }, { deliverAs: "followUp", triggerTurn: true });
+    } catch (error) {
+      inbox.pending.unshift(...batch);
+      throw error;
+    } finally {
+      inbox.delivering = false;
+    }
+  };
+
+  const requireTask = (jarvisSessionId: string, taskId: string): StoredJarvisTask => {
+    const task = store.get(taskId);
+    if (!task || task.jarvisSessionId !== jarvisSessionId) throw new Error(`Unknown task: ${taskId}`);
+    return task;
+  };
+
+  return {
+    async startTask({ jarvisSessionId, prompt, description }) {
+      const jarvis = getRegistry().get(jarvisSessionId);
+      if (!jarvis?.isAlive()) throw new Error("Jarvis session is no longer available");
+      const message = prompt.trim();
+      if (!message) throw new Error("Task prompt is required");
+      const label = description.trim() || message.slice(0, 24);
+      const cwd = jarvis.cwd;
+      const { session, realSessionId } = await startRpcSession(`__jarvis_task__${randomUUID()}`, "", cwd);
+      const createdAt = new Date().toISOString();
+      session.inner.sessionManager.appendCustomEntry(JARVIS_TASK_ORIGIN_TYPE, {
+        version: 1,
+        jarvisSessionId,
+        description: label,
+        createdAt,
+      } satisfies JarvisTaskOrigin);
+      session.inner.setSessionName(label);
+      const task: StoredJarvisTask = {
+        sessionId: realSessionId,
+        jarvisSessionId,
+        description: label,
+        status: "running",
+        createdAt,
+        abortRequested: false,
+      };
+      store.set(realSessionId, task);
+      allowFileRoot(cwd);
+      invalidateSessionListCache();
+      await session.send({ type: "prompt", message });
+      return jarvisTaskSnapshot(task);
+    },
+
+    async getTask(jarvisSessionId, taskId) {
+      const task = store.get(taskId);
+      if (!task || task.jarvisSessionId !== jarvisSessionId) return null;
+      const wrapper = getRegistry().get(taskId);
+      if (task.status === "running" && wrapper && !wrapper.isRunning()) {
+        task.status = task.abortRequested ? "aborted" : "completed";
+        task.completedAt ??= new Date().toISOString();
+      }
+      return jarvisTaskSnapshot(task, wrapper);
+    },
+
+    async steerTask(jarvisSessionId, taskId, message) {
+      requireTask(jarvisSessionId, taskId);
+      const wrapper = getRegistry().get(taskId);
+      if (!wrapper?.isAlive()) throw new Error("Task session is no longer available");
+      const text = message.trim();
+      if (!text) throw new Error("Steering message is required");
+      if (wrapper.isRunning()) await wrapper.inner.steer(text);
+      else await wrapper.send({ type: "prompt", message: text });
+    },
+
+    async abortTask(jarvisSessionId, taskId) {
+      const task = requireTask(jarvisSessionId, taskId);
+      const wrapper = getRegistry().get(taskId);
+      if (!wrapper?.isAlive() || !wrapper.isRunning()) throw new Error("Task is not running");
+      task.abortRequested = true;
+      await wrapper.inner.abort();
+    },
+
+    listTasks(jarvisSessionId) {
+      return [...store.values()]
+        .filter((task) => task.jarvisSessionId === jarvisSessionId)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        .map((task) => jarvisTaskSnapshot(task, getRegistry().get(task.sessionId)));
+    },
+
+    async handleTaskSettled(sessionId) {
+      const task = store.get(sessionId);
+      if (!task || task.status !== "running") return;
+      const wrapper = getRegistry().get(sessionId);
+      task.status = task.abortRequested ? "aborted" : "completed";
+      task.completedAt = new Date().toISOString();
+      const inbox = getJarvisInbox(task.jarvisSessionId);
+      inbox.pending.push(jarvisTaskSnapshot(task, wrapper));
+      // Give sibling tasks finishing together a moment to join the same report.
+      scheduleFlush(task.jarvisSessionId, JARVIS_SETTLE_MS);
+    },
+
+    setAttention(jarvisSessionId, busy) {
+      const inbox = getJarvisInbox(jarvisSessionId);
+      if (busy) {
+        inbox.busySince ??= Date.now();
+        return;
+      }
+      inbox.busySince = null;
+      if (inbox.pending.length) scheduleFlush(jarvisSessionId, JARVIS_SETTLE_MS);
+    },
+
+    flushReports(jarvisSessionId) {
+      if (getJarvisInbox(jarvisSessionId).pending.length) scheduleFlush(jarvisSessionId, JARVIS_SETTLE_MS);
+    },
+  };
+}
+
+export function setJarvisAttention(jarvisSessionId: string, busy: boolean): void {
+  JARVIS_TASKS.setAttention(jarvisSessionId, busy);
+}
+
+const JARVIS_TASKS = createJarvisTaskRuntime();
+
+export function listJarvisTasks(jarvisSessionId: string): JarvisTaskInfo[] {
+  return JARVIS_TASKS.listTasks(jarvisSessionId);
+}
+
 export function getSubagentRun(sessionId: string) {
   return SUBAGENT_CONTROLLER.get(sessionId);
 }
@@ -1910,7 +2176,16 @@ export async function startRpcSession(
   const subagentLoadsResources = Boolean(
     subagentResources?.loadExtensions || subagentResources?.loadSkills,
   );
-  const chatOnly = selectedToolNames?.length === 0 && !subagentLoadsResources;
+  const jarvis = options.role === "jarvis"
+    || isJarvisSession(sessionManager.getEntries() as unknown as SessionEntry[]);
+  if (jarvis && !sessionFile) {
+    sessionManager.appendCustomEntry(JARVIS_META_TYPE, {
+      version: 1,
+      createdAt: new Date().toISOString(),
+    } satisfies JarvisMetadata);
+    sessionManager.appendSessionInfo(JARVIS_SESSION_NAME);
+  }
+  const chatOnly = !jarvis && selectedToolNames?.length === 0 && !subagentLoadsResources;
   const finishStartingSession = trackStartingSession(sessionCwd);
   const starting = (async () => {
     // Some extensions access the SDK's global theme even outside the terminal UI.
@@ -1939,7 +2214,7 @@ export async function startRpcSession(
       ? subagentLoadsResources
         ? projectTrustReloadOptions(sessionCwd, agentDir)
         : undefined
-      : chatOnly
+      : chatOnly || jarvis
         ? undefined
         : projectTrustReloadOptions(sessionCwd, agentDir);
     const settingsManager = SettingsManager.create(sessionCwd, agentDir);
@@ -1962,10 +2237,23 @@ export async function startRpcSession(
               : {}),
             appendSystemPrompt: subagentResources.appendSystemPrompt,
           }
+        : jarvis
+          ? {
+              // Jarvis only talks and delegates: no skills, prompts, or project
+              // extensions, just its own task tools on top of the base prompt.
+              noExtensions: true,
+              noSkills: true,
+              noPromptTemplates: true,
+              noThemes: true,
+              noContextFiles: true,
+              appendSystemPrompt: [buildJarvisSystemPrompt(sessionCwd)],
+              extensionFactories: [createJarvisExtension(JARVIS_TASKS)],
+            }
         : chatOnly
           ? CHAT_ONLY_RESOURCE_LOADER_OPTIONS
         : {
             extensionFactories: [
+              createBrowserExtension(),
               createProjectCommandBashExtension({
                 cwd: sessionCwd,
                 settings: settingsManager,
@@ -2008,7 +2296,7 @@ export async function startRpcSession(
       ...(initial.model ? { model: initial.model } : {}),
       ...(initial.thinkingLevel ? { thinkingLevel: initial.thinkingLevel } : {}),
       ...(initial.scopedModels.length > 0 ? { scopedModels: initial.scopedModels } : {}),
-      ...(toolsOption !== undefined ? { tools: toolsOption } : {}),
+      ...(jarvis ? { tools: [...JARVIS_TOOL_NAMES] } : toolsOption !== undefined ? { tools: toolsOption } : {}),
       ...(subagentResources ? { excludeTools: [...SUBAGENT_CONTROL_TOOL_NAMES] } : {}),
     });
 
@@ -2031,7 +2319,9 @@ export async function startRpcSession(
     // If specific tool names were requested (non-empty), set the active tools to the
     // requested builtin coding tools PLUS all extension/package tools, so installed
     // extensions stay usable in Pi Web just like in the `pi` CLI.
-    if (!subagentResources && !chatOnly) {
+    if (jarvis) {
+      inner.setActiveToolsByName(inner.getAllTools().map((tool) => tool.name).filter((name) => (JARVIS_TOOL_NAMES as readonly string[]).includes(name)));
+    } else if (!subagentResources && !chatOnly) {
       inner.setActiveToolsByName(withExtensionTools(inner, selectedToolNames ?? inner.getActiveToolNames()));
     }
 
@@ -2048,7 +2338,8 @@ export async function startRpcSession(
           console.error("[pi-web] failed to send completion push:", error instanceof Error ? error.message : error);
         });
       },
-      suppressCompletionNotifications: Boolean(subagentResources),
+      suppressCompletionNotifications: Boolean(subagentResources) || jarvis,
+      ...(jarvis ? { role: "jarvis" as const } : {}),
     });
     const realSessionId = inner.sessionId as string;
     registerRpcWrapper(wrapper);

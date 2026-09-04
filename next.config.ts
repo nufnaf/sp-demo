@@ -14,6 +14,7 @@ try {
 const nextConfig: NextConfig = {
   outputFileTracingRoot: configDir,
   serverExternalPackages: [
+    "playwright-core",
     "undici",
     "web-push",
     "@earendil-works/pi-coding-agent",
