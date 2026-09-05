@@ -164,6 +164,8 @@
 .agent-os-window-library { width: min(900px, calc(100vw - 180px)); height: min(560px, calc(100vh - 226px)); }
 .agent-os-window-settings { width: min(980px, calc(100vw - 180px)); height: min(640px, calc(100vh - 220px)); }
 .agent-os-window-app { width:min(1040px,calc(100vw - 180px));height:min(650px,calc(100vh - 220px)); }
+.agent-os-window-terminal { width:min(860px,calc(100vw - 240px));height:min(520px,calc(100vh - 270px));min-width:620px;min-height:400px; }
+.agent-os-window-terminal .agent-os-window-body { background:rgba(241,246,247,.72); }
 .agent-os-window-store { width:min(1120px,calc(100vw - 120px));height:min(700px,calc(100vh - 180px)); }
 .agent-os-window-bar { height: 42px; display: grid; grid-template-columns: 82px 1fr 82px; align-items: center; border-bottom: 1px solid rgba(74,96,109,.1); background: rgba(255,255,255,.42); cursor: grab; touch-action: none; user-select: none; }
 .agent-os-window-bar:active { cursor: grabbing; }.agent-os-window-bar > strong { justify-self: center; display: flex; align-items: center; gap: 7px; color: rgba(30,37,41,.72); font-size: 10px; font-weight: 630; }

@@ -58,13 +58,21 @@ const FilesApp = dynamic(
   },
 );
 
+const TerminalApp = dynamic(
+  () => import("./TerminalApp").then((module) => module.TerminalApp),
+  {
+    ssr: false,
+    loading: () => <div className="agent-settings-loading" role="status">正在打开终端…</div>,
+  },
+);
+
 type IconName =
   | "arrow-up" | "bell" | "chat" | "clock" | "close"
   | "browser"
   | "eye" | "file" | "grid" | "insight" | "list" | "maximize" | "mic" | "minimize"
-  | "files" | "plus" | "search" | "settings" | "tasks" | "tiles";
+  | "files" | "plus" | "search" | "settings" | "tasks" | "terminal" | "tiles";
 
-type SystemDockAppId = "system:tasks" | "system:library" | "system:browser" | "system:files" | "system:store" | "system:settings";
+type SystemDockAppId = "system:tasks" | "system:library" | "system:browser" | "system:files" | "system:terminal" | "system:store" | "system:settings";
 
 interface SystemDockApp {
   kind: "system";
@@ -83,8 +91,9 @@ const SYSTEM_DOCK_APPS: SystemDockApp[] = [
   { kind: "system", id: "system:library", name: "产物库", description: "浏览 Agent 生成的文件产物", category: "其他", icon: "files", rank: 2 },
   { kind: "system", id: "system:browser", name: "浏览器", description: "和 Agent 共同浏览并操作网页", category: "知识办公", icon: "browser", rank: 3 },
   { kind: "system", id: "system:files", name: "文件", description: "浏览、预览和轻量编辑工作台文件", category: "产品开发", icon: "files", rank: 4 },
-  { kind: "system", id: "system:store", name: "应用商店", description: "发现和管理 Pi 应用", category: "其他", icon: "grid", rank: 5 },
-  { kind: "system", id: "system:settings", name: "设置", description: "配置模型、技能与 Agent", category: "其他", icon: "settings", rank: 6 },
+  { kind: "system", id: "system:terminal", name: "终端", description: "在当前工作台运行开发命令", category: "产品开发", icon: "terminal", rank: 5 },
+  { kind: "system", id: "system:store", name: "应用商店", description: "发现和管理 Pi 应用", category: "其他", icon: "grid", rank: 6 },
+  { kind: "system", id: "system:settings", name: "设置", description: "配置模型、技能与 Agent", category: "其他", icon: "settings", rank: 7 },
 ];
 
 const ICONS: Record<IconName, ReactNode> = {
@@ -107,6 +116,7 @@ const ICONS: Record<IconName, ReactNode> = {
   search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
   settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H3v-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V3h4v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></>,
   tasks: <><rect x="3" y="3" width="18" height="18" rx="3.5"/><path d="m6.5 8 1.2 1.2L10 7M13 8h4M6.5 14l1.2 1.2L10 13M13 14h4"/></>,
+  terminal: <><rect x="3" y="4" width="18" height="16" rx="3"/><path d="m7 9 3 3-3 3M13 15h4"/></>,
   tiles: <><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></>,
 };
 
@@ -1190,6 +1200,7 @@ export function AgentDesktop() {
   const [browserOpen, setBrowserOpen] = useState(false);
   const [browserPageId, setBrowserPageId] = useState<string | null>(null);
   const [filesOpen, setFilesOpen] = useState(false);
+  const [terminalOpen, setTerminalOpen] = useState(false);
   const [fileOpenRequest, setFileOpenRequest] = useState<FileOpenRequest | null>(null);
   const [filesHaveUnsavedChanges, setFilesHaveUnsavedChanges] = useState(false);
   const [launchpadOpen, setLaunchpadOpen] = useState(false);
@@ -1661,6 +1672,9 @@ export function AgentDesktop() {
     } else if (item.id === "system:files") {
       setFilesOpen(true);
       setFrontWindow("files");
+    } else if (item.id === "system:terminal") {
+      setTerminalOpen(true);
+      setFrontWindow("terminal");
     } else if (item.id === "system:store") {
       setAppStoreOpen(true);
       setFrontWindow("store");
@@ -1676,9 +1690,10 @@ export function AgentDesktop() {
     if (item.id === "system:library") return artifactLibraryOpen;
     if (item.id === "system:browser") return browserOpen;
     if (item.id === "system:files") return filesOpen;
+    if (item.id === "system:terminal") return terminalOpen;
     if (item.id === "system:store") return appStoreOpen;
     return settingsOpen;
-  }, [appStoreOpen, artifactLibraryOpen, browserOpen, filesOpen, frontWindow, openApps, settingsOpen, taskSessionId]);
+  }, [appStoreOpen, artifactLibraryOpen, browserOpen, filesOpen, frontWindow, openApps, settingsOpen, taskSessionId, terminalOpen]);
 
   const toggleDockAppPin = useCallback((app: DockItem) => {
     setPinnedDockAppIds((current) => {
@@ -2216,6 +2231,12 @@ export function AgentDesktop() {
           releaseTemporaryDockItem("system:files");
         }} titleIcon={<Icon name="files" size={16}/> }>
           <FilesApp key={activeCwd} cwd={activeCwd} openRequest={fileOpenRequest} onDirtyChange={setFilesHaveUnsavedChanges}/>
+        </DesktopWindow>}
+        {terminalOpen && activeCwd && <DesktopWindow className="agent-os-window-terminal" title="终端" kind="app" front={frontWindow === "terminal"} onFocus={() => setFrontWindow("terminal")} onClose={() => {
+          setTerminalOpen(false);
+          releaseTemporaryDockItem("system:terminal");
+        }} titleIcon={<Icon name="terminal" size={16}/> }>
+          <TerminalApp key={activeCwd} cwd={activeCwd}/>
         </DesktopWindow>}
         {openApps.map((app, index) => {
           const windowId = `app:${app.id}`;

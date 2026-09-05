@@ -1,0 +1,78 @@
+.agent-terminal-app {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 41px minmax(0, 1fr) 29px;
+  overflow: hidden;
+  color: var(--os-text);
+  background: linear-gradient(145deg, rgba(249,251,251,.76), rgba(235,242,244,.7));
+}
+
+.agent-terminal-tabs {
+  min-width: 0;
+  padding: 6px 9px 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  color: rgba(38, 50, 57, .5);
+  background: rgba(247, 250, 251, .46);
+  border-bottom: 1px solid rgba(55, 73, 83, .08);
+}
+
+.agent-terminal-tabs > div { min-width: 0; flex: 1; display: flex; align-items: flex-end; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.agent-terminal-tabs > div::-webkit-scrollbar { display: none; }
+.agent-terminal-tab { width: 142px; min-width: 90px; height: 34px; display: flex; align-items: center; border:1px solid transparent; border-bottom:0; border-radius: 10px 10px 0 0; transition:color 120ms ease,background 120ms ease,box-shadow 120ms ease; }
+.agent-terminal-tab.is-active { color: #263239; border-color:rgba(55,73,83,.08); background: rgba(255,255,255,.82); box-shadow:0 -1px rgba(255,255,255,.86),0 3px 12px rgba(42,61,71,.055); }
+.agent-terminal-tab > button:first-child { min-width: 0; height: 100%; padding: 0 3px 0 10px; flex: 1; display: flex; align-items: center; gap: 7px; overflow: hidden; border: 0; color: inherit; background: transparent; cursor: default; }
+.agent-terminal-tab > button:first-child span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; font-weight:540; letter-spacing:-.005em; }
+.agent-terminal-tab > button:first-child i { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: #d67d67; }
+.agent-terminal-tab-close,.agent-terminal-new,.agent-terminal-restart { border: 0; display: grid; place-items: center; color: rgba(38,50,57,.45); background: transparent; cursor: default; transition:color 120ms ease,background 120ms ease,transform 110ms var(--os-ease-out); }
+.agent-terminal-tab-close { width: 21px; height: 21px; margin-right: 3px; border-radius: 6px; opacity: 0; }
+.agent-terminal-tab.is-active .agent-terminal-tab-close { opacity: .72; }
+.agent-terminal-new,.agent-terminal-restart { width: 28px; height: 28px; flex: 0 0 28px; margin-bottom: 3px; border-radius: 8px; }
+.agent-terminal-new:disabled,.agent-terminal-restart:disabled { opacity: .28; }
+.agent-terminal-tab-close:active,.agent-terminal-new:active:not(:disabled),.agent-terminal-restart:active:not(:disabled) { transform:scale(.9); }
+
+.agent-terminal-stage { position: relative; min-width: 0; min-height: 0; margin:8px 9px 0; overflow: hidden; border:1px solid rgba(51,72,65,.1); border-bottom:0; border-radius:12px 12px 0 0; background:#f7faf9; box-shadow:inset 0 1px rgba(255,255,255,.96),0 9px 24px rgba(55,82,70,.075); }
+.agent-terminal-surface { position: absolute; inset: 0; display: none; padding: 10px 11px 4px; }
+.agent-terminal-surface.is-active { display: block; }
+.agent-terminal-surface .xterm { height: 100%; }
+.agent-terminal-surface .xterm-viewport { scrollbar-color: rgba(50,72,64,.18) transparent; scrollbar-width: thin; }
+.agent-terminal-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: rgba(38,49,55,.46); font-size: 10px; }
+.agent-terminal-state > span { width: 14px; height: 14px; border: 2px solid rgba(36,131,94,.12); border-top-color: rgba(30,139,96,.66); border-radius: 50%; animation: agent-terminal-spin 700ms linear infinite; }
+.agent-terminal-state strong { color: rgba(31,42,47,.78); font-size: 11px; }
+.agent-terminal-state button { height: 29px; padding: 0 12px; border: 1px solid rgba(50,75,65,.09); border-radius: 8px; color:#276f55; background:rgba(47,160,113,.08); }
+.agent-terminal-error { position: absolute; z-index: 5; right: 12px; bottom: 12px; max-width: min(470px, calc(100% - 24px)); min-height: 34px; padding: 7px 7px 7px 11px; display: flex; align-items: center; gap: 8px; border: 1px solid rgba(180, 72, 57, .12); border-radius: 10px; color: #9d4036; background: rgba(255,244,242,.94); box-shadow: 0 12px 30px rgba(56,37,34,.16); backdrop-filter:blur(18px); font-size: 9px; }
+.agent-terminal-error span { min-width: 0; flex: 1; }
+.agent-terminal-error button { width: 22px; height: 22px; border: 0; color: inherit; background: transparent; }
+.agent-terminal-status { min-width: 0; margin:0 9px 8px; padding: 0 10px; display: grid; grid-template-columns: minmax(0, 1fr) auto 64px; align-items: center; gap: 12px; color:rgba(38,49,55,.38); border:1px solid rgba(51,72,65,.1); border-top:1px solid rgba(51,72,65,.065); border-radius:0 0 12px 12px; background:rgba(239,246,243,.94); box-shadow:0 9px 24px rgba(55,82,70,.075); font: 7.5px/1 var(--font-mono); }
+.agent-terminal-status span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-terminal-status span:last-child { text-align: right; }
+.agent-terminal-status .is-running { color:#168b62; font-weight:650; }
+
+@media (hover: hover) {
+  .agent-terminal-tab:hover .agent-terminal-tab-close { opacity: .68; }
+  .agent-terminal-tab:hover:not(.is-active) { color:rgba(30,42,48,.72); background:rgba(255,255,255,.36); }
+  .agent-terminal-tab-close:hover,.agent-terminal-new:hover:not(:disabled),.agent-terminal-restart:hover:not(:disabled) { color: #263239; background: rgba(55,70,79,.075); }
+}
+
+@media (max-width: 760px) {
+  .agent-terminal-tab { width: 125px; }
+  .agent-terminal-status { grid-template-columns: minmax(0, 1fr) auto; }
+  .agent-terminal-status span:nth-child(2) { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-terminal-state > span { animation-duration: .01ms; }
+  .agent-terminal-tab,.agent-terminal-tab-close,.agent-terminal-new,.agent-terminal-restart { transition-duration:.01ms; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .agent-terminal-app,.agent-terminal-tabs { background:#f2f6f7; }
+  .agent-terminal-tab.is-active { background:#fff; }
+  .agent-terminal-error { backdrop-filter:none; }
+}
+
+@keyframes agent-terminal-spin { to { transform: rotate(360deg); } }

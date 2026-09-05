@@ -14,6 +14,7 @@ try {
 const nextConfig: NextConfig = {
   outputFileTracingRoot: configDir,
   serverExternalPackages: [
+    "node-pty",
     "playwright-core",
     "undici",
     "web-push",
