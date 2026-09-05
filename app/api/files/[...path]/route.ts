@@ -20,7 +20,8 @@ import {
 } from "@/lib/file-types";
 import { resolveDirentIsDirectory } from "@/lib/file-dirent";
 import { isFilePathReferencedBySession } from "@/lib/session-file-references";
-import { isApiRequestAllowed } from "@/lib/request-security";
+import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
+import { getTextFileRevision, writeTextFileAtomicSync } from "@/lib/text-file-save";
 import {
   inspectUploadTargets,
   parseUploadConflictStrategy,
@@ -121,6 +122,78 @@ async function getUploadDirectory(segments: string[]): Promise<
 function parseUploadFileNames(value: unknown): string[] | null {
   if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) return null;
   return value;
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ path: string[] }> },
+) {
+  if (!isApiRequestAllowed(request)) {
+    return NextResponse.json({ error: "Untrusted API request" }, { status: 403 });
+  }
+  if (!hasJsonContentType(request)) {
+    return NextResponse.json({ error: "Content-Type must be application/json" }, { status: 415 });
+  }
+
+  try {
+    const { path: segments } = await params;
+    const filePath = filePathFromSegments(segments);
+    const allowedRoots = await getAllowedFileRoots();
+    if (!isFilePathAllowed(filePath, allowedRoots) || !isExistingFilePathAllowed(filePath, allowedRoots)) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+
+    const stat = fs.lstatSync(filePath);
+    if (!stat.isFile() || stat.isSymbolicLink()) {
+      return NextResponse.json({ error: "Only regular text files can be edited" }, { status: 400 });
+    }
+    if (stat.size > TEXT_PREVIEW_MAX_BYTES) {
+      return NextResponse.json({ error: "File too large to edit (>256KB)" }, { status: 413 });
+    }
+
+    const rawBody = await request.text();
+    if (Buffer.byteLength(rawBody, "utf8") > TEXT_PREVIEW_MAX_BYTES * 4 + 65_536) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    let body: { content?: unknown; expectedRevision?: unknown; force?: unknown };
+    try {
+      body = JSON.parse(rawBody) as typeof body;
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+    if (typeof body.content !== "string") {
+      return NextResponse.json({ error: "content must be a string" }, { status: 400 });
+    }
+    const nextSize = Buffer.byteLength(body.content, "utf8");
+    if (nextSize > TEXT_PREVIEW_MAX_BYTES) {
+      return NextResponse.json({ error: "File too large to edit (>256KB)" }, { status: 413 });
+    }
+    if (body.force !== true && typeof body.expectedRevision !== "string") {
+      return NextResponse.json({ error: "expectedRevision is required" }, { status: 400 });
+    }
+
+    const currentBytes = fs.readFileSync(filePath);
+    const currentRevision = getTextFileRevision(currentBytes);
+    if (body.force !== true && body.expectedRevision !== currentRevision) {
+      return NextResponse.json({
+        error: "File changed on disk",
+        conflict: true,
+        currentRevision,
+      }, { status: 409 });
+    }
+
+    writeTextFileAtomicSync(filePath, body.content, stat.mode);
+    const savedStat = fs.statSync(filePath);
+    return NextResponse.json({
+      revision: getTextFileRevision(body.content),
+      size: savedStat.size,
+      modified: savedStat.mtime.toISOString(),
+    });
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
+  }
 }
 
 export async function POST(
@@ -486,9 +559,16 @@ export async function GET(
       if (stat.size > TEXT_PREVIEW_MAX_BYTES) {
         return NextResponse.json({ error: "File too large for preview (>256KB)" }, { status: 413 });
       }
-      const content = fs.readFileSync(filePath, "utf-8");
+      const bytes = fs.readFileSync(filePath);
+      const content = bytes.toString("utf-8");
       const language = getLanguage(filePath);
-      return NextResponse.json({ content, language, size: stat.size });
+      return NextResponse.json({
+        content,
+        language,
+        size: stat.size,
+        revision: getTextFileRevision(bytes),
+        modified: stat.mtime.toISOString(),
+      });
     }
 
     if (type === "download") {

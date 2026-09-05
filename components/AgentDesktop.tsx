@@ -29,6 +29,7 @@ import { useJarvis, type JarvisTask } from "@/hooks/useJarvis";
 import { VoiceActivityIndicator } from "./VoiceActivityIndicator";
 import { BrowserApp } from "./BrowserApp";
 import type { BrowserSystemEvent } from "@/lib/browser/types";
+import type { FileOpenRequest } from "@/lib/files-app/types";
 import {
   INSIGHT_BATCH_SIZE,
   buildInsightAnalysisPrompt,
@@ -49,13 +50,21 @@ const AgentSettingsApp = dynamic(
   },
 );
 
+const FilesApp = dynamic(
+  () => import("./FilesApp").then((module) => module.FilesApp),
+  {
+    ssr: false,
+    loading: () => <div className="agent-settings-loading" role="status">正在打开文件…</div>,
+  },
+);
+
 type IconName =
   | "arrow-up" | "bell" | "chat" | "clock" | "close"
   | "browser"
   | "eye" | "file" | "grid" | "insight" | "list" | "maximize" | "mic" | "minimize"
   | "files" | "plus" | "search" | "settings" | "tasks" | "tiles";
 
-type SystemDockAppId = "system:tasks" | "system:library" | "system:browser" | "system:store" | "system:settings";
+type SystemDockAppId = "system:tasks" | "system:library" | "system:browser" | "system:files" | "system:store" | "system:settings";
 
 interface SystemDockApp {
   kind: "system";
@@ -73,8 +82,9 @@ const SYSTEM_DOCK_APPS: SystemDockApp[] = [
   { kind: "system", id: "system:tasks", name: "任务", description: "查看当前正在推进的任务", category: "其他", icon: "tasks", rank: 1 },
   { kind: "system", id: "system:library", name: "产物库", description: "浏览 Agent 生成的文件产物", category: "其他", icon: "files", rank: 2 },
   { kind: "system", id: "system:browser", name: "浏览器", description: "和 Agent 共同浏览并操作网页", category: "知识办公", icon: "browser", rank: 3 },
-  { kind: "system", id: "system:store", name: "应用商店", description: "发现和管理 Pi 应用", category: "其他", icon: "grid", rank: 4 },
-  { kind: "system", id: "system:settings", name: "设置", description: "配置模型、技能与 Agent", category: "其他", icon: "settings", rank: 5 },
+  { kind: "system", id: "system:files", name: "文件", description: "浏览、预览和轻量编辑工作台文件", category: "产品开发", icon: "files", rank: 4 },
+  { kind: "system", id: "system:store", name: "应用商店", description: "发现和管理 Pi 应用", category: "其他", icon: "grid", rank: 5 },
+  { kind: "system", id: "system:settings", name: "设置", description: "配置模型、技能与 Agent", category: "其他", icon: "settings", rank: 6 },
 ];
 
 const ICONS: Record<IconName, ReactNode> = {
@@ -570,7 +580,8 @@ function readPinnedDockApps(): DockItem[] {
   const stored = window.localStorage.getItem(PINNED_DOCK_APPS_KEY);
   if (stored !== null) return parseDockItems(stored).flatMap<DockItem>((item): DockItem[] => {
     if (item.kind !== "system") return [item];
-    const currentSystemApp = SYSTEM_DOCK_APPS.find((systemApp) => systemApp.id === item.id);
+    const storedId = (item as { id: string }).id === "system:code" ? "system:files" : item.id;
+    const currentSystemApp = SYSTEM_DOCK_APPS.find((systemApp) => systemApp.id === storedId);
     return currentSystemApp ? [currentSystemApp] : [];
   });
   const legacyApps = parseDockItems(window.localStorage.getItem(LEGACY_PINNED_DOCK_APPS_KEY));
@@ -1178,6 +1189,9 @@ export function AgentDesktop() {
   const [appStoreOpen, setAppStoreOpen] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(false);
   const [browserPageId, setBrowserPageId] = useState<string | null>(null);
+  const [filesOpen, setFilesOpen] = useState(false);
+  const [fileOpenRequest, setFileOpenRequest] = useState<FileOpenRequest | null>(null);
+  const [filesHaveUnsavedChanges, setFilesHaveUnsavedChanges] = useState(false);
   const [launchpadOpen, setLaunchpadOpen] = useState(false);
   const [openApps, setOpenApps] = useState<LaunchpadApp[]>([]);
   const [dockApps, setDockApps] = useState<DockItem[]>([]);
@@ -1214,6 +1228,24 @@ export function AgentDesktop() {
         setBrowserOpen(true);
         setFrontWindow("browser");
       } catch { /* ignore malformed browser events */ }
+    };
+    return () => stream.close();
+  }, [activeCwd]);
+
+  useEffect(() => {
+    const stream = new EventSource("/api/file-app/events");
+    stream.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data) as FileOpenRequest | { type: "file.ready" };
+        if (message.type !== "file.open") return;
+        if (activeCwd && message.cwd !== activeCwd) {
+          setNotice(`文件已在其他工作台打开：${getFileName(message.filePath)}`);
+          return;
+        }
+        setFileOpenRequest(message);
+        setFilesOpen(true);
+        if (message.foreground) setFrontWindow("files");
+      } catch { /* ignore malformed file events */ }
     };
     return () => stream.close();
   }, [activeCwd]);
@@ -1626,6 +1658,9 @@ export function AgentDesktop() {
     } else if (item.id === "system:browser") {
       setBrowserOpen(true);
       setFrontWindow("browser");
+    } else if (item.id === "system:files") {
+      setFilesOpen(true);
+      setFrontWindow("files");
     } else if (item.id === "system:store") {
       setAppStoreOpen(true);
       setFrontWindow("store");
@@ -1640,9 +1675,10 @@ export function AgentDesktop() {
     if (item.id === "system:tasks") return Boolean(taskSessionId) && frontWindow === "tasks";
     if (item.id === "system:library") return artifactLibraryOpen;
     if (item.id === "system:browser") return browserOpen;
+    if (item.id === "system:files") return filesOpen;
     if (item.id === "system:store") return appStoreOpen;
     return settingsOpen;
-  }, [appStoreOpen, artifactLibraryOpen, browserOpen, frontWindow, openApps, settingsOpen, taskSessionId]);
+  }, [appStoreOpen, artifactLibraryOpen, browserOpen, filesOpen, frontWindow, openApps, settingsOpen, taskSessionId]);
 
   const toggleDockAppPin = useCallback((app: DockItem) => {
     setPinnedDockAppIds((current) => {
@@ -2172,6 +2208,14 @@ export function AgentDesktop() {
           releaseTemporaryDockItem("system:browser");
         }} titleIcon={<Icon name="browser" size={16}/> }>
           <BrowserApp key={activeCwd} cwd={activeCwd} initialPageId={browserPageId}/>
+        </DesktopWindow>}
+        {filesOpen && activeCwd && <DesktopWindow title="文件" kind="app" front={frontWindow === "files"} onFocus={() => setFrontWindow("files")} onClose={() => {
+          if (filesHaveUnsavedChanges && !window.confirm("文件应用中有未保存的修改，确定关闭吗？")) return;
+          setFilesOpen(false);
+          setFilesHaveUnsavedChanges(false);
+          releaseTemporaryDockItem("system:files");
+        }} titleIcon={<Icon name="files" size={16}/> }>
+          <FilesApp key={activeCwd} cwd={activeCwd} openRequest={fileOpenRequest} onDirtyChange={setFilesHaveUnsavedChanges}/>
         </DesktopWindow>}
         {openApps.map((app, index) => {
           const windowId = `app:${app.id}`;

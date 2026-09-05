@@ -60,6 +60,7 @@ import {
 } from "./jarvis";
 import { allowFileRoot } from "./file-access";
 import { BROWSER_MUTATING_TOOL_NAMES, createBrowserExtension } from "./browser/extension";
+import { createFilesAppExtension } from "./files-app/extension";
 import {
   appendSessionToolSelection,
   readSessionToolSelection,
@@ -2254,6 +2255,7 @@ export async function startRpcSession(
         : {
             extensionFactories: [
               createBrowserExtension(),
+              createFilesAppExtension(),
               createProjectCommandBashExtension({
                 cwd: sessionCwd,
                 settings: settingsManager,

@@ -67,7 +67,8 @@ test("opened apps join the Dock temporarily and can be kept from their context m
   assert.match(desktopSource, /<Icon name=\{item\.icon\} size=\{launchpad \? 46 : 22\}\/>/);
   assert.doesNotMatch(cssSource, /\.agent-os-launchpad-icon\.is-system\.is-(?:tasks|library)\{/);
   assert.doesNotMatch(cssSource, /\.agent-os-dock > \.dock-(?:tasks|library)\{/);
-  assert.match(desktopSource, /SYSTEM_DOCK_APPS\.find\(\(systemApp\) => systemApp\.id === item\.id\)/);
+  assert.match(desktopSource, /SYSTEM_DOCK_APPS\.find\(\(systemApp\) => systemApp\.id === storedId\)/);
+  assert.match(desktopSource, /=== "system:code" \? "system:files"/);
   assert.match(desktopSource, /return currentSystemApp \? \[currentSystemApp\] : \[\]/);
   assert.match(cssSource, /\.agent-os-dock > \.dock-app\.is-feishu \.agent-os-app-logo\{[^}]*width:100%;height:100%/);
 });
