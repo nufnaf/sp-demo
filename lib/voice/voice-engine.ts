@@ -7,9 +7,10 @@ import { createTurnTracker, type TurnTracker } from "./turn-detector";
 import { PcmPlayer } from "./pcm-player";
 import { TtsSpeaker } from "./tts-speaker";
 import { createSpokenTextWindow, looksLikeEcho } from "./echo";
+import { ASR_RECORD_OPTIONS, asrRequestConfig, authenticatedUrl, getSpeechSdk, getVoiceSession, micLevel } from "./doubao-client";
 import { turnWaitFor } from "./turn-policy";
 
-type AsrClient = ReturnType<typeof import("byted-ailab-speech-sdk")["LabASR"]>;
+type AsrClient = ReturnType<Awaited<ReturnType<typeof getSpeechSdk>>["LabASR"]>;
 
 export interface VoiceDriver {
   id: string;
@@ -46,37 +47,6 @@ const REPLY_TIMEOUT_MS = 20_000;
 const MAX_ASR_RETRIES = 3;
 const TERMINATOR_RE = /[。！？!?；;…]["”’)）』」]*$/;
 
-async function fetchVoiceSession(): Promise<DoubaoVoiceSession> {
-  const response = await fetch("/api/voice/session", { method: "POST", headers: { Accept: "application/json" } });
-  const body = await response.json().catch(() => ({})) as DoubaoVoiceSession & { error?: string };
-  if (!response.ok) throw new Error(body.error || `Voice service returned HTTP ${response.status}`);
-  return body;
-}
-
-function authenticatedUrl(endpoint: string, session: DoubaoVoiceSession, resourceId: string): string {
-  const url = new URL(endpoint);
-  url.searchParams.set("api_resource_id", resourceId);
-  url.searchParams.set("api_app_key", session.appId);
-  url.searchParams.set("api_access_key", `Jwt; ${session.token}`);
-  url.searchParams.set("api_connect_id", crypto.randomUUID());
-  return url.toString();
-}
-
-function micLevel(chunk: Blob): Promise<number> {
-  return chunk.slice(44).arrayBuffer().then((buffer) => {
-    if (buffer.byteLength < 2) return 0;
-    const samples = new Int16Array(buffer.slice(0, buffer.byteLength - (buffer.byteLength % 2)));
-    let sum = 0;
-    let count = 0;
-    for (let index = 0; index < samples.length; index += 8) {
-      const sample = samples[index] / 32_768;
-      sum += sample * sample;
-      count += 1;
-    }
-    return count ? Math.min(1, Math.sqrt(sum / count) * 8) : 0;
-  });
-}
-
 /**
  * Always-on voice conversation shared by every surface in the app. The
  * microphone stays open, the user's finished utterances go to the highest
@@ -91,8 +61,6 @@ export class VoiceEngine {
 
   private active = false;
   private session: DoubaoVoiceSession | null = null;
-  private sessionPromise: Promise<DoubaoVoiceSession> | null = null;
-  private sdk: typeof import("byted-ailab-speech-sdk") | null = null;
 
   private asr: AsrClient | null = null;
   private asrGeneration = 0;
@@ -308,7 +276,7 @@ export class VoiceEngine {
     this.stopSpeech();
     const driver = this.driver;
     this.primeSpeech(driver?.speechText ?? "");
-    this.holdUntilNewMessage = Boolean(driver?.agentRunning);
+    this.holdUntilNewMessage = Boolean(driver?.agentRunning && driver.speechText.length > 0);
     this.awaitingReply = true;
     this.armReplyTimer();
     this.patch({ transcript: "" });
@@ -332,25 +300,16 @@ export class VoiceEngine {
   }
 
   private async getSession(): Promise<DoubaoVoiceSession> {
-    const cached = this.session;
-    if (cached && cached.expiresAt - 30_000 > Date.now()) return cached;
-    this.sessionPromise ??= fetchVoiceSession().then((session) => {
-      this.session = session;
-      return session;
-    }).finally(() => { this.sessionPromise = null; });
-    return this.sessionPromise;
-  }
-
-  private async getSdk() {
-    this.sdk ??= await import("byted-ailab-speech-sdk");
-    return this.sdk;
+    const session = await getVoiceSession();
+    this.session = session;
+    return session;
   }
 
   // ------------------------------------------------------------------ ASR
 
   private async openAsr(): Promise<void> {
     const generation = ++this.asrGeneration;
-    const [session, sdk] = await Promise.all([this.getSession(), this.getSdk()]);
+    const [session, sdk] = await Promise.all([this.getSession(), getSpeechSdk()]);
     if (!this.active || generation !== this.asrGeneration) return;
     this.tracker = createTurnTracker();
     this.asrConnected = false;
@@ -382,22 +341,11 @@ export class VoiceEngine {
     this.asr = client;
     client.connect({
       url: authenticatedUrl(session.asr.endpoint, session, session.asr.resourceId),
-      config: {
-        user: { uid: "pi-web" },
-        audio: { format: "pcm", rate: 16_000, bits: 16, channel: 1 },
-        request: {
-          model_name: "bigmodel",
-          show_utterances: true,
-          result_type: "full",
-          enable_itn: true,
-          enable_punc: true,
-          end_window_size: 900,
-        },
-      },
+      config: asrRequestConfig(900),
     });
     try {
       await client.startRecord(
-        { timeSlice: 200, numberOfAudioChannels: 1, desiredSampRate: 16_000, disableLogs: true },
+        ASR_RECORD_OPTIONS,
         (chunk) => {
           if (generation !== this.asrGeneration) return;
           void micLevel(chunk).then((level) => {
@@ -524,7 +472,9 @@ export class VoiceEngine {
     // is mid-message, even its remaining sentences are stale.
     this.primeSpeech(driver.speechText);
     this.speechSource = driver.speechText;
-    this.holdUntilNewMessage = driver.agentRunning;
+    // Only an in-progress message with text is stale; an empty source would
+    // match every future text and mute the assistant for good.
+    this.holdUntilNewMessage = driver.agentRunning && driver.speechText.length > 0;
     this.awaitingReply = true;
     this.armReplyTimer();
     if (!driver.agentRunning) driver.onPrompt(text);
@@ -569,6 +519,8 @@ export class VoiceEngine {
   private handleRunningChange(running: boolean): void {
     if (running) {
       this.clearReplyTimer();
+      // A new turn is by definition a new message.
+      this.holdUntilNewMessage = false;
       return;
     }
     // The turn ended: speak whatever is left and let the TTS session drain.
@@ -586,8 +538,8 @@ export class VoiceEngine {
 
   private feedSpeech(text: string): void {
     if (!this.active) return;
-    const extendsCurrent = text.startsWith(this.speechSource);
-    if (!extendsCurrent) {
+    const extendsCurrent = this.speechSource.length > 0 && text.startsWith(this.speechSource);
+    if (!extendsCurrent && text !== this.speechSource) {
       // Switching away from a message: whatever it said is now history.
       this.rememberSource(this.speechSource);
       if (this.holdUntilNewMessage) this.holdUntilNewMessage = false;

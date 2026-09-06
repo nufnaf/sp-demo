@@ -1,8 +1,9 @@
 import type { PluginPackageInfo } from "./api-types";
+import { getChinaAppDefinition, type ChinaAppDefinition, type ChinaConnectorAppId } from "./china-apps.ts";
 
-export type LaunchpadCategory = "产品开发" | "设计协作" | "团队协作" | "知识办公" | "其他";
+export type LaunchpadCategory = "产品开发" | "设计协作" | "团队协作" | "知识办公" | "企业协同" | "金融数据" | "法律服务" | "其他";
 
-export type LaunchpadAppearance = "github" | "figma" | "slack" | "notion" | "linear" | "google" | "feishu" | "default";
+export type LaunchpadAppearance = "github" | "figma" | "slack" | "notion" | "linear" | "google" | "feishu" | ChinaConnectorAppId | "default";
 
 interface LaunchpadAppBase {
   id: string;
@@ -16,7 +17,7 @@ interface LaunchpadAppBase {
 
 export interface PluginLaunchpadApp extends LaunchpadAppBase {
   kind: "plugin";
-  appearance: Exclude<LaunchpadAppearance, "feishu">;
+  appearance: "github" | "figma" | "slack" | "notion" | "linear" | "google" | "default";
   plugin: PluginPackageInfo;
 }
 
@@ -25,7 +26,13 @@ export interface BuiltinLaunchpadApp extends LaunchpadAppBase {
   appearance: "feishu";
 }
 
-export type LaunchpadApp = PluginLaunchpadApp | BuiltinLaunchpadApp;
+export interface ConnectorLaunchpadApp extends LaunchpadAppBase {
+  kind: "connector";
+  appearance: ChinaConnectorAppId;
+  connector: ChinaAppDefinition;
+}
+
+export type LaunchpadApp = PluginLaunchpadApp | BuiltinLaunchpadApp | ConnectorLaunchpadApp;
 
 interface AppPresentation {
   name: string;
@@ -79,7 +86,7 @@ const APP_CATALOG: Record<string, AppPresentation> = {
   },
   "pi-google-workspace": {
     name: "Google Workspace",
-    description: "Drive、Docs、Sheets 与 Slides",
+    description: "Gmail、Drive、Docs、Sheets 与 Slides",
     category: "知识办公",
     icon: "G",
     appearance: "google",
@@ -131,10 +138,10 @@ export const BUILTIN_LAUNCHPAD_APPS: BuiltinLaunchpadApp[] = [{
   id: "builtin:feishu",
   name: "飞书",
   description: "消息、文档、多维表格与协作空间",
-  category: "团队协作",
+  category: "企业协同",
   icon: "飞",
   appearance: "feishu",
-  rank: 25,
+  rank: 10,
 }];
 
 export function getInstalledLaunchpadApps(packages: PluginPackageInfo[]): PluginLaunchpadApp[] {
@@ -144,7 +151,18 @@ export function getInstalledLaunchpadApps(packages: PluginPackageInfo[]): Plugin
     .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));
 }
 
-export function getLaunchpadApps(packages: PluginPackageInfo[]): LaunchpadApp[] {
-  return [...BUILTIN_LAUNCHPAD_APPS, ...getInstalledLaunchpadApps(packages)]
+export function toConnectorLaunchpadApp(id: ChinaConnectorAppId): ConnectorLaunchpadApp | null {
+  const connector = getChinaAppDefinition(id);
+  if (!connector || connector.delivery !== "connector") return null;
+  return { kind: "connector", id: `connector:${id}`, name: connector.name, description: connector.description, category: connector.category, icon: connector.icon, appearance: id, rank: connector.rank, connector };
+}
+
+export function getLaunchpadApps(packages: PluginPackageInfo[], installedConnectorIds: string[] = []): LaunchpadApp[] {
+  const connectors = installedConnectorIds.flatMap((id) => {
+    if (id === "feishu") return [];
+    const app = toConnectorLaunchpadApp(id as ChinaConnectorAppId);
+    return app ? [app] : [];
+  });
+  return [...BUILTIN_LAUNCHPAD_APPS, ...connectors, ...getInstalledLaunchpadApps(packages)]
     .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));
 }

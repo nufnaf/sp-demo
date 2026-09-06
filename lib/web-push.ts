@@ -34,6 +34,7 @@ export interface WebPushNotifier {
   getVapidPublicKey: () => string;
   addSubscription: (subscription: PushSubscriptionRecord) => void;
   notifySessionComplete: (sessionId: string) => Promise<void>;
+  notifyInsight: (insight: { id: string; title: string; sessionId: string }) => Promise<void>;
 }
 
 function stateFilePath(): string {
@@ -153,6 +154,27 @@ export function createWebPushNotifier(environment: WebPushEnvironment): WebPushN
       }
       if (pruned) saveState();
     },
+    async notifyInsight(insight) {
+      if (state.subscriptions.length === 0) return;
+      let pruned = false;
+      for (const subscription of [...state.subscriptions]) {
+        try {
+          await environment.send(subscription, JSON.stringify({
+            title: insight.title,
+            body: subscription.locale === "zh-CN" ? "点击查看完整 AI 洞察" : "Open the full AI insight",
+            url: `/?session=${encodeURIComponent(insight.sessionId)}`,
+            tag: `pi-insight:${insight.id}`,
+          }), state.vapidKeys);
+        } catch (error) {
+          const statusCode = pushStatusCode(error);
+          if (statusCode === 404 || statusCode === 410) {
+            state.subscriptions = state.subscriptions.filter((item) => item.endpoint !== subscription.endpoint);
+            pruned = true;
+          }
+        }
+      }
+      if (pruned) saveState();
+    },
   };
 }
 
@@ -178,4 +200,9 @@ export function addSubscription(subscription: PushSubscriptionRecord): Promise<v
 export async function notifySessionComplete(sessionId: string): Promise<void> {
   const notifier = await getNotifier();
   await notifier.notifySessionComplete(sessionId);
+}
+
+export async function notifyInsight(insight: { id: string; title: string; sessionId: string }): Promise<void> {
+  const notifier = await getNotifier();
+  await notifier.notifyInsight(insight);
 }

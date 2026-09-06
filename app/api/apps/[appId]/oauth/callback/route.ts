@@ -13,7 +13,7 @@ function page(title: string, message: string, success: boolean): Response {
 
 export async function GET(request: Request, context: { params: Promise<{ appId: string }> }) {
   const { appId } = await context.params;
-  if (appId !== "notion" && appId !== "google") return page("授权失败", "未知应用。", false);
+  if (appId !== "notion" && appId !== "google" && appId !== "wps") return page("授权失败", "未知应用。", false);
   try {
     return page("授权完成", await completeOAuth(appId, new URL(request.url).searchParams), true);
   } catch (error) {

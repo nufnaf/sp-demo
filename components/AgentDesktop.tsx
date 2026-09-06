@@ -13,31 +13,29 @@ import {
   type ReactNode,
 } from "react";
 import { AppShell } from "./AppShell";
+import { APP_LOGO_GLYPHS } from "./AppLogoGlyphs";
 import { AppStore, AppStoreBrandIcon } from "./AppStore";
-import { clearDesktopReminders, DesktopReminders, type ReminderItem } from "./DesktopReminders";
+import { clearDesktopReminders, DesktopReminders } from "./DesktopReminders";
 import { DraggableDesktopWidget } from "./DraggableDesktopWidget";
 import { FileViewer } from "./FileViewer";
 import { extractTurnWrittenFiles } from "@/lib/turn-written-files";
-import { encodeFilePathForApi, getFileName } from "@/lib/file-paths";
-import { getLaunchpadApps, type LaunchpadApp, type LaunchpadCategory, type PluginLaunchpadApp } from "@/lib/launchpad-apps";
+import { getFileName } from "@/lib/file-paths";
+import { BUILTIN_LAUNCHPAD_APPS, getLaunchpadApps, toConnectorLaunchpadApp, type ConnectorLaunchpadApp, type LaunchpadApp, type LaunchpadCategory, type PluginLaunchpadApp } from "@/lib/launchpad-apps";
 import type { AppConnectResponse, AppConnectionStatus, AppDataResponse, ConnectedAppId } from "@/lib/app-connection-types";
 import type { PluginsResponse } from "@/lib/api-types";
 import type { AgentMessage, SessionContext, SessionInfo, ToolResultMessage } from "@/lib/types";
-import { showBrowserNotification } from "@/lib/browser-notifications";
 import { useRealtimeVoice } from "@/hooks/useRealtimeVoice";
 import { useJarvis, type JarvisTask } from "@/hooks/useJarvis";
-import { VoiceActivityIndicator } from "./VoiceActivityIndicator";
+import { useDictation } from "@/hooks/useDictation";
+import { VoiceOrb } from "./VoiceOrb";
 import { BrowserApp } from "./BrowserApp";
+import { SalesCRMApp } from "./SalesCRMApp";
+import { HRRecruitingApp } from "./HRRecruitingApp";
+import { InvestmentWorkspaceApp } from "./InvestmentWorkspaceApp";
 import type { BrowserSystemEvent } from "@/lib/browser/types";
 import type { FileOpenRequest } from "@/lib/files-app/types";
 import {
-  INSIGHT_BATCH_SIZE,
-  buildInsightAnalysisPrompt,
-  createInsightAutomationState,
-  extractInsightMetadata,
   isInsightTaskSession,
-  observeCompletedTasks,
-  type InsightAutomationState,
   type InsightResult,
 } from "@/lib/insight-automation";
 import "./AgentDesktop.css";
@@ -69,10 +67,10 @@ const TerminalApp = dynamic(
 type IconName =
   | "arrow-up" | "bell" | "chat" | "clock" | "close"
   | "browser"
-  | "eye" | "file" | "grid" | "insight" | "list" | "maximize" | "mic" | "minimize"
-  | "files" | "plus" | "search" | "settings" | "tasks" | "terminal" | "tiles";
+  | "eye" | "file" | "folder" | "grid" | "insight" | "list" | "maximize" | "mic" | "minimize" | "waveform"
+  | "sales" | "files" | "investment" | "plus" | "recruiting" | "search" | "settings" | "tasks" | "terminal" | "tiles";
 
-type SystemDockAppId = "system:tasks" | "system:library" | "system:browser" | "system:files" | "system:terminal" | "system:store" | "system:settings";
+type SystemDockAppId = "system:crm" | "system:tasks" | "system:library" | "system:hr" | "system:investment" | "system:browser" | "system:files" | "system:terminal" | "system:store" | "system:settings";
 
 interface SystemDockApp {
   kind: "system";
@@ -89,17 +87,20 @@ type DockItem = LaunchpadApp | SystemDockApp;
 const SYSTEM_DOCK_APPS: SystemDockApp[] = [
   { kind: "system", id: "system:tasks", name: "任务", description: "查看当前正在推进的任务", category: "其他", icon: "tasks", rank: 1 },
   { kind: "system", id: "system:library", name: "产物库", description: "浏览 Agent 生成的文件产物", category: "其他", icon: "files", rank: 2 },
-  { kind: "system", id: "system:browser", name: "浏览器", description: "和 Agent 共同浏览并操作网页", category: "知识办公", icon: "browser", rank: 3 },
-  { kind: "system", id: "system:files", name: "文件", description: "浏览、预览和轻量编辑工作台文件", category: "产品开发", icon: "files", rank: 4 },
-  { kind: "system", id: "system:terminal", name: "终端", description: "在当前工作台运行开发命令", category: "产品开发", icon: "terminal", rank: 5 },
-  { kind: "system", id: "system:store", name: "应用商店", description: "发现和管理 Pi 应用", category: "其他", icon: "grid", rank: 6 },
-  { kind: "system", id: "system:settings", name: "设置", description: "配置模型、技能与 Agent", category: "其他", icon: "settings", rank: 7 },
+  { kind: "system", id: "system:crm", name: "销售 CRM", description: "管理客户、订单、回款与销售数据洞察", category: "企业协同", icon: "sales", rank: 3.5 },
+  { kind: "system", id: "system:hr", name: "人才招聘", description: "统一管理岗位、候选人与招聘数据源", category: "企业协同", icon: "recruiting", rank: 3 },
+  { kind: "system", id: "system:investment", name: "投资管理", description: "管理投资公司、投资阶段、公司调研与数据来源", category: "金融数据", icon: "investment", rank: 4 },
+  { kind: "system", id: "system:browser", name: "浏览器", description: "和 Agent 共同浏览并操作网页", category: "知识办公", icon: "browser", rank: 5 },
+  { kind: "system", id: "system:files", name: "文件", description: "浏览、预览和轻量编辑工作台文件", category: "产品开发", icon: "folder", rank: 6 },
+  { kind: "system", id: "system:terminal", name: "终端", description: "在当前工作台运行开发命令", category: "产品开发", icon: "terminal", rank: 7 },
+  { kind: "system", id: "system:store", name: "应用商店", description: "发现和管理 Pi 应用", category: "其他", icon: "grid", rank: 8 },
+  { kind: "system", id: "system:settings", name: "设置", description: "配置模型、技能与 Agent", category: "其他", icon: "settings", rank: 9 },
 ];
 
 const ICONS: Record<IconName, ReactNode> = {
   "arrow-up": <><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></>,
   bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></>,
-  browser: <><circle cx="12" cy="12" r="9"/><path d="M3 9h18"/><path d="M8 3.8c1.3 1.5 2 4.3 2 8.2s-.7 6.7-2 8.2M16 3.8c-1.3 1.5-2 4.3-2 8.2s.7 6.7 2 8.2"/><path d="M3.8 15h16.4"/></>,
+  browser: APP_LOGO_GLYPHS.browser,
   chat: <><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"/><path d="M8 9h8M8 13h5"/></>,
   clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
   close: <path d="m7 7 10 10M17 7 7 17"/>,
@@ -109,16 +110,23 @@ const ICONS: Record<IconName, ReactNode> = {
   insight: <><path d="M12 3a7 7 0 0 0-4 12.7V19h8v-3.3A7 7 0 0 0 12 3Z"/><path d="M9 22h6M9 15h6"/></>,
   maximize: <><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M3 16v5h5"/></>,
   mic: <><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></>,
+  waveform: <><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></>,
   minimize: <path d="M5 12h14"/>,
   list: <><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/></>,
+  folder: APP_LOGO_GLYPHS.folder,
   files: <><path d="M6 7H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h9"/><path d="M8 3h8l4 4v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M16 3v5h4M10 12h6M10 16h6"/></>,
+  sales: <><rect x="3" y="7" width="18" height="14" rx="3"/><path d="M8 7V4h8v3M3 12h18M10 15h4"/></>,
+  investment: APP_LOGO_GLYPHS.investment,
   plus: <path d="M12 5v14M5 12h14"/>,
+  recruiting: APP_LOGO_GLYPHS.recruiting,
   search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
   settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H3v-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V3h4v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></>,
   tasks: <><rect x="3" y="3" width="18" height="18" rx="3.5"/><path d="m6.5 8 1.2 1.2L10 7M13 8h4M6.5 14l1.2 1.2L10 13M13 14h4"/></>,
   terminal: <><rect x="3" y="4" width="18" height="16" rx="3"/><path d="m7 9 3 3-3 3M13 15h4"/></>,
   tiles: <><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></>,
 };
+
+const DICTATION_BARS = [0.35, 0.55, 0.8, 0.6, 1, 0.7, 0.45, 0.85, 0.65, 0.95, 0.5, 0.75, 0.4, 0.9, 0.6, 0.3];
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   return <svg className="agent-os-icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICONS[name]}</svg>;
@@ -152,64 +160,6 @@ interface WorkspaceOption {
   cwd: string;
   name: string;
   managed: boolean;
-}
-
-const INSIGHT_STORAGE_PREFIX = "pi-web:insight-automation:";
-
-function insightStorageKey(cwd: string): string {
-  return `${INSIGHT_STORAGE_PREFIX}${cwd}`;
-}
-
-function readInsightAutomationState(cwd: string): InsightAutomationState {
-  try {
-    const raw = window.localStorage.getItem(insightStorageKey(cwd));
-    if (!raw) return createInsightAutomationState();
-    const value = JSON.parse(raw) as Partial<InsightAutomationState> & { result?: unknown };
-    if (!Array.isArray(value.knownCompletedIds) || !Array.isArray(value.queuedCompletedIds)) {
-      return createInsightAutomationState();
-    }
-    const parseInsightResult = (result: unknown): InsightResult | null => {
-      if (!result || typeof result !== "object") return null;
-      const candidate = result as Partial<InsightResult>;
-      const valid = typeof candidate.sessionId === "string"
-        && typeof candidate.filePath === "string"
-        && typeof candidate.cwd === "string"
-        && typeof candidate.title === "string"
-        && typeof candidate.modified === "string";
-      if (!valid) return null;
-      const fileName = typeof candidate.fileName === "string" ? candidate.fileName : getFileName(candidate.filePath!);
-      return {
-        sessionId: candidate.sessionId!,
-        filePath: candidate.filePath!,
-        cwd: candidate.cwd!,
-        fileName,
-        title: candidate.title === fileName ? "洞察报告" : candidate.title!,
-        modified: candidate.modified!,
-      };
-    };
-    const legacyResult = parseInsightResult(value.result);
-    const results = Array.isArray(value.results)
-      ? value.results.map(parseInsightResult).filter((result): result is InsightResult => Boolean(result))
-      : [];
-    if (legacyResult && !results.some((result) => result.sessionId === legacyResult.sessionId && result.filePath === legacyResult.filePath)) {
-      results.unshift(legacyResult);
-    }
-    return {
-      initialized: value.initialized === true,
-      knownCompletedIds: value.knownCompletedIds.filter((id): id is string => typeof id === "string"),
-      queuedCompletedIds: value.queuedCompletedIds.filter((id): id is string => typeof id === "string"),
-      results,
-      ...(typeof value.analysisSessionId === "string" ? { analysisSessionId: value.analysisSessionId } : {}),
-    };
-  } catch {
-    return createInsightAutomationState();
-  }
-}
-
-function insightTimestamp(): string {
-  const now = new Date();
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
 }
 
 function artifactIdentity(artifact: Artifact): string {
@@ -252,24 +202,14 @@ function formatInsightModified(value: string): string {
     : { month: "numeric", day: "numeric" }).format(date);
 }
 
-async function hydrateInsightResult(result: InsightResult, signal?: AbortSignal): Promise<InsightResult> {
-  try {
-    const params = new URLSearchParams({ type: "read", sessionId: result.sessionId });
-    const response = await fetch(`/api/files/${encodeFilePathForApi(result.filePath)}?${params.toString()}`, {
-      cache: "no-store",
-      signal,
-    });
-    const data = await response.json() as { content?: string };
-    if (!response.ok || typeof data.content !== "string") return result;
-    return { ...result, ...extractInsightMetadata(data.content, getFileName(result.filePath)) };
-  } catch {
-    return result;
-  }
-}
-
-const LAUNCHPAD_CATEGORIES: Array<"全部" | LaunchpadCategory> = ["全部", "产品开发", "设计协作", "团队协作", "知识办公", "其他"];
+const LAUNCHPAD_CATEGORIES: Array<"全部" | LaunchpadCategory> = ["全部", "企业协同", "金融数据", "法律服务", "产品开发", "设计协作", "团队协作", "知识办公", "其他"];
 
 function BrandAppIcon({ app }: { app: LaunchpadApp }) {
+  if (app.kind === "connector") return <>
+    {/* Official connector brand assets are intentionally loaded without Next image optimization. */}
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <img src={app.connector.logoUrl} alt="" referrerPolicy="no-referrer"/>
+  </>;
   if (app.appearance === "figma") return <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#f24e1e" d="M5 2h7v7H8.5A3.5 3.5 0 0 1 5 5.5Z"/><path fill="#ff7262" d="M12 2h3.5a3.5 3.5 0 1 1 0 7H12Z"/><path fill="#a259ff" d="M5 9h7v7H8.5a3.5 3.5 0 1 1 0-7Z"/><circle cx="15.5" cy="12.5" r="3.5" fill="#1abcfe"/><path fill="#0acf83" d="M5 16h7v3.5A3.5 3.5 0 1 1 5 19.5Z"/></svg>;
   if (app.appearance === "google") return <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285f4" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.7h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.8 3-4.3 3-7.2Z"/><path fill="#34a853" d="M12 22c2.7 0 5-.9 6.6-2.5l-3.2-2.5c-.9.6-2 .9-3.4.9-2.6 0-4.8-1.8-5.6-4.2H3.1v2.6A10 10 0 0 0 12 22Z"/><path fill="#fbbc05" d="M6.4 13.7a6 6 0 0 1 0-3.4V7.7H3.1a10 10 0 0 0 0 8.6Z"/><path fill="#ea4335" d="M12 6.1c1.5 0 2.8.5 3.8 1.5l2.9-2.9A9.7 9.7 0 0 0 3.1 7.7l3.3 2.6A6 6 0 0 1 12 6.1Z"/></svg>;
   if (app.appearance === "feishu") return <svg viewBox="0 0 48 48" aria-hidden="true"><image href="/icons/feishu-logo.svg" width="48" height="48"/></svg>;
@@ -283,7 +223,7 @@ function BrandAppIcon({ app }: { app: LaunchpadApp }) {
 }
 
 function AppLogo({ app, compact = false }: { app: LaunchpadApp; compact?: boolean }) {
-  return <span className={`agent-os-app-logo is-${app.appearance}${compact ? " is-compact" : ""}`}><BrandAppIcon app={app}/></span>;
+  return <span className={`agent-os-app-logo is-${app.appearance}${app.kind === "connector" ? " is-official-icon" : ""}${compact ? " is-compact" : ""}`}><BrandAppIcon app={app}/></span>;
 }
 
 function DockItemIcon({ item, launchpad = false }: { item: DockItem; launchpad?: boolean }) {
@@ -299,17 +239,19 @@ interface ConnectedAppConfig {
   emptyDescription: string;
 }
 
+type DataLaunchpadApp = PluginLaunchpadApp | ConnectorLaunchpadApp;
+
 const CONNECTED_APP_CONFIG: Record<PluginLaunchpadApp["appearance"], ConnectedAppConfig> = {
   github: { sections: ["概览", "仓库", "Pull Requests", "Issues"], dataLabel: "代码协作数据", emptyTitle: "还没有载入 GitHub 数据", emptyDescription: "连接 GitHub 账号后，仓库、PR 和 Issue 会集中展示在这里。" },
   figma: { sections: ["最近文件", "项目", "组件", "评论"], dataLabel: "设计协作数据", emptyTitle: "还没有载入 Figma 文件", emptyDescription: "连接 Figma 后，可以在 Agent OS 内浏览文件、组件和评论上下文。" },
   slack: { sections: ["收件箱", "频道", "私信", "搜索"], dataLabel: "团队沟通数据", emptyTitle: "还没有载入 Slack 消息", emptyDescription: "连接工作区后，频道消息、私信和搜索结果会展示在这里。" },
   notion: { sections: ["最近页面", "团队空间", "数据库", "搜索"], dataLabel: "知识库数据", emptyTitle: "还没有载入 Notion 内容", emptyDescription: "连接 Notion 后，页面、数据库和团队知识会展示在这里。" },
   linear: { sections: ["我的事项", "Issues", "项目", "周期"], dataLabel: "研发管理数据", emptyTitle: "还没有载入 Linear 数据", emptyDescription: "连接 Linear 后，Issue、项目与周期进度会展示在这里。" },
-  google: { sections: ["云端硬盘", "文档", "表格", "幻灯片"], dataLabel: "Workspace 数据", emptyTitle: "还没有载入 Workspace 数据", emptyDescription: "连接 Google 账号后，Drive、Docs、Sheets 与 Slides 数据会展示在这里。" },
+  google: { sections: ["邮件", "云端硬盘", "文档", "表格", "幻灯片"], dataLabel: "Google 数据", emptyTitle: "还没有载入 Google 数据", emptyDescription: "连接 Google 账号后，Gmail 与 Workspace 文件会展示在这里。" },
   default: { sections: ["概览", "最近数据", "搜索"], dataLabel: "应用数据", emptyTitle: "还没有载入应用数据", emptyDescription: "完成数据连接后，相关内容会展示在这里。" },
 };
 
-function isConnectedAppAppearance(value: PluginLaunchpadApp["appearance"]): value is ConnectedAppId {
+function isConnectedAppAppearance(value: DataLaunchpadApp["appearance"]): value is ConnectedAppId {
   return value !== "default";
 }
 
@@ -328,7 +270,7 @@ const CONNECTION_FIELDS: Partial<Record<ConnectedAppId, Array<{ name: string; la
 };
 
 function ConnectionPanel({ app, status, busy, error, onClose, onConnect, onDisconnect }: {
-  app: PluginLaunchpadApp;
+  app: DataLaunchpadApp;
   status: AppConnectionStatus | null;
   busy: boolean;
   error: string | null;
@@ -337,10 +279,19 @@ function ConnectionPanel({ app, status, busy, error, onClose, onConnect, onDisco
   onDisconnect: () => void;
 }) {
   const appId = isConnectedAppAppearance(app.appearance) ? app.appearance : null;
-  const fields = appId ? CONNECTION_FIELDS[appId] ?? [] : [];
-  const [values, setValues] = useState<Record<string, string>>({});
+  const fields = app.kind === "connector" ? app.connector.fields : appId ? CONNECTION_FIELDS[appId] ?? [] : [];
+  const [values, setValues] = useState<Record<string, string>>(() => app.kind === "connector"
+    ? Object.fromEntries(app.connector.fields.filter((field) => field.defaultValue).map((field) => [field.name, field.defaultValue!]))
+    : {});
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const connected = status?.state === "connected";
-  const isOAuth = appId === "notion" || appId === "google";
+  const connectorAuthorization = app.kind === "connector" ? app.connector.authorization : null;
+  const isOAuth = appId === "notion" || appId === "google" || connectorAuthorization?.kind === "oauth";
+  const visibleFields = app.kind !== "connector"
+    ? fields
+    : connectorAuthorization?.kind === "browser-token"
+      ? fields.filter((field) => field.name !== "mcpUrl")
+      : showAdvanced ? fields : [];
   const submit = (event: FormEvent) => {
     event.preventDefault();
     onConnect(values);
@@ -348,7 +299,7 @@ function ConnectionPanel({ app, status, busy, error, onClose, onConnect, onDisco
 
   return <div className="agent-os-connection-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section className="agent-os-connection-panel" role="dialog" aria-modal="true" aria-label={`管理 ${app.name} 连接`}>
-      <header><AppLogo app={app}/><span><strong>{connected ? `${app.name} 已连接` : `连接 ${app.name}`}</strong><small>授权信息只保存在此设备，并直接供 Pi Plugin 使用。</small></span><button type="button" onClick={onClose} aria-label="关闭"><Icon name="close" size={16}/></button></header>
+      <header><AppLogo app={app}/><span><strong>{connected ? `${app.name} 已连接` : `连接 ${app.name}`}</strong><small>授权信息只保存在此设备，并供 Agent OS 连接器使用。</small></span><button type="button" onClick={onClose} aria-label="关闭"><Icon name="close" size={16}/></button></header>
       <div className="agent-os-connection-body">
         <div className={`agent-os-connection-state is-${status?.state ?? "connecting"}`}><i/><span><strong>{status?.account ?? (connected ? "连接有效" : "等待授权")}</strong><small>{status?.detail ?? "正在检查连接状态…"}</small></span></div>
         {status?.dependency ? <p className="agent-os-connection-dependency"><strong>运行依赖：</strong>{status.dependency}</p> : null}
@@ -357,21 +308,147 @@ function ConnectionPanel({ app, status, busy, error, onClose, onConnect, onDisco
           <button className="agent-os-connection-danger" type="button" disabled={busy} onClick={onDisconnect}>断开连接</button>
         </> : <form onSubmit={submit}>
           {appId === "notion" ? <p className="agent-os-connection-help">点击后将打开 Notion 官方授权页面。你可以在 Notion 中选择 Agent OS 能访问的页面与团队空间。</p> : null}
-          {appId === "google" ? <p className="agent-os-connection-help">在 Google Cloud 创建“Web application”OAuth 凭据，并加入以下 Authorized redirect URI。授权范围仅包含 Drive、Docs、Sheets 与 Slides。<code className="agent-os-connection-uri">{`${window.location.origin}/api/apps/google/oauth/callback`}</code></p> : null}
+          {appId === "google" ? <p className="agent-os-connection-help">在 Google Cloud 创建“Web application”OAuth 凭据，并加入以下 Authorized redirect URI。授权范围包含 Gmail 只读以及 Drive、Docs、Sheets 与 Slides。<code className="agent-os-connection-uri">{`${window.location.origin}/api/apps/google/oauth/callback`}</code></p> : null}
           {appId === "slack" ? <p className="agent-os-connection-help">Bot Token 用于频道数据；User Token 仅用于全局消息搜索，可留空。Bot 还需被邀请进入要读取的频道。</p> : null}
           {appId === "github" && status?.state === "setup_required" ? <p className="agent-os-connection-help is-warning">当前设备没有检测到 <code>gh</code>。先安装 GitHub CLI，才能保证应用界面和 Pi Plugin 使用同一套授权。</p> : null}
-          {fields.map((field) => <label key={field.name}><span>{field.label}{field.optional ? <em>可选</em> : null}</span><input type="password" autoComplete="off" value={values[field.name] ?? ""} placeholder={field.placeholder} onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.value }))}/></label>)}
+          {connectorAuthorization ? <div className={`agent-os-connection-guide is-${connectorAuthorization.kind}`}><span className="agent-os-connection-guide-icon">{connectorAuthorization.kind === "oauth" ? "↗" : connectorAuthorization.kind === "browser-token" ? "1" : "i"}</span><span><strong>{connectorAuthorization.title}</strong><small>{connectorAuthorization.description}</small></span></div> : null}
+          {connectorAuthorization?.actionUrl ? <a className="agent-os-connection-action" href={connectorAuthorization.actionUrl} target="_blank" rel="noreferrer">{connectorAuthorization.actionLabel ?? "打开官方授权页面"}<span>↗</span></a> : null}
+          {app.kind === "connector" && connectorAuthorization?.kind !== "browser-token" && connectorAuthorization?.kind !== "oauth" ? <button className="agent-os-connection-advanced-toggle" type="button" onClick={() => setShowAdvanced((value) => !value)}>{showAdvanced ? "收起管理员配置" : "我已获得管理员凭据"}</button> : null}
+          {app.kind === "connector" && connectorAuthorization?.kind === "oauth" ? <button className="agent-os-connection-advanced-toggle" type="button" onClick={() => setShowAdvanced((value) => !value)}>{showAdvanced ? "收起手动 Token" : "使用已有 Token（高级）"}</button> : null}
+          {visibleFields.map((field) => <label key={field.name}><span>{field.label}{field.optional ? <em>可选</em> : null}</span><input type={(field as { inputType?: "password" | "text" | "url" }).inputType ?? "password"} autoComplete="off" value={values[field.name] ?? ""} placeholder={field.placeholder} onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.value }))}/></label>)}
           <div className="agent-os-connection-scopes"><strong>将授予的能力</strong>{status?.scopes.map((scope) => <span key={scope}><i/> {scope}</span>)}</div>
           {error ? <p className="agent-os-connection-error" role="alert">{error}</p> : null}
-          <button className="agent-os-connection-primary" type="submit" disabled={busy || !appId || status?.state === "setup_required"}>{busy ? "正在验证…" : isOAuth ? `继续授权 ${app.name}` : `验证并连接 ${app.name}`}</button>
+          {(connectorAuthorization?.kind !== "enterprise" || showAdvanced) ? <button className="agent-os-connection-primary" type="submit" disabled={busy || !appId || status?.state === "setup_required"}>{busy ? "正在处理…" : isOAuth && !showAdvanced ? `继续授权 ${app.name}` : app.kind === "connector" ? `连接 ${app.name}` : `验证并连接 ${app.name}`}</button> : null}
         </form>}
       </div>
     </section>
   </div>;
 }
 
-function ConnectedAppView({ app, onNotice }: { app: PluginLaunchpadApp; onNotice: (message: string) => void }) {
-  const config = CONNECTED_APP_CONFIG[app.appearance];
+function CollaborationCliAppView({ app, onNotice }: { app: ConnectorLaunchpadApp; onNotice: (message: string) => void }) {
+  const appId = app.appearance as "wecom" | "dingtalk" | "beisen" | "boss-zhipin";
+  const [status, setStatus] = useState<CollaborationCliStatus | null>(null);
+  const [flow, setFlow] = useState<CollaborationAuthFlow | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    const response = await fetch(`/api/apps/${appId}/cli`, { cache: "no-store" });
+    const body = await response.json() as CollaborationCliStatus & { error?: string };
+    if (!response.ok) throw new Error(body.error ?? `无法检查${app.name} CLI`);
+    setStatus(body);
+    return body;
+  }, [app.name, appId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void refresh().catch((statusError: unknown) => {
+      if (!cancelled) setError(statusError instanceof Error ? statusError.message : String(statusError));
+    });
+    return () => { cancelled = true; };
+  }, [refresh]);
+
+  const postAction = useCallback(async (action: string, flowId?: string) => {
+    const response = await fetch(`/api/apps/${appId}/cli`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, flowId }),
+    });
+    const body = await response.json() as (CollaborationCliStatus & CollaborationAuthFlow & { error?: string });
+    if (!response.ok) throw new Error(body.error ?? `${app.name} 操作失败`);
+    return body;
+  }, [app.name, appId]);
+
+  const connect = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const wasInstalled = status?.installed === true;
+      const current = await postAction("install") as CollaborationCliStatus;
+      setStatus(current);
+      if (!wasInstalled) onNotice(`${app.name} CLI 与 Skill 已安装`);
+      const nextFlow = await postAction("login") as CollaborationAuthFlow;
+      setFlow(nextFlow);
+    } catch (connectError) {
+      setError(connectError instanceof Error ? connectError.message : String(connectError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancel = async () => {
+    const currentFlow = flow;
+    setFlow(null);
+    if (currentFlow) await postAction("cancel", currentFlow.flowId).catch(() => undefined);
+  };
+
+  const verify = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const next = await postAction("verify") as CollaborationCliStatus;
+      setStatus(next);
+      setFlow(null);
+      onNotice(`${app.name} 账号已连接`);
+    } catch (verifyError) {
+      setError(verifyError instanceof Error ? verifyError.message : String(verifyError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!flow || flow.requiresConfirmation) return;
+    let cancelled = false;
+    const poll = window.setInterval(() => {
+      void refresh().then((next) => {
+        if (cancelled || next.authState !== "authenticated") return;
+        window.clearInterval(poll);
+        setFlow(null);
+        onNotice(`${app.name} 账号已连接`);
+      }).catch(() => undefined);
+    }, 1_500);
+    return () => { cancelled = true; window.clearInterval(poll); };
+  }, [app.name, flow, onNotice, refresh]);
+
+  const authenticated = status?.authState === "authenticated";
+  if (!authenticated || flow) return <div className="agent-os-native-onboarding">
+    <main className={flow ? "is-authorizing" : ""}>
+      {flow ? <>
+        <div className="agent-os-onboarding-auth-visual">
+          {flow.requiresConfirmation ? <div className="agent-os-onboarding-browser" aria-label={`${app.name}授权窗口已打开`}><Icon name="browser" size={40}/><span className="agent-os-onboarding-live-dot"/><strong>授权窗口已打开</strong></div> : <Image src={flow.qrCodeDataUrl} width={208} height={208} unoptimized alt={`${app.name}授权二维码`}/>}
+        </div>
+        <section className="agent-os-onboarding-copy">
+          <span className="agent-os-onboarding-step">账号授权</span>
+          <h1>{flow.requiresConfirmation ? `登录 ${app.name}` : "扫描二维码继续"}</h1>
+          <p>{flow.requiresConfirmation ? `在刚刚打开的 ${app.name} 页面完成登录，然后返回这里。` : `使用手机扫描二维码，完成后会自动连接 ${app.name}。`}</p>
+          {flow.userCode ? <code className="agent-os-onboarding-code">{flow.userCode}</code> : null}
+          <div className="agent-os-onboarding-actions">
+            {flow.requiresConfirmation ? <button className="is-primary" type="button" disabled={busy} onClick={() => { void verify(); }}>{busy ? <><span className="agent-os-spinner"/>正在验证</> : "我已完成登录"}</button> : <a className="is-primary" href={flow.verificationUrl} target="_blank" rel="noreferrer">在浏览器中继续</a>}
+            <button className="is-secondary" type="button" onClick={() => { void cancel(); }}>取消</button>
+          </div>
+        </section>
+      </> : <section className="agent-os-onboarding-welcome">
+        <AppLogo app={app}/>
+        <h1>连接 {app.name}</h1>
+        <p>登录后即可在 Agent OS 中使用{app.connector.capabilities.slice(0, 3).join("、")}。</p>
+        {error ? <p className="agent-os-onboarding-error" role="alert">{error}</p> : null}
+        <button className="agent-os-onboarding-primary" type="button" disabled={busy} onClick={() => { void connect(); }}>{busy ? <><span className="agent-os-spinner"/>正在准备</> : "继续"}</button>
+        <small className="agent-os-onboarding-privacy"><span>✓</span> 授权凭据仅保存在这台设备上</small>
+        <a className="agent-os-onboarding-help" href={app.connector.officialUrl} target="_blank" rel="noreferrer">了解授权方式</a>
+      </section>}
+      {flow && error ? <p className="agent-os-onboarding-error" role="alert">{error}</p> : null}
+    </main>
+  </div>;
+
+  return <div className="agent-os-feishu-app agent-os-cli-app is-connected">
+    <header><AppLogo app={app}/><span><small>已连接</small><h1>{status?.account || status?.organization || app.name}</h1><p>{app.name} 已可供 Agent OS 使用。</p></span><em className="is-ready">已连接</em></header>
+    <section className="agent-os-cli-capabilities"><header><span><small>已授予 Agent</small><h2>可用能力</h2></span></header><div>{app.connector.capabilities.map((capability) => <span key={capability}><i/> {capability}</span>)}</div><p>授权信息由本机安全保存。</p></section>
+  </div>;
+}
+
+function ConnectedAppDataView({ app, onNotice }: { app: DataLaunchpadApp; onNotice: (message: string) => void }) {
+  const config = app.kind === "connector" ? { sections: ["概览", ...app.connector.capabilities], dataLabel: `${app.connector.category}连接器`, emptyTitle: `还没有载入 ${app.name} 数据`, emptyDescription: "完成企业授权后，Agent 可通过配置的 MCP 或开放平台访问获准数据。" } : CONNECTED_APP_CONFIG[app.appearance];
   const appId = isConnectedAppAppearance(app.appearance) ? app.appearance : null;
   const [section, setSection] = useState(config.sections[0]);
   const [query, setQuery] = useState("");
@@ -382,8 +459,11 @@ function ConnectedAppView({ app, onNotice }: { app: PluginLaunchpadApp; onNotice
   const [loadingData, setLoadingData] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [dataError, setDataError] = useState<string | null>(null);
-  const resourceCount = Object.values(app.plugin.counts).reduce((total, count) => total + count, 0);
-  const filteredResources = app.plugin.resources.filter((resource) => `${resource.name} ${resource.kind}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
+  const disabled = app.kind === "plugin" && app.plugin.disabled;
+  const appScope = app.kind === "plugin" && app.plugin.scope === "project" ? "项目" : "全局";
+  const resources = app.kind === "plugin" ? app.plugin.resources : app.connector.capabilities.map((name) => ({ name, kind: app.connector.authMode === "mcp" ? "MCP" : "OpenAPI", path: name }));
+  const resourceCount = app.kind === "plugin" ? Object.values(app.plugin.counts).reduce((total, count) => total + count, 0) : resources.length;
+  const filteredResources = resources.filter((resource) => `${resource.name} ${resource.kind}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
   const kindLabel = (kind: string) => ({ extension: "扩展", skill: "技能", prompt: "提示词", theme: "主题" })[kind] ?? kind;
 
   const readStatus = useCallback(async () => {
@@ -439,7 +519,8 @@ function ConnectedAppView({ app, onNotice }: { app: PluginLaunchpadApp; onNotice
 
   const connect = async (values: Record<string, string>) => {
     if (!appId) return;
-    const oauthWindow = appId === "notion" || appId === "google" ? window.open("about:blank", `agent-os-${appId}-oauth`, "popup,width=760,height=760") : null;
+    const usesBrowserOAuth = appId === "notion" || appId === "google" || (app.kind === "connector" && app.connector.authorization.kind === "oauth" && !values.accessToken);
+    const oauthWindow = usesBrowserOAuth ? window.open("about:blank", `agent-os-${appId}-oauth`, "popup,width=760,height=760") : null;
     setBusy(true);
     setConnectionError(null);
     try {
@@ -495,12 +576,29 @@ function ConnectedAppView({ app, onNotice }: { app: PluginLaunchpadApp; onNotice
 
   const connected = connection?.state === "connected";
   const visibleItems = data?.items ?? [];
+  const usesDirectOAuth = app.kind === "connector" && app.connector.authorization.kind === "oauth";
+
+  if (usesDirectOAuth && !connection && !connectionError) return <div className="agent-os-feishu-opening" role="status" aria-live="polite">
+    <AppLogo app={app}/><span className="agent-os-spinner"/><strong>正在打开 {app.name}…</strong>
+  </div>;
+
+  if (usesDirectOAuth && !connected) return <div className="agent-os-native-onboarding">
+    <main><section className="agent-os-onboarding-welcome">
+      <AppLogo app={app}/>
+      <h1>连接 {app.name}</h1>
+      <p>登录后即可在 Agent OS 中使用{app.connector.capabilities.slice(0, 3).join("、")}。</p>
+      {connectionError ? <p className="agent-os-onboarding-error" role="alert">{connectionError}</p> : null}
+      <button className="agent-os-onboarding-primary" type="button" disabled={busy} onClick={() => { void connect({}); }}>{busy ? <><span className="agent-os-spinner"/>等待授权</> : "继续"}</button>
+      <small className="agent-os-onboarding-privacy"><span>✓</span> 将前往 {app.name} 官方页面授权</small>
+      <a className="agent-os-onboarding-help" href={app.connector.officialUrl} target="_blank" rel="noreferrer">了解授权方式</a>
+    </section></main>
+  </div>;
 
   return <div className={`agent-os-connected-app is-${app.appearance}`}>
     <aside>
       <header><AppLogo app={app}/><span><strong>{app.name}</strong><small>Agent OS 数据应用</small></span></header>
       <nav aria-label={`${app.name} 数据分类`}>{config.sections.map((item) => <button key={item} type="button" aria-current={section === item ? "page" : undefined} onClick={() => setSection(item)}><i/>{item}</button>)}</nav>
-      <footer><span className={app.plugin.disabled || !connected ? "is-disabled" : ""}/><div><strong>{app.plugin.disabled ? "应用已停用" : connected ? "数据连接正常" : "等待账号连接"}</strong><small>{app.plugin.scope === "global" ? "所有工作区可用" : "当前项目可用"}</small></div></footer>
+      <footer><span className={disabled || !connected ? "is-disabled" : ""}/><div><strong>{disabled ? "应用已停用" : connected ? "数据连接正常" : "等待账号连接"}</strong><small>{appScope === "全局" ? "所有工作区可用" : "当前项目可用"}</small></div></footer>
     </aside>
     <main>
       <header className="agent-os-connected-toolbar">
@@ -508,11 +606,11 @@ function ConnectedAppView({ app, onNotice }: { app: PluginLaunchpadApp; onNotice
         <button type="button" disabled={loadingData} onClick={() => { void refresh(); }}>{loadingData ? "刷新中…" : "刷新"}</button>
       </header>
       <div className="agent-os-connected-content">
-        <header><span><small>{config.dataLabel}</small><h1>{section}</h1><p>通过 Pi Plugin 读取并组织 {app.name} 数据，不改变原应用中的内容。</p></span><em>{app.plugin.disabled ? "已停用" : "已安装"}</em></header>
+        <header><span><small>{config.dataLabel}</small><h1>{section}</h1><p>通过 Agent OS 连接器读取并组织 {app.name} 数据，不改变原应用中的内容。</p></span><em>{disabled ? "已停用" : "已安装"}</em></header>
         <section className="agent-os-connected-metrics" aria-label="连接概览">
-          <article><small>连接状态</small><strong>{app.plugin.disabled ? "不可用" : connection?.state === "connected" ? connection.account ?? "已授权" : connection?.state === "setup_required" ? "需要配置" : connection?.state === "connecting" ? "授权中" : "等待授权"}</strong></article>
+          <article><small>连接状态</small><strong>{disabled ? "不可用" : connection?.state === "connected" ? connection.account ?? "已授权" : connection?.state === "setup_required" ? "需要配置" : connection?.state === "connecting" ? "授权中" : "等待授权"}</strong></article>
           <article><small>Agent 能力</small><strong>{resourceCount}</strong></article>
-          <article><small>应用范围</small><strong>{app.plugin.scope === "global" ? "全局" : "项目"}</strong></article>
+          <article><small>应用范围</small><strong>{appScope}</strong></article>
         </section>
         <section className="agent-os-connected-data">
           <div className={visibleItems.length ? "agent-os-connected-list" : "agent-os-connected-empty"}>{visibleItems.length ? <>
@@ -531,6 +629,13 @@ function ConnectedAppView({ app, onNotice }: { app: PluginLaunchpadApp; onNotice
   </div>;
 }
 
+function ConnectedAppView({ app, onNotice }: { app: DataLaunchpadApp; onNotice: (message: string) => void }) {
+  if (app.kind === "connector" && (["wecom", "dingtalk", "beisen", "boss-zhipin"] as string[]).includes(app.appearance) && app.connector.authMode === "cli") {
+    return <CollaborationCliAppView app={app} onNotice={onNotice}/>;
+  }
+  return <ConnectedAppDataView app={app} onNotice={onNotice}/>;
+}
+
 interface FeishuCliStatus {
   installed: boolean;
   configured: boolean;
@@ -545,6 +650,26 @@ interface FeishuAuthFlow {
   kind: "configuration" | "permission" | "login";
   verificationUrl: string;
   qrCodeDataUrl: string;
+}
+
+interface CollaborationCliStatus {
+  appId: "wecom" | "dingtalk" | "beisen" | "boss-zhipin";
+  installed: boolean;
+  skillsInstalled: boolean;
+  version?: string;
+  authState: "authenticated" | "not_authenticated" | "unknown";
+  authDetail: string;
+  account?: string;
+  organization?: string;
+}
+
+interface CollaborationAuthFlow {
+  flowId: string;
+  verificationUrl: string;
+  qrCodeDataUrl: string;
+  userCode?: string;
+  instruction: string;
+  requiresConfirmation?: boolean;
 }
 
 interface FeishuDocument {
@@ -703,8 +828,6 @@ function FeishuAppView({ app, onNotice, onOpenDocument }: {
     return () => { cancelled = true; window.clearInterval(poll); };
   }, [beginFlow, flow, onNotice, updateStatus]);
 
-  const ready = status?.installed === true;
-  const configured = status?.configured === true;
   const authenticated = status?.authState === "authenticated";
 
   useEffect(() => {
@@ -756,18 +879,34 @@ function FeishuAppView({ app, onNotice, onOpenDocument }: {
     </>}
   </div>;
 
-  return <div className={`agent-os-feishu-app${documentWorkspace ? " is-documents" : ""}`}>
-    {!documentWorkspace ? <header>
-      <AppLogo app={app}/>
-      <span><small>内置应用 · 飞书 CLI</small><h1>让 Pi Agent 真正操作飞书</h1><p>通过飞书官方 CLI 与 Skill 访问消息、文档、多维表格和协作空间，不会安装 Pi Plugin。</p></span>
-      <em className={authenticated ? "is-ready" : ready ? "is-installed" : ""}>{loading ? "检查中" : authenticated ? "已连接" : configured ? "待登录" : ready ? "待配置" : "待安装"}</em>
-    </header> : null}
-    {!authenticated || flow ? <section className="agent-os-feishu-overview">
-      <article><small>CLI 状态</small><strong>{ready ? status.version || "已安装" : "自动安装"}</strong><p>{status?.authDetail ?? "正在读取本机状态…"}</p></article>
-      <article><small>接入方式</small><strong>官方 CLI</strong><p>独立于 Pi 的 Plugin 管理与应用商店。</p></article>
-      <article><small>账号状态</small><strong>{authenticated ? status?.account || "已登录" : "等待授权"}</strong><p>通过飞书官方设备授权流程安全连接。</p></article>
-    </section> : null}
-    {authenticated && !flow ? <section className="agent-os-feishu-library">
+  if (!documentWorkspace) return <div className="agent-os-native-onboarding">
+    <main className={flow ? "is-authorizing" : ""}>
+      {flow ? <>
+        <div className="agent-os-onboarding-auth-visual"><Image src={flow.qrCodeDataUrl} width={208} height={208} unoptimized alt={flow.kind === "configuration" ? "飞书应用配置二维码" : flow.kind === "permission" ? "飞书权限配置二维码" : "飞书账号登录二维码"}/></div>
+        <section className="agent-os-onboarding-copy">
+          <span className="agent-os-onboarding-step">{flow.kind === "configuration" ? "设置飞书" : flow.kind === "permission" ? "确认权限" : "账号授权"}</span>
+          <h1>{flow.kind === "permission" ? "启用云文档权限" : "扫描二维码继续"}</h1>
+          <p>{flow.kind === "permission" ? "在飞书开放平台启用权限，然后返回这里继续。" : "使用飞书扫描二维码，完成后会自动继续。"}</p>
+          <div className="agent-os-onboarding-actions">
+            <a className="is-primary" href={flow.verificationUrl} target="_blank" rel="noreferrer">在浏览器中继续</a>
+            {flow.kind === "permission" ? <button className="is-secondary" type="button" disabled={busy} onClick={() => { void beginFlow("login"); }}>我已完成</button> : <button className="is-secondary" type="button" onClick={() => setFlow(null)}>取消</button>}
+          </div>
+        </section>
+      </> : <section className="agent-os-onboarding-welcome">
+        <AppLogo app={app}/>
+        <h1>连接飞书</h1>
+        <p>登录后即可在 Agent OS 中使用消息、文档和多维表格。</p>
+        {error ? <p className="agent-os-onboarding-error" role="alert">{error}</p> : null}
+        <button className="agent-os-onboarding-primary" type="button" disabled={busy || loading} onClick={() => { void connect(); }}>{busy ? <><span className="agent-os-spinner"/>正在准备</> : "继续"}</button>
+        <small className="agent-os-onboarding-privacy"><span>✓</span> 使用飞书官方授权，凭据保存在本机</small>
+        <a className="agent-os-onboarding-help" href="https://open.feishu.cn/document/no_class/mcp-archive/feishu-cli-installation-guide.md" target="_blank" rel="noreferrer">了解授权方式</a>
+      </section>}
+      {flow && error ? <p className="agent-os-onboarding-error" role="alert">{error}</p> : null}
+    </main>
+  </div>;
+
+  return <div className="agent-os-feishu-app is-documents">
+    <section className="agent-os-feishu-library">
       <div className="agent-os-feishu-library-body">
         <aside>
           <div className="agent-os-feishu-sidebar-search">
@@ -792,12 +931,7 @@ function FeishuAppView({ app, onNotice, onOpenDocument }: {
           </div> : <div className="agent-os-feishu-documents-state"><span className="agent-os-feishu-state-icon"><Icon name="file" size={22}/></span><strong>{documentQuery ? "没有找到匹配文档" : "这里还没有文档"}</strong><p>{documentQuery ? "换一个标题或内容关键词再试试。" : "尝试切换分类或刷新列表。"}</p></div>}
         </main>
       </div>
-    </section> : <section className="agent-os-feishu-setup">
-      <header><span><small>飞书官方授权</small><h2>{authenticated ? "飞书已连接" : flow ? flow.kind === "configuration" ? "扫码创建飞书应用" : flow.kind === "permission" ? "启用云文档权限" : "扫码登录飞书" : "一键连接飞书"}</h2></span>{!authenticated && !flow ? <button type="button" disabled={busy || loading} onClick={() => { void connect(); }}>{busy ? <><span className="agent-os-spinner"/>准备中…</> : "连接飞书"}</button> : authenticated ? <button type="button" disabled={busy} onClick={() => { void beginFlow("login"); }}>重新授权</button> : null}</header>
-      {error ? <p className="agent-os-feishu-error" role="alert">{error}</p> : null}
-      {flow ? <div className="agent-os-feishu-auth-flow"><span><strong>{flow.kind === "permission" ? "先在飞书开放平台启用云文档权限" : `使用飞书扫码完成${flow.kind === "configuration" ? "应用配置" : "账号登录"}`}</strong><p>{flow.kind === "permission" ? "打开链接或扫码启用权限，保存后回到这里继续登录。" : "也可以在当前设备的浏览器中打开下面的飞书官方授权地址。完成后此页面会自动更新，无需复制设备码。"}</p><a href={flow.verificationUrl} target="_blank" rel="noreferrer">{flow.verificationUrl}</a>{flow.kind === "permission" ? <button type="button" disabled={busy} onClick={() => { void beginFlow("login"); }}>权限已开启，继续</button> : <button type="button" onClick={() => setFlow(null)}>取消</button>}</span><Image src={flow.qrCodeDataUrl} width={224} height={224} unoptimized alt={flow.kind === "configuration" ? "飞书应用配置二维码" : flow.kind === "permission" ? "飞书权限配置二维码" : "飞书账号登录二维码"}/></div> : <ol className="agent-os-feishu-progress"><li className={ready ? "is-done" : ""}><i>{ready ? "✓" : "1"}</i><span><strong>CLI 与官方 Skill</strong><small>{ready ? "已就绪" : "点击连接后自动安装"}</small></span></li><li className={configured ? "is-done" : ""}><i>{configured ? "✓" : "2"}</i><span><strong>飞书应用配置</strong><small>{configured ? "已完成" : "通过 GUI 或扫码完成"}</small></span></li><li className={authenticated ? "is-done" : ""}><i>{authenticated ? "✓" : "3"}</i><span><strong>用户账号授权</strong><small>{authenticated ? "已验证" : "使用飞书扫码登录"}</small></span></li></ol>}
-      <footer><span>二维码和授权地址均由飞书官方 CLI 生成。</span><a href="https://open.feishu.cn/document/no_class/mcp-archive/feishu-cli-installation-guide.md" target="_blank" rel="noreferrer">查看飞书官方指南 ↗</a></footer>
-    </section>}
+    </section>
   </div>;
 }
 
@@ -829,11 +963,13 @@ function Launchpad({ open, cwd, onClose, onOpenApp }: {
       setLoading(true);
       setError(null);
       const url = cwd ? `/api/plugins?cwd=${encodeURIComponent(cwd)}` : "/api/plugins";
-      void fetch(url, { cache: "no-store", signal: controller.signal })
-        .then(async (response) => {
+      void Promise.all([fetch(url, { cache: "no-store", signal: controller.signal }), fetch("/api/app-store/installations", { cache: "no-store", signal: controller.signal })])
+        .then(async ([response, connectorResponse]) => {
           const data = await response.json() as PluginsResponse & { error?: string };
+          const connectorData = await connectorResponse.json() as { installed?: string[]; builtins?: string[]; error?: string };
           if (!response.ok) throw new Error(data.error ?? "应用加载失败");
-          setApps(getLaunchpadApps(data.packages));
+          if (!connectorResponse.ok) throw new Error(connectorData.error ?? "连接器加载失败");
+          setApps(getLaunchpadApps(data.packages, [...(connectorData.builtins ?? []), ...(connectorData.installed ?? [])]));
         })
         .catch((fetchError: unknown) => {
           if (!controller.signal.aborted) setError(fetchError instanceof Error ? fetchError.message : String(fetchError));
@@ -866,7 +1002,7 @@ function Launchpad({ open, cwd, onClose, onOpenApp }: {
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const visibleApps = allApps.filter((app) => {
     if (category !== "全部" && app.category !== category) return false;
-    const source = app.kind === "plugin" ? app.plugin.source : app.kind === "builtin" ? "飞书 lark cli builtin" : "Agent OS system app";
+    const source = app.kind === "plugin" ? app.plugin.source : app.kind === "connector" ? `${app.connector.authMode} ${app.connector.capabilities.join(" ")}` : app.kind === "builtin" ? "飞书 lark cli builtin" : "Agent OS system app";
     return !normalizedQuery || `${app.name} ${app.description} ${source}`.toLocaleLowerCase().includes(normalizedQuery);
   });
 
@@ -885,7 +1021,7 @@ function Launchpad({ open, cwd, onClose, onOpenApp }: {
         {!loading && !error && !visibleApps.length ? <div className="agent-os-launchpad-state">没有匹配的应用</div> : null}
         {visibleApps.map((app) => <div role="listitem" key={app.id}>
           <button className="agent-os-launchpad-app" type="button" onClick={() => onOpenApp(app)} aria-label={`打开 ${app.name}`}>
-            <span className={`agent-os-launchpad-icon ${app.kind === "system" ? `is-system is-${app.id.slice(7)}` : `is-${app.appearance}`}`} aria-hidden="true"><DockItemIcon item={app} launchpad/></span>
+            <span className={`agent-os-launchpad-icon ${app.kind === "system" ? `is-system is-${app.id.slice(7)}` : `is-${app.appearance}${app.kind === "connector" ? " is-official-icon" : ""}`}`} aria-hidden="true"><DockItemIcon item={app} launchpad/></span>
             <strong>{app.name}</strong>
           </button>
         </div>)}
@@ -1179,14 +1315,12 @@ function DesktopWindow({
 export function AgentDesktop() {
   const now = useClock();
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
-  const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const [runningIds, setRunningIds] = useState<Set<string>>(() => new Set());
   const [activeCwd, setActiveCwd] = useState<string | null>(null);
   const [managedWorkspaces, setManagedWorkspaces] = useState<WorkspaceOption[]>([]);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [workspaceBusy, setWorkspaceBusy] = useState(false);
   const [prompt, setPrompt] = useState("");
-  const [composerFocused, setComposerFocused] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [taskSessionId, setTaskSessionId] = useState<string | null>(null);
@@ -1197,6 +1331,9 @@ export function AgentDesktop() {
   const [selectedLibraryArtifactId, setSelectedLibraryArtifactId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [appStoreOpen, setAppStoreOpen] = useState(false);
+  const [salesCrmOpen, setSalesCrmOpen] = useState(false);
+  const [hrRecruitingOpen, setHrRecruitingOpen] = useState(false);
+  const [investmentWorkspaceOpen, setInvestmentWorkspaceOpen] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(false);
   const [browserPageId, setBrowserPageId] = useState<string | null>(null);
   const [filesOpen, setFilesOpen] = useState(false);
@@ -1212,18 +1349,11 @@ export function AgentDesktop() {
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const knownArtifactIdsRef = useRef<Set<string> | null>(null);
   const [frontWindow, setFrontWindow] = useState<string>("tasks");
-  const [reminderHistory, setReminderHistory] = useState<ReminderItem[]>([]);
-  const [reminderHistoryLoaded, setReminderHistoryLoaded] = useState(false);
-  const [insightAutomation, setInsightAutomation] = useState<InsightAutomationState | null>(null);
-  const [insightHydratedCwd, setInsightHydratedCwd] = useState<string | null>(null);
+  const [insightResults, setInsightResults] = useState<InsightResult[]>([]);
+  const [insightRunning, setInsightRunning] = useState(false);
   const [insightNotification, setInsightNotification] = useState<InsightResult | null>(null);
   const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
-  const insightStartingRef = useRef(false);
-  const insightFinalizingRef = useRef(new Set<string>());
-  const handleReminderHistoryChange = useCallback((items: ReminderItem[]) => {
-    setReminderHistory(items);
-    setReminderHistoryLoaded(true);
-  }, []);
+  const knownInsightIdsRef = useRef<Set<string> | null>(null);
 
   useEffect(() => {
     const stream = new EventSource("/api/browser/events");
@@ -1278,7 +1408,6 @@ export function AgentDesktop() {
       setManagedWorkspaces(nextWorkspaces);
       setRunningIds(new Set(data.runningSessionIds ?? []));
       setActiveCwd((current) => current ?? nextWorkspaces[0]?.cwd ?? nextSessions[0]?.cwd ?? null);
-      setSessionsLoaded(true);
     } catch {
       // The desktop stays usable while a transient refresh fails.
     }
@@ -1294,57 +1423,37 @@ export function AgentDesktop() {
 
   useEffect(() => {
     if (!activeCwd) {
-      setInsightAutomation(null);
-      setInsightHydratedCwd(null);
-      setReminderHistory([]);
-      setReminderHistoryLoaded(false);
+      setInsightResults([]);
+      setInsightRunning(false);
+      knownInsightIdsRef.current = null;
       return;
     }
-    setInsightAutomation(readInsightAutomationState(activeCwd));
-    setInsightHydratedCwd(activeCwd);
-    setReminderHistory([]);
-    setReminderHistoryLoaded(false);
-  }, [activeCwd]);
-
-  useEffect(() => {
-    if (!activeCwd || insightHydratedCwd !== activeCwd || !insightAutomation) return;
-    try {
-      window.localStorage.setItem(insightStorageKey(activeCwd), JSON.stringify(insightAutomation));
-    } catch {
-      // Insight automation remains available for the current page session.
-    }
-  }, [activeCwd, insightAutomation, insightHydratedCwd]);
-
-  useEffect(() => {
-    if (!insightAutomation?.results.length) return;
+    knownInsightIdsRef.current = null;
+    setInsightResults([]);
     const controller = new AbortController();
-    void Promise.all(insightAutomation.results.map((result) => hydrateInsightResult(result, controller.signal))).then((results) => {
-      if (controller.signal.aborted) return;
-      setInsightAutomation((current) => {
-        if (!current || current.results.length !== results.length) return current;
-        const changed = results.some((result, index) => (
-          result.title !== current.results[index]?.title
-          || result.fileName !== current.results[index]?.fileName
-        ));
-        return changed ? { ...current, results } : current;
-      });
-    });
-    return () => controller.abort();
-  }, [insightAutomation?.results]);
-
-  useEffect(() => {
-    if (!sessionsLoaded || !activeCwd || insightHydratedCwd !== activeCwd) return;
-    const completedIds = sessions
-      .filter((session) => (
-        session.cwd === activeCwd
-        && !session.transient
-        && session.messageCount > 1
-        && !runningIds.has(session.id)
-        && !isInsightTaskSession(session)
-      ))
-      .map((session) => session.id);
-    setInsightAutomation((current) => current ? observeCompletedTasks(current, completedIds) : current);
-  }, [activeCwd, insightHydratedCwd, runningIds, sessions, sessionsLoaded]);
+    const refresh = async () => {
+      try {
+        const params = new URLSearchParams({ cwd: activeCwd });
+        const response = await fetch(`/api/insights?${params}`, { cache: "no-store", signal: controller.signal });
+        const data = await response.json() as { running?: boolean; results?: InsightResult[] };
+        if (!response.ok || controller.signal.aborted) return;
+        const results = data.results ?? [];
+        const ids = new Set(results.map((result) => `${result.sessionId}:${result.filePath}`));
+        if (knownInsightIdsRef.current) {
+          const newest = results.find((result) => !knownInsightIdsRef.current!.has(`${result.sessionId}:${result.filePath}`));
+          if (newest) setInsightNotification(newest);
+        }
+        knownInsightIdsRef.current = ids;
+        setInsightResults(results);
+        setInsightRunning(data.running === true);
+      } catch {
+        // The desktop remains usable while the background observer restarts.
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 5_000);
+    return () => { controller.abort(); window.clearInterval(timer); };
+  }, [activeCwd]);
 
   const workspaceSessions = useMemo(
     () => activeCwd
@@ -1551,7 +1660,6 @@ export function AgentDesktop() {
       const data = await response.json() as { error?: string };
       if (!response.ok) throw new Error(data.error ?? "工作台删除失败");
       try {
-        window.localStorage.removeItem(insightStorageKey(workspace.cwd));
         clearDesktopReminders(workspace.cwd);
       } catch {
         // Server-side deletion is complete even if browser storage is unavailable.
@@ -1628,7 +1736,12 @@ export function AgentDesktop() {
       ? current.map((item) => item.id === document.id ? document : item)
       : [...current, document]);
     setFrontWindow(`feishu-document:${document.id}`);
-  }, []);
+    if (activeCwd) void fetch("/api/insights", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cwd: activeCwd, activity: "document.opened", document }),
+    }).catch(() => undefined);
+  }, [activeCwd]);
 
   const openArtifactLibrary = useCallback(() => {
     setArtifactLibraryOpen(true);
@@ -1654,6 +1767,39 @@ export function AgentDesktop() {
     setFrontWindow(`app:${app.id}`);
   }, [rememberDockItem]);
 
+  const openInvestmentSource = useCallback(async (sourceId: "feishu" | "google" | "qichacha") => {
+    if (sourceId === "feishu") {
+      openLaunchpadApp(BUILTIN_LAUNCHPAD_APPS[0]);
+      return;
+    }
+    if (sourceId === "qichacha") {
+      const app = toConnectorLaunchpadApp("qichacha");
+      if (app) openLaunchpadApp(app);
+      return;
+    }
+    const existing = openApps.find((app) => app.kind === "plugin" && app.appearance === "google");
+    if (existing) {
+      openLaunchpadApp(existing);
+      return;
+    }
+    try {
+      const url = activeCwd ? `/api/plugins?cwd=${encodeURIComponent(activeCwd)}` : "/api/plugins";
+      const response = await fetch(url, { cache: "no-store" });
+      const data = await response.json() as PluginsResponse & { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "无法读取应用列表");
+      const google = getLaunchpadApps(data.packages).find((app) => app.kind === "plugin" && app.appearance === "google");
+      if (google) {
+        openLaunchpadApp(google);
+        return;
+      }
+      setAppStoreOpen(true);
+      setFrontWindow("store");
+      setNotice("请先在应用商店安装 Google Workspace，再连接 Gmail");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : String(error));
+    }
+  }, [activeCwd, openApps, openLaunchpadApp]);
+
   const openDockItem = useCallback((item: DockItem) => {
     if (item.kind !== "system") {
       openLaunchpadApp(item);
@@ -1666,6 +1812,15 @@ export function AgentDesktop() {
       if (sessions[0]) openTask(sessions[0].id);
     } else if (item.id === "system:library") {
       openArtifactLibrary();
+    } else if (item.id === "system:crm") {
+      setSalesCrmOpen(true);
+      setFrontWindow("crm");
+    } else if (item.id === "system:hr") {
+      setHrRecruitingOpen(true);
+      setFrontWindow("hr");
+    } else if (item.id === "system:investment") {
+      setInvestmentWorkspaceOpen(true);
+      setFrontWindow("investment");
     } else if (item.id === "system:browser") {
       setBrowserOpen(true);
       setFrontWindow("browser");
@@ -1688,12 +1843,15 @@ export function AgentDesktop() {
     if (item.kind !== "system") return openApps.some((openApp) => openApp.id === item.id);
     if (item.id === "system:tasks") return Boolean(taskSessionId) && frontWindow === "tasks";
     if (item.id === "system:library") return artifactLibraryOpen;
+    if (item.id === "system:crm") return salesCrmOpen;
+    if (item.id === "system:hr") return hrRecruitingOpen;
+    if (item.id === "system:investment") return investmentWorkspaceOpen;
     if (item.id === "system:browser") return browserOpen;
     if (item.id === "system:files") return filesOpen;
     if (item.id === "system:terminal") return terminalOpen;
     if (item.id === "system:store") return appStoreOpen;
     return settingsOpen;
-  }, [appStoreOpen, artifactLibraryOpen, browserOpen, filesOpen, frontWindow, openApps, settingsOpen, taskSessionId, terminalOpen]);
+  }, [appStoreOpen, artifactLibraryOpen, browserOpen, filesOpen, frontWindow, hrRecruitingOpen, salesCrmOpen, investmentWorkspaceOpen, openApps, settingsOpen, taskSessionId, terminalOpen]);
 
   const toggleDockAppPin = useCallback((app: DockItem) => {
     setPinnedDockAppIds((current) => {
@@ -1759,7 +1917,6 @@ export function AgentDesktop() {
       }, ...current.filter((session) => session.id !== data.sessionId)]);
       setRunningIds((current) => new Set(current).add(data.sessionId!));
       setPrompt("");
-      setComposerFocused(false);
       setNotice("任务已交给 Pi Agent，正在桌面持续推进");
       window.setTimeout(() => void refreshSessions(), 450);
       return data.sessionId;
@@ -1812,12 +1969,19 @@ export function AgentDesktop() {
   // closed once the user dismisses it, until the next exchange.
   const [jarvisPanelOpen, setJarvisPanelOpen] = useState(false);
   const latestJarvisTurnId = jarvis.turns.length ? jarvis.turns[jarvis.turns.length - 1].id : 0;
+  // While the panel is collapsed, a new reply shows as a one-line ticker for a moment.
+  const [tickerTurnId, setTickerTurnId] = useState(0);
   useEffect(() => {
-    if (latestJarvisTurnId) setJarvisPanelOpen(true);
-  }, [latestJarvisTurnId]);
-  useEffect(() => {
-    if (desktopVoice.isActive) setJarvisPanelOpen(true);
-  }, [desktopVoice.isActive]);
+    if (!latestJarvisTurnId || jarvisPanelOpen) return;
+    const latest = jarvis.turns[jarvis.turns.length - 1];
+    if (latest?.role !== "assistant") return;
+    setTickerTurnId(latest.id);
+    const timer = window.setTimeout(() => setTickerTurnId(0), 14_000);
+    return () => window.clearTimeout(timer);
+    // The ticker only reacts to new turns, not to the panel toggling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jarvis.latestReplyTurnId]);
+  const tickerTurn = tickerTurnId && !jarvisPanelOpen && !desktopVoice.isActive ? jarvis.turns.find((turn) => turn.id === tickerTurnId) : undefined;
   const jarvisTranscriptRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const element = jarvisTranscriptRef.current;
@@ -1844,180 +2008,95 @@ export function AgentDesktop() {
     if (desktopVoice.error) setNotice(desktopVoice.error);
   }, [desktopVoice.error]);
 
-  const startInsightAnalysis = useCallback(async (message: string, cwd: string) => {
-    try {
-      const response = await fetch("/api/agent/new", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cwd, type: "prompt", message }),
-      });
-      const data = await response.json() as { sessionId?: string; error?: string };
-      if (!response.ok || !data.sessionId) throw new Error(data.error ?? "洞察任务创建失败");
-      setSessions((current) => [{
-        id: data.sessionId!, path: "", cwd, created: new Date().toISOString(), modified: new Date().toISOString(),
-        messageCount: 1, firstMessage: message, transient: true,
-      }, ...current.filter((session) => session.id !== data.sessionId)]);
-      setRunningIds((current) => new Set(current).add(data.sessionId!));
-      window.setTimeout(() => void refreshSessions(), 450);
-      return data.sessionId;
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : String(error));
-      return null;
-    }
-  }, [refreshSessions]);
-
-  useEffect(() => {
-    if (
-      !activeCwd
-      || insightHydratedCwd !== activeCwd
-      || !reminderHistoryLoaded
-      || !insightAutomation
-      || insightAutomation.analysisSessionId
-      || insightAutomation.queuedCompletedIds.length < INSIGHT_BATCH_SIZE
-      || insightStartingRef.current
-    ) return;
-
-    const taskTitles = sessions
-      .filter((session) => (
-        session.cwd === activeCwd
-        && !runningIds.has(session.id)
-        && !isInsightTaskSession(session)
-      ))
-      .slice(0, 40)
-      .map(taskTitle);
-    const message = buildInsightAnalysisPrompt({
-      taskTitles,
-      reminders: reminderHistory,
-      timestamp: insightTimestamp(),
-    });
-    insightStartingRef.current = true;
-    void startInsightAnalysis(message, activeCwd).then((sessionId) => {
-      if (!sessionId) {
-        insightStartingRef.current = false;
-        return;
-      }
-      setInsightAutomation((current) => current ? {
-        ...current,
-        analysisSessionId: sessionId,
-      } : current);
-    });
-  }, [
-    activeCwd,
-    insightAutomation,
-    insightHydratedCwd,
-    reminderHistory,
-    reminderHistoryLoaded,
-    runningIds,
-    sessions,
-    startInsightAnalysis,
-  ]);
-
-  useEffect(() => {
-    if (insightAutomation?.analysisSessionId) insightStartingRef.current = false;
-  }, [insightAutomation?.analysisSessionId]);
-
-  useEffect(() => {
-    const sessionId = insightAutomation?.analysisSessionId;
-    if (!sessionId || runningIds.has(sessionId) || insightFinalizingRef.current.has(sessionId)) return;
-    const session = sessions.find((candidate) => candidate.id === sessionId);
-    if (!session || session.transient) return;
-    if (session.messageCount < 2) {
-      // A dev-server restart destroys the in-memory wrapper while leaving the
-      // one-message session file behind. Requeue the batch instead of showing
-      // a permanent "分析中" state.
-      setInsightAutomation((current) => {
-        if (current?.analysisSessionId !== sessionId) return current;
-        const retryIds = current.queuedCompletedIds.length >= INSIGHT_BATCH_SIZE
-          ? current.queuedCompletedIds
-          : [...current.queuedCompletedIds, ...current.knownCompletedIds.slice(-INSIGHT_BATCH_SIZE)];
-        return {
-          ...current,
-          analysisSessionId: undefined,
-          queuedCompletedIds: [...new Set(retryIds)],
-        };
-      });
-      return;
-    }
-
-    const controller = new AbortController();
-    insightFinalizingRef.current.add(sessionId);
-    void fetch(`/api/sessions/${encodeURIComponent(sessionId)}?tail=400&deferThinking=1&deferMedia=1`, {
-      cache: "no-store",
-      signal: controller.signal,
-    }).then(async (response) => {
-      const data = await response.json() as SessionDetailResponse;
-      if (!response.ok || !data.context) return null;
-      return extractArtifacts(session, data.context.messages).find(isHtmlArtifact) ?? null;
-    }).then(async (artifact) => {
-      if (controller.signal.aborted) return;
-      const pendingResult = artifact ? {
-        sessionId: artifact.sessionId,
-        filePath: artifact.filePath,
-        cwd: artifact.cwd,
-        fileName: getFileName(artifact.filePath),
-        title: "洞察报告",
-        modified: artifact.modified,
-      } satisfies InsightResult : undefined;
-      const result = pendingResult ? await hydrateInsightResult(pendingResult, controller.signal) : undefined;
-      if (controller.signal.aborted) return;
-      setInsightAutomation((current) => current?.analysisSessionId === sessionId ? {
-        ...current,
-        analysisSessionId: undefined,
-        queuedCompletedIds: current.queuedCompletedIds.slice(INSIGHT_BATCH_SIZE),
-        results: result
-          ? [result, ...current.results.filter((item) => item.sessionId !== result.sessionId || item.filePath !== result.filePath)]
-          : current.results,
-      } : current);
-      if (!result) return;
-      setInsightNotification(result);
-      void showBrowserNotification({
-        title: result.title,
-        body: "点击查看完整洞察报告",
-        sessionUrl: `/?session=${encodeURIComponent(result.sessionId)}`,
-        tag: `pi-insight:${result.sessionId}`,
-        onClick: () => openInsightResult(result),
-      });
-    }).catch(() => {
-      // A later session refresh will retry finalization.
-    }).finally(() => {
-      insightFinalizingRef.current.delete(sessionId);
-    });
-    return () => controller.abort();
-  }, [insightAutomation?.analysisSessionId, openInsightResult, runningIds, sessions]);
-
   const submitPrompt = async (event: FormEvent) => {
     event.preventDefault();
     const message = prompt.trim();
     if (!message) return;
     setPrompt("");
-    setJarvisPanelOpen(true);
     desktopVoice.noteUserInput();
     await jarvis.send(message);
   };
+  const dictationCompletionRef = useRef<"draft" | "send">("draft");
+  // Tap-to-dictate can either return the finished transcript to the composer
+  // or send it immediately, depending on which control ended the recording.
+  const dictation = useDictation({
+    onResult: (text) => {
+      const completeText = prompt.trim() ? `${prompt.trimEnd()} ${text}` : text;
+      if (dictationCompletionRef.current === "draft") {
+        setPrompt(completeText);
+        return;
+      }
+      setPrompt("");
+      desktopVoice.noteUserInput();
+      void jarvis.send(completeText);
+    },
+  });
+  const startConversation = useCallback(() => {
+    dictation.cancel();
+    desktopVoice.toggle();
+  }, [dictation, desktopVoice]);
   const jarvisRunningTasks = jarvis.tasks.filter((task) => task.status === "running");
-  const jarvisStateLabel = desktopVoice.error
-    ? "语音连接失败"
-    : ({
-      off: jarvis.running ? "正在想…" : jarvis.ready ? "在线，点麦克风开始语音对话" : "正在启动…",
-      connecting: "正在准备聆听…",
-      listening: "我在听，随时说",
-      hearing: "正在听你说…",
-      thinking: "正在想…",
-      speaking: "正在说话，开口即可打断",
-      error: "语音连接失败",
-    } as Record<string, string>)[desktopVoice.state] ?? "";
+
+  // Live mode: a caption that lingers briefly after speech, task chips that
+  // stay a moment after settling, controls that only appear on demand.
+  const liveCaptionSource = desktopVoice.transcript
+    ? { kind: "user" as const, text: desktopVoice.transcript }
+    : desktopVoice.caption
+      ? { kind: "jarvis" as const, text: desktopVoice.caption }
+      : jarvis.streamingText
+        ? { kind: "jarvis" as const, text: jarvis.streamingText }
+        : null;
+  const [liveCaption, setLiveCaption] = useState<{ kind: "user" | "jarvis"; text: string } | null>(null);
+  useEffect(() => {
+    if (!desktopVoice.isActive) {
+      setLiveCaption(null);
+      return;
+    }
+    if (liveCaptionSource) {
+      setLiveCaption(liveCaptionSource);
+      return;
+    }
+    const timer = window.setTimeout(() => setLiveCaption(null), 3_000);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desktopVoice.isActive, liveCaptionSource?.kind, liveCaptionSource?.text]);
+  const [settledChips, setSettledChips] = useState<JarvisTask[]>([]);
+  const settledSeenRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const fresh = jarvis.tasks.filter((task) => task.status !== "running" && !settledSeenRef.current.has(task.sessionId));
+    if (!fresh.length) return;
+    for (const task of fresh) settledSeenRef.current.add(task.sessionId);
+    if (!desktopVoice.isActive) return;
+    setSettledChips((current) => [...current, ...fresh]);
+    const timer = window.setTimeout(() => {
+      setSettledChips((current) => current.filter((task) => !fresh.some((item) => item.sessionId === task.sessionId)));
+    }, 9_000);
+    return () => window.clearTimeout(timer);
+  }, [desktopVoice.isActive, jarvis.tasks]);
+  const [liveMenuOpen, setLiveMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!desktopVoice.isActive) {
+      setLiveMenuOpen(false);
+      return;
+    }
+    const endConversation = desktopVoice.toggle;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") endConversation();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [desktopVoice.isActive, desktopVoice.toggle]);
+  const liveChips = [...jarvisRunningTasks, ...settledChips.filter((task) => !jarvisRunningTasks.some((item) => item.sessionId === task.sessionId))];
 
   const formatDate = new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", weekday: "short" }).format(now);
   const formatTime = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
   const runningCount = workspaceSessions.filter((session) => runningIds.has(session.id) && !isInsightTaskSession(session)).length;
-  const insightRunning = Boolean(insightAutomation?.analysisSessionId && runningIds.has(insightAutomation.analysisSessionId));
-  const insightResults = insightAutomation?.results ?? [];
   const dockContextApp = dockContextMenu ? dockApps.find((app) => app.id === dockContextMenu.appId) : null;
   const pinnedDockItems = dockApps.filter((item) => pinnedDockAppIds.has(item.id));
   const temporaryDockItems = dockApps.filter((item) => !pinnedDockAppIds.has(item.id));
   const renderDockItem = (item: DockItem) => {
     const open = isDockItemOpen(item);
-    const className = item.kind === "system" ? `dock-${item.id.slice(7)}` : `dock-app is-${item.appearance}`;
+    const className = item.kind === "system" ? `dock-${item.id.slice(7)}` : `dock-app is-${item.appearance}${item.kind === "connector" ? " is-official-icon" : ""}`;
     return <button
       key={item.id}
       className={`${className}${open ? " is-open" : ""}`}
@@ -2106,7 +2185,6 @@ export function AgentDesktop() {
             workspaceKey={activeCwd ?? "default"}
             onLaunch={(title) => startTask(`请完成以下待办事项：${title}\n\n请先理解当前项目上下文，然后直接实施并验证结果。除非待办事项明确提到某项外部服务，否则只使用当前项目文件和本地工具，不要主动检查或请求配置 Linear、Slack、Notion、Figma 等外部账号。`)}
             onOpenTask={openTask}
-            onHistoryChange={handleReminderHistoryChange}
           />
         </DraggableDesktopWidget>
 
@@ -2150,8 +2228,8 @@ export function AgentDesktop() {
               )) : (
                 <div className="agent-os-insight-empty">
                   <span><Icon name="insight" size={20}/></span>
-                  <strong>{insightRunning ? "正在分析近期任务" : "洞察会在这里汇集"}</strong>
-                  <small>{insightRunning ? "正在提炼任务模式与可执行建议" : "每完成 5 个新任务，将自动进行一次分析"}</small>
+                  <strong>{insightRunning ? "正在分析最新变化" : "洞察会在这里汇集"}</strong>
+                  <small>{insightRunning ? "正在判断是否值得主动提醒" : "持续监听飞书文档、会议和任务变化"}</small>
                 </div>
               )}
             </div>
@@ -2216,7 +2294,37 @@ export function AgentDesktop() {
           <AgentSettingsApp cwd={activeCwd} sessionId={taskSessionId} onClose={closeSettings} onSessionReloaded={() => void refreshSessions()}/>
         </DesktopWindow>}
         {appStoreOpen && <DesktopWindow title="应用商店" kind="store" front={frontWindow === "store"} onFocus={() => setFrontWindow("store")} onClose={closeAppStore} titleIcon={<AppStoreBrandIcon className="agent-store-title-icon"/>}>
-          <AppStore cwd={activeCwd} ensureCwd={ensureCwd} onOpenApp={openLaunchpadApp} onNotice={setNotice}/>
+          <AppStore onOpenApp={openLaunchpadApp} onNotice={setNotice}/>
+        </DesktopWindow>}
+        {salesCrmOpen && <DesktopWindow className="agent-os-window-crm" title="销售 CRM" kind="app" front={frontWindow === "crm"} onFocus={() => setFrontWindow("crm")} onClose={() => {
+          setSalesCrmOpen(false);
+          releaseTemporaryDockItem("system:crm");
+        }} titleIcon={<Icon name="sales" size={16}/>}>
+          <SalesCRMApp key={activeCwd ?? "no-workspace"} cwd={activeCwd} onStartTask={startTask} onNotice={setNotice}/>
+        </DesktopWindow>}
+        {hrRecruitingOpen && <DesktopWindow className="agent-os-window-hr" title="人才招聘" kind="app" front={frontWindow === "hr"} onFocus={() => setFrontWindow("hr")} onClose={() => {
+          setHrRecruitingOpen(false);
+          releaseTemporaryDockItem("system:hr");
+        }} titleIcon={<span className="agent-os-hr-title-icon"><Icon name="recruiting" size={13}/></span>}>
+          <HRRecruitingApp
+            cwd={activeCwd}
+            onStartTask={startTask}
+            onOpenSource={(sourceId) => {
+              if (sourceId === "feishu") {
+                openLaunchpadApp(BUILTIN_LAUNCHPAD_APPS[0]);
+                return;
+              }
+              const app = toConnectorLaunchpadApp(sourceId);
+              if (app) openLaunchpadApp(app);
+            }}
+            onNotice={setNotice}
+          />
+        </DesktopWindow>}
+        {investmentWorkspaceOpen && <DesktopWindow className="agent-os-window-investment" title="投资管理" kind="app" front={frontWindow === "investment"} onFocus={() => setFrontWindow("investment")} onClose={() => {
+          setInvestmentWorkspaceOpen(false);
+          releaseTemporaryDockItem("system:investment");
+        }} titleIcon={<span className="agent-os-investment-title-icon"><Icon name="investment" size={13}/></span>}>
+          <InvestmentWorkspaceApp key={activeCwd ?? "no-workspace"} cwd={activeCwd} onStartTask={startTask} onNotice={setNotice} onOpenSource={(sourceId) => { void openInvestmentSource(sourceId); }}/>
         </DesktopWindow>}
         {browserOpen && activeCwd && <DesktopWindow className="agent-os-window-browser" title="浏览器" kind="app" front={frontWindow === "browser"} onFocus={() => setFrontWindow("browser")} onClose={() => {
           setBrowserOpen(false);
@@ -2229,7 +2337,7 @@ export function AgentDesktop() {
           setFilesOpen(false);
           setFilesHaveUnsavedChanges(false);
           releaseTemporaryDockItem("system:files");
-        }} titleIcon={<Icon name="files" size={16}/> }>
+        }} titleIcon={<Icon name="folder" size={16}/> }>
           <FilesApp key={activeCwd} cwd={activeCwd} openRequest={fileOpenRequest} onDirtyChange={setFilesHaveUnsavedChanges}/>
         </DesktopWindow>}
         {terminalOpen && activeCwd && <DesktopWindow className="agent-os-window-terminal" title="终端" kind="app" front={frontWindow === "terminal"} onFocus={() => setFrontWindow("terminal")} onClose={() => {
@@ -2256,15 +2364,12 @@ export function AgentDesktop() {
         })}
       </section>
 
-      <section className={`agent-os-ai-surface${composerFocused || prompt || desktopVoice.isActive ? " expanded" : ""}${desktopVoice.isActive ? ` voice-active voice-${desktopVoice.state}` : ""}`}>
+      <section className={`agent-os-ai-surface${desktopVoice.isActive ? ` voice-active voice-${desktopVoice.state}` : ""}`}>
         {jarvisPanelOpen ? (
-          <section className={`agent-os-jarvis-panel voice-${desktopVoice.state}${jarvis.running ? " is-running" : ""}`} aria-label="Jarvis 对话">
+          <section className={`agent-os-jarvis-panel voice-${desktopVoice.state}${jarvis.running ? " is-running" : ""}${desktopVoice.isActive ? " is-live" : ""}`} aria-label="Jarvis 对话">
             <header>
-              <span className="agent-os-jarvis-orb" aria-hidden="true"><i style={{ "--voice-level": desktopVoice.voiceLevel } as React.CSSProperties}/></span>
-              <strong>Jarvis</strong>
-              <small aria-live="polite">{jarvisStateLabel}</small>
               <button type="button" onClick={jarvis.reset} title="开始一段新的对话">新对话</button>
-              <button type="button" aria-label="收起 Jarvis 面板" onClick={() => setJarvisPanelOpen(false)}><Icon name="close" size={14}/></button>
+              <button type="button" aria-label="收起对话记录" onClick={() => setJarvisPanelOpen(false)}><Icon name="close" size={14}/></button>
             </header>
             <div className="agent-os-jarvis-transcript" ref={jarvisTranscriptRef}>
               {jarvis.turns.length === 0 && !jarvis.running ? (
@@ -2299,39 +2404,69 @@ export function AgentDesktop() {
             ) : null}
           </section>
         ) : null}
-        <form className="agent-os-composer" onSubmit={submitPrompt}>
-          <button className="jarvis-toggle" type="button" aria-label={jarvisPanelOpen ? "收起 Jarvis 面板" : "打开 Jarvis 面板"} aria-pressed={jarvisPanelOpen} onClick={() => setJarvisPanelOpen((value) => !value)}><BrandMark compact/></button>
-          <button className="attach" type="button" aria-label="添加上下文"><Icon name="plus" size={19}/></button>
-          {desktopVoice.isActive ? (
-            <VoiceActivityIndicator
-              compact
-              state={desktopVoice.state}
-              transcript={desktopVoice.transcript}
-              caption={desktopVoice.caption}
-              error={desktopVoice.error}
-              level={desktopVoice.voiceLevel}
-              onInterrupt={desktopVoice.interrupt}
-              labels={{
-                connecting: "正在准备聆听…",
-                listening: "我在听，随时说",
-                hearing: "正在听你说…",
-                thinking: "已听到，正在想…",
-                speaking: "正在说话，开口即可打断",
-                error: "语音连接失败",
-              }}
-            />
+        {tickerTurn ? (
+          <button type="button" className="agent-os-caption is-jarvis is-ticker" onClick={() => { setTickerTurnId(0); setJarvisPanelOpen(true); }} title="打开对话记录">
+            {tickerTurn.text}
+          </button>
+        ) : null}
+        {desktopVoice.isActive ? (
+          <div className={`agent-os-live${liveMenuOpen ? " is-menu-open" : ""}`} data-state={desktopVoice.state}>
+            {liveCaption ? (
+              <div key={liveCaption.kind} className={`agent-os-caption is-${liveCaption.kind}`} aria-live="polite">{liveCaption.text}</div>
+            ) : null}
+            <div className="agent-os-live__row">
+              <div className="agent-os-live__chips" aria-label="后台任务">
+                {liveChips.map((task) => (
+                  <button key={task.sessionId} type="button" className={`agent-os-live__chip is-${task.status}`} onClick={() => openTask(task.sessionId)} title="打开任务窗口">
+                    <i/>{task.description}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="agent-os-live__orb"
+                aria-label={desktopVoice.isSpeaking ? "打断 Jarvis" : liveMenuOpen ? "收起选项" : "Jarvis 选项"}
+                onClick={() => {
+                  if (desktopVoice.isSpeaking) desktopVoice.interrupt();
+                  else setLiveMenuOpen((value) => !value);
+                }}
+              >
+                <VoiceOrb state={desktopVoice.state} level={desktopVoice.voiceLevel} size={112}/>
+              </button>
+              <div className="agent-os-live__actions">
+                <button type="button" aria-pressed={jarvisPanelOpen} onClick={() => { setJarvisPanelOpen((value) => !value); setLiveMenuOpen(false); }} title={jarvisPanelOpen ? "隐藏文字记录" : "文字记录"}><Icon name="chat" size={16}/></button>
+                <button type="button" className="end" onClick={desktopVoice.toggle} title="结束对话（Esc）"><Icon name="close" size={16}/></button>
+              </div>
+            </div>
+          </div>
+        ) : (
+        <form className={`agent-os-composer${dictation.isRecording ? " is-dictating" : ""}`} onSubmit={submitPrompt}>
+          {dictation.isRecording ? (
+            <div className="agent-os-dictation" role="status" aria-live="polite">
+              <button className="jarvis-toggle" type="button" aria-label={jarvisPanelOpen ? "收起 Jarvis 面板" : "打开 Jarvis 面板"} aria-pressed={jarvisPanelOpen} onClick={() => setJarvisPanelOpen((value) => !value)}><BrandMark compact/></button>
+              <div className="agent-os-dictation__capture">
+                <span className="agent-os-dictation__wave" aria-hidden="true" style={{ "--voice-level": dictation.level } as React.CSSProperties}>
+                  {DICTATION_BARS.map((weight, index) => <i key={index} style={{ "--bar": weight, "--delay": `${index * 37}ms` } as React.CSSProperties}/>)}
+                </span>
+                {dictation.transcript ? <span className="agent-os-dictation__text">{dictation.transcript}</span> : null}
+              </div>
+              <button type="button" className="agent-os-dictation__stop" aria-label="停止听写并返回输入框" disabled={dictation.state === "finishing"} onClick={() => { dictationCompletionRef.current = "draft"; dictation.stop(); }}><span aria-hidden="true"/></button>
+              <button type="button" className="send agent-os-dictation__send" aria-label="发送语音转录" disabled={dictation.state === "finishing"} onClick={() => { dictationCompletionRef.current = "send"; dictation.stop(); }}>{dictation.state === "finishing" && dictationCompletionRef.current === "send" ? <span className="agent-os-spinner"/> : <Icon name="arrow-up" size={19}/>}</button>
+            </div>
           ) : (
-            <input value={prompt} onChange={(event) => setPrompt(event.target.value)} onFocus={() => setComposerFocused(true)} onBlur={() => { if (!prompt) window.setTimeout(() => setComposerFocused(false), 120); }} placeholder={jarvis.ready ? "和 Jarvis 说点什么" : "Jarvis 正在启动…"} aria-label="和 Jarvis 对话"/>
+            <>
+              <button className="jarvis-toggle" type="button" aria-label={jarvisPanelOpen ? "收起 Jarvis 面板" : "打开 Jarvis 面板"} aria-pressed={jarvisPanelOpen} onClick={() => setJarvisPanelOpen((value) => !value)}><BrandMark compact/></button>
+              <input value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={jarvis.ready ? "和 Jarvis 说点什么" : "Jarvis 正在启动…"} aria-label="和 Jarvis 对话"/>
+              <button className="voice dictate" type="button" aria-label="语音输入" onClick={() => { dictationCompletionRef.current = "draft"; dictation.toggle(); }}><Icon name="mic" size={19}/></button>
+              {prompt.trim() ? (
+                <button className="send" type="submit" aria-label="发送给 Jarvis" disabled={!jarvis.sessionId}>{submitting ? <span className="agent-os-spinner"/> : <Icon name="arrow-up" size={19}/>}</button>
+              ) : (
+                <button className="voice realtime" type="button" aria-label="开始实时语音对话" onClick={startConversation}><Icon name="waveform" size={19}/></button>
+              )}
+            </>
           )}
-          <button
-            className="voice"
-            type="button"
-            aria-label={desktopVoice.isActive ? "结束语音对话" : "开始语音对话"}
-            aria-pressed={desktopVoice.isActive}
-            onClick={desktopVoice.toggle}
-          >{desktopVoice.isActive ? <span className="agent-os-voice-stop" aria-hidden="true"/> : <Icon name="mic" size={19}/>}</button>
-          <button className="send" type="submit" aria-label="发送给 Jarvis" disabled={!prompt.trim() || !jarvis.sessionId}>{submitting ? <span className="agent-os-spinner"/> : <Icon name="arrow-up" size={19}/>}</button>
         </form>
+        )}
       </section>
 
       <nav
@@ -2360,7 +2495,7 @@ export function AgentDesktop() {
 
       {notice && <div className="agent-os-toast" role="status"><BrandMark compact/><span>{notice}</span></div>}
       {insightNotification && (
-        <button className="agent-os-insight-notification" type="button" onClick={() => openInsightResult(insightNotification)}>
+        <button className="agent-os-insight-notification" type="button" title={insightNotification.title} onClick={() => openInsightResult(insightNotification)}>
           <span><Icon name="insight" size={17}/></span>
           <span><small className="label">AI 洞察已生成</small><strong>{insightNotification.title}</strong></span>
           <em>查看</em>

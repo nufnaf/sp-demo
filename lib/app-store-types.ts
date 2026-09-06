@@ -1,4 +1,7 @@
-export type AppStorePackageType = "extension" | "skill" | "prompt" | "theme" | "package";
+import type { ConnectedAppId } from "./app-connection-types";
+
+export type AppStorePackageType = "extension" | "skill" | "prompt" | "theme" | "package" | "connector";
+export type AppStoreDelivery = "pi-package" | "connector" | "builtin";
 
 export interface AppStorePackage {
   packageName: string;
@@ -13,12 +16,18 @@ export interface AppStorePackage {
   catalogUrl: string;
   npmUrl: string;
   repositoryUrl?: string;
+  logoUrl?: string;
+  delivery?: AppStoreDelivery;
+  connectionId?: ConnectedAppId | "feishu";
+  category?: string;
+  capabilities?: string[];
 }
 
 export interface AppStoreCatalogResponse {
   packages: AppStorePackage[];
   total: number;
   page: number;
-  source: "pi.dev";
+  source: "pi.dev" | "agent-os" | "hybrid";
   fetchedAt: string;
+  warning?: string;
 }

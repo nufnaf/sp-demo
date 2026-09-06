@@ -41,6 +41,12 @@ export interface FeishuDocumentsResult {
   query: string;
 }
 
+export interface FeishuDocumentActivity {
+  kind: "opened" | "edited";
+  document: FeishuDocument;
+  occurredAt: string;
+}
+
 export class FeishuDocumentsError extends Error {
   constructor(
     message: string,
@@ -277,6 +283,32 @@ function searchResults(value: unknown): unknown[] {
   return [];
 }
 
+function timestampIso(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const numeric = Number(value);
+  const date = Number.isFinite(numeric)
+    ? new Date(numeric < 10_000_000_000 ? numeric * 1_000 : numeric)
+    : new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function mapFeishuDocument(raw: unknown, index: number): FeishuDocument {
+  const item = asRecord(raw) ?? {};
+  const meta = asRecord(item.result_meta) ?? {};
+  const url = directString(item, ["url", "document_url", "wiki_url"]) ?? directString(meta, ["url", "document_url", "wiki_url"]);
+  const token = directString(item, ["token", "document_id", "doc_token", "wiki_token"]) ?? directString(meta, ["token", "document_id", "doc_token", "wiki_token"]);
+  const type = (directString(item, ["doc_type", "type", "file_type"]) ?? directString(meta, ["doc_types", "doc_type", "file_type"]) ?? directString(item, ["entity_type"]) ?? "docx").toLowerCase();
+  return {
+    id: token ?? url ?? `${type}-${index}`,
+    title: cleanSearchText(directString(item, ["title", "title_highlighted", "name"])) ?? "未命名文档",
+    type,
+    url: url && /^https?:\/\//i.test(url) ? url : undefined,
+    summary: cleanSearchText(directString(item, ["summary", "summary_highlighted", "description"])),
+    modifiedAt: directString(item, ["edit_time_iso", "modified_time_iso", "open_time_iso", "edit_time", "modified_time"])
+      ?? directString(meta, ["last_open_time_iso", "update_time_iso", "edit_time_iso", "modified_time_iso", "last_open_time", "update_time"]),
+  };
+}
+
 export async function getFeishuDocuments(query = ""): Promise<FeishuDocumentsResult> {
   const normalizedQuery = [...query.trim()].slice(0, 30).join("");
   const args = [
@@ -296,22 +328,7 @@ export async function getFeishuDocuments(query = ""): Promise<FeishuDocumentsRes
     throw documentError(error);
   }
 
-  const items = searchResults(body).map((raw, index): FeishuDocument => {
-    const item = asRecord(raw) ?? {};
-    const meta = asRecord(item.result_meta) ?? {};
-    const url = directString(item, ["url", "document_url", "wiki_url"]) ?? directString(meta, ["url", "document_url", "wiki_url"]);
-    const token = directString(item, ["token", "document_id", "doc_token", "wiki_token"]) ?? directString(meta, ["token", "document_id", "doc_token", "wiki_token"]);
-    const type = (directString(item, ["doc_type", "type", "file_type"]) ?? directString(meta, ["doc_types", "doc_type", "file_type"]) ?? directString(item, ["entity_type"]) ?? "docx").toLowerCase();
-    return {
-      id: token ?? url ?? `${type}-${index}`,
-      title: cleanSearchText(directString(item, ["title", "title_highlighted", "name"])) ?? "未命名文档",
-      type,
-      url: url && /^https?:\/\//i.test(url) ? url : undefined,
-      summary: cleanSearchText(directString(item, ["summary", "summary_highlighted", "description"])),
-      modifiedAt: directString(item, ["edit_time_iso", "modified_time_iso", "open_time_iso", "edit_time", "modified_time"])
-        ?? directString(meta, ["last_open_time_iso", "update_time_iso", "edit_time_iso", "modified_time_iso", "last_open_time", "update_time"]),
-    };
-  });
+  const items = searchResults(body).map(mapFeishuDocument);
   const data = asRecord(body.data) ?? body;
   return {
     items,
@@ -319,6 +336,36 @@ export async function getFeishuDocuments(query = ""): Promise<FeishuDocumentsRes
     mode: normalizedQuery ? "search" : "recent",
     query: normalizedQuery,
   };
+}
+
+export async function getFeishuDocumentActivities(kind: "opened" | "edited"): Promise<FeishuDocumentActivity[]> {
+  const args = [
+    "drive", "+search", "--query", "",
+    "--doc-types", "doc,docx,wiki,sheet,bitable,slides,mindnote",
+    "--page-size", "20", "--as", "user", "--format", "json",
+    kind === "opened" ? "--opened-since" : "--edited-since", "1d",
+    "--sort", kind === "opened" ? "open_time" : "edit_time",
+  ];
+  let body: Record<string, unknown> | null;
+  try {
+    const result = await runLarkCli(args, 25_000);
+    body = parseJson(result.stdout);
+    if (!body || body.ok === false) throw Object.assign(new Error("Invalid Feishu CLI response"), { stdout: result.stdout });
+  } catch (error) {
+    throw documentError(error);
+  }
+
+  return searchResults(body).flatMap((raw, index) => {
+    const item = asRecord(raw) ?? {};
+    const meta = asRecord(item.result_meta) ?? {};
+    const rawTime = kind === "opened"
+      ? directString(item, ["open_time_iso", "last_open_time_iso", "open_time", "last_open_time"])
+        ?? directString(meta, ["last_open_time_iso", "open_time_iso", "last_open_time", "open_time"])
+      : directString(item, ["my_edit_time_iso", "edit_time_iso", "my_edit_time", "edit_time"])
+        ?? directString(meta, ["my_edit_time_iso", "edit_time_iso", "update_time_iso", "my_edit_time", "edit_time", "update_time"]);
+    const occurredAt = timestampIso(rawTime);
+    return occurredAt ? [{ kind, document: mapFeishuDocument(raw, index), occurredAt }] : [];
+  });
 }
 
 export function completeFeishuLogin(flowId: string): void {

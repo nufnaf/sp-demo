@@ -1,0 +1,337 @@
+/* Agent OS application chrome. Scoped independently of stylesheet load order.
+   Neutral surfaces carry content; each application's accent carries selection. */
+.os-workspace.os-workspace {
+  --wa-ink: var(--os-text, #20252a);
+  --wa-secondary: #626b73;
+  --wa-tertiary: #727b83;
+  --wa-line: #e1e5e8;
+  --wa-background: #f7f8fa;
+  --wa-surface: #fff;
+  --wa-accent: #258566;
+  --wa-selection: #e2eee9;
+  --wa-radius: 12px;
+  --wa-font-caption: .78571rem;
+  --wa-font-control: .85714rem;
+  --wa-font-body: .92857rem;
+  --wa-font-section: 1rem;
+  --wa-font-title: 1.71429rem;
+  --wa-shadow: 0 1px 3px rgb(28 40 50 / 3%);
+  color: var(--wa-ink);
+  background: var(--wa-background);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", system-ui, sans-serif;
+  font-size: var(--wa-font-body);
+  line-height: 1.5;
+  font-optical-sizing: auto;
+  color-scheme: light;
+  container-type: inline-size;
+}
+.os-workspace.investment-workspace {
+  --wa-accent: #258566;
+  --wa-selection: #e2eee9;
+  --iw-bg: var(--wa-background);
+  --iw-card: var(--wa-surface);
+  --iw-panel: var(--wa-surface);
+  --iw-ink: var(--wa-ink);
+  --iw-muted: var(--wa-secondary);
+  --iw-faint: var(--wa-tertiary);
+  --iw-border: var(--wa-line);
+  background: var(--wa-background);
+}
+.os-workspace.crm-app { --crm-accent: var(--wa-accent); --crm-line: var(--wa-line); }
+.os-workspace:is(.hr-recruiting-app, .investment-workspace) { grid-template-columns: auto minmax(0, 1fr); }
+.os-workspace *, .os-workspace *::before, .os-workspace *::after { box-sizing: border-box; }
+/* Beat the desktop's font shorthand without resetting sizes on every element. */
+.os-workspace.os-workspace :is(button, input, select, textarea) {
+  font-family: inherit;
+  font-size: var(--wa-font-control);
+  line-height: 1.4;
+}
+.os-workspace button {
+  touch-action: manipulation;
+  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+.os-workspace button:active:not(:disabled) { filter: brightness(.94); }
+.os-workspace :is(button, input, select, textarea, a):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--wa-accent) 55%, transparent);
+  outline-offset: 2px;
+}
+.os-workspace :is(input, textarea)::placeholder { color: var(--wa-tertiary); opacity: 1; }
+.os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) {
+  width: 208px;
+  min-height: 0;
+  padding: 18px 12px 16px;
+  border-right: 1px solid var(--wa-line);
+  background: rgb(235 240 243 / 82%);
+  backdrop-filter: blur(24px) saturate(1.15);
+  overflow-y: auto;
+}
+.os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) > header {
+  height: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 20px;
+  padding: 0 8px;
+}
+.os-workspace :is(.hr-recruiting-mark, .investment-brand-mark, .crm-brand) {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 10px;
+  background: var(--wa-accent);
+  color: white;
+  box-shadow: inset 0 1px rgb(255 255 255 / 24%), 0 2px 4px rgb(25 44 56 / 8%);
+}
+.os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) > header strong { font-size: var(--wa-font-body); font-weight: 650; letter-spacing: -.01em; }
+.os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) > header small { color: var(--wa-secondary); font-size: var(--wa-font-caption); margin-top: 2px; }
+.os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) nav { display: grid; gap: 4px; margin: 0; }
+.os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) nav button {
+  min-height: 36px;
+  height: auto;
+  padding: 8px 10px;
+  gap: 9px;
+  border: 0;
+  border-radius: 7px;
+  color: #505a62;
+  font-size: var(--wa-font-body);
+  font-weight: 450;
+  background: transparent;
+}
+.os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) nav button span { font-size: inherit; font-weight: inherit; }
+.os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) nav button:is(.active, .selected) {
+  color: var(--wa-accent);
+  background: var(--wa-selection);
+  font-weight: 600;
+  box-shadow: inset 0 1px rgb(255 255 255 / 40%);
+}
+.os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) nav button :is(em, small) {
+  min-width: 18px;
+  height: auto;
+  padding: 0 4px;
+  color: var(--wa-secondary);
+  background: transparent;
+  font-size: var(--wa-font-caption);
+  font-weight: 500;
+}
+.os-workspace .crm-sidebar nav button > span { display: grid; place-items: center; width: 18px; }
+.os-workspace :is(.hr-recruiting-roles, .investment-sidebar-case) { margin-top: 28px; padding: 0; }
+.os-workspace :is(.hr-recruiting-roles > span, .investment-sidebar-case > small) { color: var(--wa-secondary); font-size: var(--wa-font-caption); font-weight: 600; letter-spacing: 0; padding-left: 10px; }
+.os-workspace :is(.hr-recruiting-roles, .investment-sidebar-case) button { min-height: 58px; padding: 9px 10px; border-radius: 8px; }
+.os-workspace :is(.hr-recruiting-roles, .investment-sidebar-case) strong { font-size: var(--wa-font-control); font-weight: 550; }
+.os-workspace :is(.hr-recruiting-roles, .investment-sidebar-case) small { color: var(--wa-secondary); font-size: var(--wa-font-caption); }
+.os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) > footer {
+  flex-shrink: 0;
+  margin: auto 4px 0;
+  padding: 14px 4px 0;
+  border: 0;
+  border-top: 1px solid var(--wa-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--wa-secondary);
+  font-size: var(--wa-font-caption);
+}
+.os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) > footer :is(small, strong) { font-size: var(--wa-font-caption); color: var(--wa-secondary); font-weight: 450; }
+.os-workspace :is(.hr-recruiting-main, .investment-main, .crm-main) {
+  padding: 28px 32px 120px;
+  scrollbar-gutter: stable;
+  scroll-padding-bottom: 120px;
+}
+.os-workspace :is(.hr-recruiting-page-header, .hr-recruiting-hero, .investment-page-header, .crm-header) { margin-bottom: 24px; align-items: center; gap: 16px; }
+.os-workspace :is(.hr-recruiting-page-header, .hr-recruiting-hero, .investment-page-header, .crm-header) h1 {
+  margin: 4px 0 6px;
+  color: var(--wa-ink);
+  font-size: var(--wa-font-title);
+  line-height: 1.25;
+  letter-spacing: -.025em;
+  font-weight: 650;
+}
+.os-workspace :is(.hr-recruiting-page-header, .hr-recruiting-hero, .investment-page-header, .crm-header) p { font-size: var(--wa-font-control); line-height: 1.6; color: var(--wa-secondary); margin: 0; }
+.os-workspace :is(.hr-recruiting-page-header > span, .hr-recruiting-hero > span, .investment-page-header > div, .crm-header > div) > small {
+  font-size: var(--wa-font-caption);
+  font-weight: 500;
+  color: var(--wa-secondary);
+  letter-spacing: .01em;
+}
+.os-workspace :is(.hr-recruiting-page-header > button, .investment-primary, .crm-app button.primary) {
+  min-height: 32px;
+  height: auto;
+  padding: 7px 13px;
+  border: 1px solid rgb(0 0 0 / 8%);
+  border-radius: 7px;
+  background: var(--wa-accent);
+  color: white;
+  font-size: var(--wa-font-control);
+  font-weight: 550;
+  box-shadow: inset 0 1px rgb(255 255 255 / 15%), 0 1px 2px rgb(0 0 0 / 6%);
+}
+.os-workspace :is(.hr-source-summary, .hr-source-grid article, .hr-jobs-grid > button, .hr-recruiting-pipeline, .hr-candidate-table, .investment-company-table, .investment-detail-card, .investment-portfolio-overview, .investment-company-hero, .investment-research-feed, .investment-research-sources, .investment-research-questions, .crm-panel, .crm-metrics) {
+  border: 1px solid var(--wa-line);
+  border-radius: var(--wa-radius);
+  background: var(--wa-surface);
+  box-shadow: var(--wa-shadow);
+}
+/* Recruitment connections: balanced cards with quiet, trailing actions. */
+.os-workspace .hr-source-summary { margin-top: 0; min-height: 76px; padding: 16px 18px; }
+.os-workspace .hr-source-summary strong { font-size: var(--wa-font-body); font-weight: 600; }
+.os-workspace .hr-source-summary p { color: var(--wa-secondary); font-size: var(--wa-font-control); line-height: 1.5; }
+.os-workspace .hr-source-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
+.os-workspace .hr-source-grid article {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  grid-template-rows: auto auto 1fr auto;
+  column-gap: 12px;
+  row-gap: 6px;
+  min-height: 180px;
+  padding: 18px;
+}
+.os-workspace .hr-source-grid article > header { display: contents; }
+.os-workspace .hr-source-grid article > header > span { grid-column: 1; grid-row: 1 / 3; }
+.os-workspace .hr-source-grid article > header > em { grid-column: 3; grid-row: 1; align-self: center; white-space: nowrap; }
+.os-workspace .hr-source-grid h2 { grid-column: 2; grid-row: 1; margin: 0; align-self: center; }
+.os-workspace .hr-source-grid p { grid-column: 2 / -1; grid-row: 2; margin: 0; }
+.os-workspace .hr-source-grid article > small { grid-column: 2 / -1; grid-row: 3; margin-top: 4px; min-height: 0; }
+.os-workspace .hr-source-actions { grid-column: 2 / -1; grid-row: 4; padding-top: 8px; }
+.os-workspace .hr-source-grid article > header > span { width: 38px; height: 38px; border-radius: 10px; box-shadow: 0 2px 5px rgb(30 45 55 / 6%); }
+.os-workspace .hr-source-grid article > header > em { font-size: var(--wa-font-caption); color: var(--wa-secondary); }
+.os-workspace .hr-source-grid article > header > em.connected { color: var(--wa-accent); }
+.os-workspace .hr-source-grid article > header > em.error { color: #b3453e; }
+.os-workspace .hr-source-grid h2 { font-size: var(--wa-font-section); font-weight: 600; }
+.os-workspace .hr-source-grid p { min-height: 0; font-size: var(--wa-font-control); color: var(--wa-secondary); line-height: 1.6; }
+.os-workspace .hr-source-grid article > small { height: auto; font-size: var(--wa-font-caption); color: var(--wa-secondary); overflow-wrap: anywhere; }
+.os-workspace .hr-source-actions { justify-content: flex-end; margin-top: auto; }
+.os-workspace .hr-source-actions > button { flex: 0 1 auto; min-height: 30px; height: auto; padding: 6px 13px; border-radius: 7px; font-size: var(--wa-font-control); font-weight: 550; }
+.os-workspace .hr-source-actions > button:first-child { flex: 0 1 auto; }
+.os-workspace .hr-source-actions > button.disconnect { background: #f5f6f7; color: #9c4c47; }
+.os-workspace .hr-recruiting-pipeline > header, .os-workspace .hr-candidate-table > header { height: auto; min-height: 58px; padding: 12px 18px; }
+.os-workspace .hr-recruiting-pipeline > div { height: 102px; padding: 12px 8px; }
+.os-workspace .hr-recruiting-pipeline > div strong { font-size: var(--wa-font-title); font-weight: 600; }
+.os-workspace .hr-recruiting-pipeline > div i { max-width: calc(100% - 24px); }
+.os-workspace .hr-candidate-table > .head { height: 34px; color: var(--wa-secondary); }
+.os-workspace .hr-candidate-table > .rows > button { min-height: 62px; padding-block: 10px; }
+.os-workspace .hr-candidate-table .person strong { font-size: var(--wa-font-body); }
+.os-workspace .hr-candidate-table .person small { color: var(--wa-secondary); }
+.os-workspace .hr-jobs-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.os-workspace .hr-jobs-grid > button { padding: 20px; }
+.os-workspace .hr-jobs-grid > button > strong { font-size: var(--wa-font-section); }
+/* Shared segmented filters and search fields. */
+.os-workspace :is(.hr-recruiting-toolbar, .investment-portfolio-toolbar) { flex-wrap: wrap; gap: 12px; margin-top: 20px; margin-bottom: 12px; }
+.os-workspace :is(.hr-recruiting-toolbar, .investment-portfolio-toolbar) > label { width: 280px; max-width: 100%; height: 34px; border-radius: 8px; }
+.os-workspace :is(.hr-recruiting-toolbar, .investment-portfolio-toolbar) input { font-size: var(--wa-font-control); height: 32px; }
+.os-workspace :is(.hr-recruiting-toolbar, .investment-portfolio-toolbar) > label:focus-within { outline: 3px solid color-mix(in srgb, var(--wa-accent) 35%, transparent); outline-offset: 1px; }
+.os-workspace :is(.hr-recruiting-toolbar, .investment-portfolio-toolbar) > div { display: flex; flex-wrap: wrap; padding: 3px; gap: 2px; border-radius: 8px; background: #eaecef; }
+.os-workspace :is(.hr-recruiting-toolbar, .investment-portfolio-toolbar) > div button { height: auto; min-height: 27px; padding: 5px 10px; border-radius: 6px; color: var(--wa-secondary); font-size: var(--wa-font-caption); }
+.os-workspace :is(.hr-recruiting-toolbar, .investment-portfolio-toolbar) > div button:is(.active, .selected) { background: white; color: var(--wa-ink); font-weight: 550; box-shadow: 0 1px 3px rgb(0 0 0 / 10%); }
+/* Portfolio and sales share a quiet, evenly weighted metric strip. */
+.os-workspace :is(.investment-portfolio-overview, .crm-metrics) { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin-bottom: 20px; }
+.os-workspace :is(.investment-portfolio-overview, .crm-metrics) > article { padding: 18px 20px; border: 0; border-right: 1px solid var(--wa-line); border-radius: 0; background: transparent; }
+.os-workspace :is(.investment-portfolio-overview, .crm-metrics) > article:last-child { border-right: 0; }
+.os-workspace :is(.investment-portfolio-overview, .crm-metrics) > article strong { margin: 8px 0 6px; color: var(--wa-ink); font-size: clamp(1.42857rem, 2.3cqw, 2rem); line-height: 1.25; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.025em; }
+.os-workspace :is(.investment-portfolio-overview, .crm-metrics) > article :is(small, em, span) { color: var(--wa-secondary); font-size: var(--wa-font-caption); white-space: normal; }
+.os-workspace .investment-company-table { overflow-x: auto; }
+.os-workspace .investment-company-table > :is(header, button) { grid-template-columns: minmax(145px,1.1fr) minmax(100px,.8fr) 90px minmax(130px,1fr) minmax(180px,1.4fr) 76px; min-width: 850px; gap: 14px; padding-inline: 18px; }
+.os-workspace .investment-company-table > header { padding-block: 10px; background: #f2f4f6; color: var(--wa-secondary); }
+.os-workspace .investment-company-table > button { min-height: 76px; }
+.os-workspace .investment-company-table strong { font-size: var(--wa-font-control); font-weight: 550; }
+.os-workspace .investment-company-name strong { font-size: var(--wa-font-body); font-weight: 600; }
+.os-workspace .investment-company-table small { font-size: var(--wa-font-caption); color: var(--wa-secondary); }
+.os-workspace .investment-company-table em { padding: 3px 7px; font-weight: 500; }
+.os-workspace .stage-商业尽调 { color: #906821; background: #f8f0de; }
+.os-workspace .stage-已交割 { color: #287557; background: #e8f2ec; }
+.os-workspace .stage-退出中 { color: #8b5c67; background: #f4ebef; }
+.os-workspace .investment-company-hero { gap: 14px; }
+.os-workspace .investment-company-hero > span { background: var(--wa-accent); box-shadow: none; }
+.os-workspace .investment-company-tabs { flex-wrap: wrap; gap: 20px; }
+.os-workspace .investment-company-tabs button { font-size: var(--wa-font-control); padding-block: 12px; }
+.os-workspace .investment-detail-card > header h2 { font-size: var(--wa-font-body); }
+.os-workspace .investment-detail-card > header small { letter-spacing: 0; color: var(--wa-secondary); font-weight: 500; }
+/* Sales: readable neutral ink instead of a green cast on every surface. */
+.os-workspace.crm-app { color: var(--wa-ink); }
+.os-workspace.crm-app button { color: #46515a; border-radius: 7px; }
+.os-workspace.crm-app button.primary { color: white; background: var(--wa-accent); }
+.os-workspace.crm-app :is(input, select, textarea) { color: var(--wa-ink); border-color: var(--wa-line); border-radius: 7px; }
+.os-workspace .crm-panel > header { padding: 16px 20px; }
+.os-workspace .crm-panel h2 { color: var(--wa-ink); font-size: var(--wa-font-section); font-weight: 600; }
+.os-workspace .crm-panel :is(p, small), .os-workspace .crm-company-source > footer { color: var(--wa-secondary); }
+.os-workspace .crm-source-intro { padding: 0 2px 20px; gap: 14px; margin-bottom: 0; border-radius: 0; background: transparent; }
+.os-workspace .crm-source-intro h2 { font-size: var(--wa-font-section); font-weight: 550; }
+.os-workspace .crm-source-intro p { color: var(--wa-secondary); font-size: var(--wa-font-control); }
+.os-workspace .crm-source-intro > span { font-size: 24px; }
+.os-workspace .crm-company-source, .os-workspace .crm-import { padding: 20px; }
+.os-workspace .crm-company-source > p { margin-top: 16px; }
+.os-workspace .crm-company-heading p { margin-bottom: 0; }
+.os-workspace .crm-company-source > footer { margin-top: 20px; padding-top: 14px; }
+.os-workspace.crm-app th { background: #f2f4f6; color: var(--wa-secondary); font-size: var(--wa-font-caption); }
+.os-workspace.crm-app td { padding: 14px 16px; color: var(--wa-secondary); font-size: var(--wa-font-control); }
+.os-workspace.crm-app td strong, .os-workspace.crm-app .crm-customer-link { color: var(--wa-ink); font-size: var(--wa-font-body); }
+.os-workspace.crm-app td small { color: var(--wa-secondary); }
+.os-workspace :is(.crm-detail, .crm-editor, .hr-candidate-drawer) { width: min(420px, 100%); background: #fafbfc; }
+.os-workspace :is(.hr-source-modal input, .hr-source-modal select) { height: 36px; font-size: var(--wa-font-body); }
+.os-workspace .hr-source-modal form { padding: 24px; }
+.os-workspace .hr-source-modal form > label { font-size: var(--wa-font-control); }
+.os-workspace .hr-source-modal form > header strong { font-size: var(--wa-font-section); }
+@media (hover: hover) {
+  .os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) nav button:hover:not(.selected, .active),
+  .os-workspace :is(.investment-company-table > button, .hr-candidate-table > .rows > button, .crm-app tbody tr):hover { background-color: #f0f3f5; }
+}
+@container (max-width: 1000px) {
+  .os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) { width: 176px; padding-inline: 8px; }
+  .os-workspace :is(.hr-recruiting-main, .investment-main, .crm-main) { padding: 24px 20px 120px; }
+  .os-workspace :is(.investment-company-overview, .investment-company-layout) { grid-template-columns: minmax(0, 1fr); }
+  .os-workspace .investment-company-hero { grid-template-columns: 48px minmax(0,1fr); }
+  .os-workspace .investment-company-hero > section { border: 0; padding: 0; }
+  .os-workspace .investment-company-hero > aside { justify-self: end; }
+  .os-workspace .investment-contacts-card > div { grid-template-columns: 30px minmax(0,1fr) auto; }
+  .os-workspace .investment-contacts-card > div > p:nth-last-child(-n+2) { display: none; }
+}
+@container (max-width: 720px) {
+  .os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) { width: 64px; padding: 16px 8px; }
+  .os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) > header { padding: 0 6px; }
+  .os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) > header > :last-child,
+  .os-workspace :is(.hr-recruiting-roles, .investment-sidebar-case),
+  .os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) > footer { display: none; }
+  .os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) nav button { display: flex; justify-content: center; padding: 10px; font-size: 0; }
+  .os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) nav button :is(em, small),
+  .os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar) nav button span { display: none; }
+  .os-workspace :is(.hr-recruiting-main, .investment-main, .crm-main) { padding: 20px 14px 120px; }
+  .os-workspace .hr-source-grid { grid-template-columns: minmax(0,1fr); }
+  .os-workspace :is(.crm-metrics, .investment-portfolio-overview) { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .os-workspace :is(.crm-metrics, .investment-portfolio-overview) > article { padding: 14px; border-bottom: 1px solid var(--wa-line); }
+  .os-workspace :is(.crm-header, .investment-page-header, .hr-recruiting-page-header) { flex-wrap: wrap; align-items: flex-start; }
+  .os-workspace .hr-source-summary { grid-template-columns: 32px minmax(0,1fr); }
+  .os-workspace .hr-source-summary em { grid-column: 2; }
+  .os-workspace .crm-company-heading { flex-wrap: wrap; }
+  .os-workspace .crm-company-heading > .crm-badge { margin-left: 0; }
+  .os-workspace .crm-source-grid { grid-template-columns: minmax(0,1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .os-workspace *, .os-workspace *::before, .os-workspace *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) { background: #edf1f3; backdrop-filter: none; }
+  .os-workspace :is(.hr-source-modal, .crm-overlay) { backdrop-filter: none; background: rgb(25 35 43 / 40%); }
+}
+@media (prefers-contrast: more) {
+  .os-workspace { --wa-secondary: #39434c; --wa-tertiary: #46505a; --wa-line: #87919a; }
+  .os-workspace :is(.hr-recruiting-sidebar, .investment-sidebar, .crm-sidebar) { background: #edf1f3; backdrop-filter: none; }
+}
+
+.os-workspace .hr-candidate-table { overflow-x: auto; }
+.os-workspace .hr-candidate-table > .head,
+.os-workspace .hr-candidate-table > .rows { min-width: 640px; }
+/* The OS currently uses a light material; keep legacy device-dark overrides
+   from creating isolated dark sections inside these light application windows. */
+.os-workspace :is(.investment-deal-card > footer, .investment-records-page > article > footer) { background: #f7f8fa; }
+.os-workspace .investment-company-owner > i { background: #edf0f2; color: #626b73; }
+.os-workspace .investment-company-name > i { background: var(--wa-selection); color: var(--wa-accent); }
+.os-workspace .investment-sidebar > footer strong { color: var(--wa-secondary); }
+
+.os-workspace.crm-app td:nth-child(2) { max-width: 220px; white-space: normal; line-height: 1.6; }
+
+/* Built-in app identities share the desktop's neutral icon material. */
+.os-workspace :is(.hr-recruiting-mark, .investment-brand-mark) {
+  color: #69767d;
+  background: linear-gradient(145deg, #fff, #e7eef2);
+  border: 1px solid rgba(255,255,255,.9);
+  box-shadow: inset 0 1px white, 0 2px 5px rgba(44,62,73,.08);
+}

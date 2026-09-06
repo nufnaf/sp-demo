@@ -1,4 +1,17 @@
 import { readStoredAuthSection, updateStoredAuthSection } from "@/lib/provider-credential-store";
+import {
+  DEFAULT_DOUBAO_ASR_RESOURCE_ID,
+  DEFAULT_DOUBAO_TTS_RESOURCE_ID,
+  DEFAULT_DOUBAO_TTS_SAMPLE_RATE,
+  DEFAULT_DOUBAO_TTS_SPEAKER,
+} from "./presets";
+
+export {
+  DEFAULT_DOUBAO_ASR_RESOURCE_ID,
+  DEFAULT_DOUBAO_TTS_RESOURCE_ID,
+  DEFAULT_DOUBAO_TTS_SAMPLE_RATE,
+  DEFAULT_DOUBAO_TTS_SPEAKER,
+} from "./presets";
 
 export const DOUBAO_VOICE_AUTH_SECTION = "pi-web:doubao-voice";
 
@@ -21,11 +34,6 @@ export interface PublicDoubaoVoiceSettings {
   ttsSpeaker: string;
   ttsSampleRate: number;
 }
-
-export const DEFAULT_DOUBAO_ASR_RESOURCE_ID = "volc.bigasr.sauc.duration";
-export const DEFAULT_DOUBAO_TTS_RESOURCE_ID = "seed-tts-2.0";
-export const DEFAULT_DOUBAO_TTS_SPEAKER = "zh_female_vv_uranus_bigtts";
-export const DEFAULT_DOUBAO_TTS_SAMPLE_RATE = 24_000;
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;

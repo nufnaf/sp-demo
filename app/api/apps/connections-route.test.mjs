@@ -26,12 +26,21 @@ test("OAuth callbacks validate state and emit a non-cached local completion page
   assert.match(connections, /params\.get\("state"\) !== entry\.state/);
   assert.match(callbackRoute, /Cache-Control/);
   assert.match(callbackRoute, /escapeHtml/);
+  assert.match(callbackRoute, /appId !== "wps"/);
+  assert.match(connections, /https:\/\/openapi\.wps\.cn\/oauth2\/auth/);
+  assert.match(connections, /AGENT_OS_WPS_CLIENT_SECRET/);
 });
 
-test("all six app adapters return real provider data", () => {
-  for (const provider of ["api.github.com", "api.figma.com", "api.linear.app", "slack.com/api", "mcp.notion.com", "googleapis.com/drive"]) {
+test("connected app adapters return real provider data", () => {
+  for (const provider of ["api.github.com", "api.figma.com", "api.linear.app", "slack.com/api", "mcp.notion.com", "googleapis.com/drive", "gmail.googleapis.com", "api.qichacha.com/FuzzySearch/GetList"]) {
     assert.match(connections, new RegExp(provider.replaceAll(".", "\\.")));
   }
+});
+
+test("Google requests read-only Gmail access and Qichacha signs provider requests", () => {
+  assert.match(connections, /gmail\.readonly/);
+  assert.match(connections, /createHash\("md5"\)/);
+  assert.match(connections, /Token: token, Timespan: timespan/);
 });
 
 test("persisted Slack and GitHub credentials are hydrated before Pi loads plugins", () => {

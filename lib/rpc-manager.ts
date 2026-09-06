@@ -61,6 +61,8 @@ import {
 import { allowFileRoot } from "./file-access";
 import { BROWSER_MUTATING_TOOL_NAMES, createBrowserExtension } from "./browser/extension";
 import { createFilesAppExtension } from "./files-app/extension";
+import { APP_CONNECTOR_MUTATING_TOOL_NAMES, createAppConnectorExtension } from "./app-connector-extension";
+import { recordInsightEvent, stableInsightEventId } from "./insight-event-store";
 import {
   appendSessionToolSelection,
   readSessionToolSelection,
@@ -78,6 +80,15 @@ export interface AgentEvent {
 
 type EventListener = (event: AgentEvent) => void;
 type AgentRunCompleteListener = (sessionId: string) => void;
+
+function recordTaskInsightEvent(event: Parameters<typeof recordInsightEvent>[0]): void {
+  try {
+    recordInsightEvent(event);
+  } catch (error) {
+    // Insight observation is best-effort and must never interfere with a task.
+    console.error("[pi-web] failed to record task insight event:", error instanceof Error ? error.message : error);
+  }
+}
 
 type PendingUiResponse = {
   resolve: (response: ExtensionUiResponse) => void;
@@ -134,7 +145,7 @@ type AgentSessionWrapperOptions = {
   chatOnly?: boolean;
   onAgentRunComplete?: AgentRunCompleteListener;
   suppressCompletionNotifications?: boolean;
-  role?: "jarvis";
+  role?: "jarvis" | "insight";
 };
 
 const IDLE_RESET_EVENT_TYPES = new Set([
@@ -161,7 +172,7 @@ export interface RpcSessionStartOptions {
   allowInitialModelFallback?: boolean;
   thinkingLevel?: ThinkingLevel;
   /** Create the session as the desktop's Jarvis voice assistant. */
-  role?: "jarvis";
+  role?: "jarvis" | "insight";
 }
 
 const CODING_TOOL_NAMES = ["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"];
@@ -207,12 +218,12 @@ function withExtensionTools(session: AgentSessionLike, toolNames: string[]): str
   const selectedToolNames = resolveShellTools(toolNames, session.settingsManager.getDefaultTools());
   const readOnly = selectedToolNames.length > 0
     && selectedToolNames.every((name) => READ_ONLY_CODING_TOOL_NAMES.has(name));
-  const browserMutatingToolNames = new Set<string>(BROWSER_MUTATING_TOOL_NAMES);
+  const mutatingExtensionToolNames = new Set<string>([...BROWSER_MUTATING_TOOL_NAMES, ...APP_CONNECTOR_MUTATING_TOOL_NAMES]);
   const extensionToolNames = session
     .getAllTools()
     .map((t) => t.name)
     .filter((name) => !codingToolNames.has(name))
-    .filter((name) => !readOnly || !browserMutatingToolNames.has(name));
+    .filter((name) => !readOnly || !mutatingExtensionToolNames.has(name));
 
   return [...new Set([...selectedToolNames, ...extensionToolNames])];
 }
@@ -244,7 +255,7 @@ export class AgentSessionWrapper {
   private readonly chatOnly: boolean;
   private readonly onAgentRunComplete?: AgentRunCompleteListener;
   private readonly suppressCompletionNotifications: boolean;
-  private readonly role: "jarvis" | undefined;
+  private readonly role: "jarvis" | "insight" | undefined;
   private unsubscribe: (() => void) | null = null;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private onDestroyCallback: (() => void) | null = null;
@@ -306,6 +317,12 @@ export class AgentSessionWrapper {
     return this.role === "jarvis";
   }
 
+  private shouldObserveTaskInsights(): boolean {
+    return !this.role
+      && !this.suppressCompletionNotifications
+      && typeof (this.inner.sessionManager as unknown as { getSessionFile?: unknown }).getSessionFile === "function";
+  }
+
   start(): void {
     this.unsubscribe = this.inner.subscribe((event: AgentEvent) => {
       if (event.type === "agent_start") this.agentRunNeedsCompletion = true;
@@ -327,6 +344,19 @@ export class AgentSessionWrapper {
     } else {
       void JARVIS_TASKS.handleTaskSettled(this.sessionId).catch((error) => {
         console.error("[pi-web] failed to report a task to Jarvis:", error instanceof Error ? error.message : error);
+      });
+    }
+    if (this.shouldObserveTaskInsights()) {
+      const summary = trimTaskSummary(this.inner.getLastAssistantText?.());
+      const sessionName = (this.inner.sessionManager as unknown as { getSessionName?: () => string | undefined }).getSessionName?.();
+      recordTaskInsightEvent({
+        id: stableInsightEventId(["task.completed", this.sessionId, summary]),
+        source: "task",
+        type: "task.completed",
+        cwd: this.cwd,
+        objectId: this.sessionId,
+        title: sessionName || "任务已完成",
+        summary,
       });
     }
     if (this.suppressCompletionNotifications) return;
@@ -632,6 +662,16 @@ export class AgentSessionWrapper {
                 if (success) {
                   this.applyExactSystemPrompt();
                   acceptPreflight();
+                  if (this.shouldObserveTaskInsights()) {
+                    recordTaskInsightEvent({
+                      source: "task",
+                      type: "task.updated",
+                      cwd: this.cwd,
+                      objectId: this.sessionId,
+                      title: "任务收到新的指令",
+                      summary: String(command.message ?? "").slice(0, 2_000),
+                    });
+                  }
                 }
               },
             });
@@ -674,6 +714,15 @@ export class AgentSessionWrapper {
       }
 
       case "abort":
+        if (this.shouldObserveTaskInsights()) {
+          recordTaskInsightEvent({
+            source: "task",
+            type: "task.aborted",
+            cwd: this.cwd,
+            objectId: this.sessionId,
+            title: "任务被中止",
+          });
+        }
         this.forceShutdownOnIdle = true;
         try {
           await this.withFinalIdleReset(() => this.inner.abort());
@@ -856,6 +905,16 @@ export class AgentSessionWrapper {
       case "steer": {
         const steerImages = command.images as Array<{ type: "image"; data: string; mimeType: string }> | undefined;
         await this.inner.steer(command.message as string, steerImages?.length ? steerImages : undefined);
+        if (this.shouldObserveTaskInsights()) {
+          recordTaskInsightEvent({
+            source: "task",
+            type: "task.requirement_changed",
+            cwd: this.cwd,
+            objectId: this.sessionId,
+            title: "任务执行中收到需求变更",
+            summary: String(command.message ?? "").slice(0, 2_000),
+          });
+        }
         return null;
       }
 
@@ -2256,6 +2315,7 @@ export async function startRpcSession(
             extensionFactories: [
               createBrowserExtension(),
               createFilesAppExtension(),
+              createAppConnectorExtension(),
               createProjectCommandBashExtension({
                 cwd: sessionCwd,
                 settings: settingsManager,
@@ -2340,8 +2400,8 @@ export async function startRpcSession(
           console.error("[pi-web] failed to send completion push:", error instanceof Error ? error.message : error);
         });
       },
-      suppressCompletionNotifications: Boolean(subagentResources) || jarvis,
-      ...(jarvis ? { role: "jarvis" as const } : {}),
+      suppressCompletionNotifications: Boolean(subagentResources) || jarvis || options.role === "insight",
+      ...(options.role ? { role: options.role } : jarvis ? { role: "jarvis" as const } : {}),
     });
     const realSessionId = inner.sessionId as string;
     registerRpcWrapper(wrapper);

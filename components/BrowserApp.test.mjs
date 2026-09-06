@@ -45,7 +45,7 @@ test("browser app provides navigation, adaptive screenshots, and shared human-AI
 test("normal Pi sessions load browser tools and read-only mode excludes browser_act", () => {
   assert.match(rpcManager, /createBrowserExtension\(\)/);
   assert.match(rpcManager, /BROWSER_MUTATING_TOOL_NAMES/);
-  assert.match(rpcManager, /!readOnly \|\| !browserMutatingToolNames\.has\(name\)/);
+  assert.match(rpcManager, /!readOnly \|\| !mutatingExtensionToolNames\.has\(name\)/);
 });
 
 test("browser mutations require same-origin JSON and workspace authorization", () => {

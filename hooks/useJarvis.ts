@@ -122,6 +122,9 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
   const [error, setError] = useState<string | null>(null);
   const [turns, setTurns] = useState<JarvisTurn[]>([]);
   const [tasks, setTasks] = useState<JarvisTask[]>([]);
+  // Only advances for replies received by this mounted client. Restored
+  // transcript entries must not be presented as fresh desktop notifications.
+  const [latestReplyTurnId, setLatestReplyTurnId] = useState(0);
   /** Text of the latest assistant message in the current turn; cleared when a new turn starts. */
   const [lastReply, setLastReply] = useState("");
   const [stream, dispatch] = useReducer(streamReducer, INITIAL_STREAMING_STATE);
@@ -135,9 +138,10 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
   callbacks.current = { onTaskStarted, onTaskSettled };
 
   const pushTurn = useCallback((turn: Omit<JarvisTurn, "id">) => {
-    if (!turn.text) return;
+    if (!turn.text) return 0;
     const id = nextTurnId();
     setTurns((current) => [...current, { id, ...turn }].slice(-MAX_TURNS));
+    return id;
   }, [nextTurnId]);
 
   // Resolve (or create) the Jarvis session, then load its recent transcript.
@@ -149,6 +153,7 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
     setRunning(false);
     setTurns([]);
     setTasks([]);
+    setLatestReplyTurnId(0);
     setLastReply("");
     setError(null);
     dispatch({ type: "end" });
@@ -238,7 +243,7 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
             const text = assistantText(message);
             if (text) {
               setLastReply(text);
-              pushTurn({ role: "assistant", text });
+              setLatestReplyTurnId(pushTurn({ role: "assistant", text }));
             }
             dispatch({ type: "end" });
           } else if (message.role === "user") {
@@ -338,6 +343,7 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
     error,
     turns,
     tasks,
+    latestReplyTurnId,
     /** Live reply while streaming, else the reply of the current turn. */
     speechText,
     streamingText,

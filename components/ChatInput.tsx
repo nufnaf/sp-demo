@@ -4,6 +4,8 @@ import React, { useRef, useState, useCallback, useEffect, useLayoutEffect, useIm
 import type { BuiltinSlashCommandResult, CompactResultInfo, QueuedMessages, SlashCommandInfo } from "@/hooks/useAgentSession";
 import type { SkillsResponse } from "@/lib/api-types";
 import type { TextContent, UserMessage } from "@/lib/types";
+import type { DictationState } from "@/lib/voice/dictation";
+import { VoiceActivityIndicator } from "./VoiceActivityIndicator";
 import {
   clearDraft,
   getDraft,
@@ -38,6 +40,12 @@ export interface AttachedImage {
 
 interface Props {
   onSend: (message: string, images?: AttachedImage[]) => void;
+  /** Tap-to-dictate: speech is transcribed and sent as a message. */
+  dictationState?: DictationState;
+  dictationTranscript?: string;
+  dictationLevel?: number;
+  dictationError?: string | null;
+  onDictationToggle?: () => void;
   onAbort: () => void;
   onSteer?: (message: string, images?: AttachedImage[]) => void;
   onFollowUp?: (message: string, images?: AttachedImage[]) => void;
@@ -436,6 +444,7 @@ export function ModelScopeWarningBanner({ warnings }: { warnings?: string[] }) {
 
 export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   onSend, onAbort, onSteer, onFollowUp, isStreaming, model, isAutoModelSelection, modelNames, modelList, modelError, modelScopeWarnings, onModelChange, modelSwitching,
+  dictationState = "idle", dictationTranscript = "", dictationLevel = 0, dictationError, onDictationToggle,
   onCompact, onAbortCompaction, isCompacting, compactError, compactResult, toolPreset, onToolPresetChange,
   thinkingLevel, onThinkingLevelChange, availableThinkingLevels, thinkingLevelMap,
   retryInfo, queuedMessages, inputHistory = [], onRecallQueue,
@@ -1422,6 +1431,20 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
       <div style={{ maxWidth: 820, margin: "0 auto" }}>
         <ModelErrorBanner error={modelError} />
         <ModelScopeWarningBanner warnings={modelScopeWarnings} />
+        {(dictationError || dictationState !== "idle") && (
+          <VoiceActivityIndicator
+            state={dictationState === "connecting" ? "connecting" : dictationState === "finishing" ? "thinking" : dictationState === "error" ? "error" : "hearing"}
+            transcript={dictationTranscript}
+            error={dictationError}
+            level={dictationLevel}
+            labels={{
+              connecting: t("chat.dictateConnecting"),
+              hearing: t("chat.dictateListening"),
+              thinking: t("chat.dictateFinishing"),
+              error: t("chat.voiceError"),
+            }}
+          />
+        )}
         {/* Queued steering / follow-up messages (delivered by pi on upcoming turns) */}
         {((queuedMessages?.steering.length ?? 0) + (queuedMessages?.followUp.length ?? 0)) > 0 && (
           <div style={{
@@ -2098,6 +2121,32 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                 <polyline points="21 15 16 10 5 21" />
               </svg>
             </button>
+            {onDictationToggle && (
+              <button
+                type="button"
+                onClick={onDictationToggle}
+                title={t(dictationState === "idle" || dictationState === "error" ? "chat.dictateStart" : "chat.dictateStop")}
+                aria-label={t(dictationState === "idle" || dictationState === "error" ? "chat.dictateStart" : "chat.dictateStop")}
+                aria-pressed={dictationState === "recording"}
+                style={{
+                  flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                  width: 32, height: 32, padding: 0,
+                  background: dictationState === "recording" ? "rgba(239,68,68,0.10)" : "none",
+                  border: "none", borderRadius: 9,
+                  color: dictationState === "recording" ? "#ef4444" : "var(--text-muted)",
+                  cursor: "pointer", transition: "background 0.12s, color 0.12s",
+                }}
+              >
+                {dictationState === "idle" || dictationState === "error" ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="9" y="2" width="6" height="12" rx="3" />
+                    <path d="M5 10a7 7 0 0 0 14 0" /><line x1="12" y1="17" x2="12" y2="22" /><line x1="8" y1="22" x2="16" y2="22" />
+                  </svg>
+                ) : (
+                  <span className="voice-stop-icon" aria-hidden="true" />
+                )}
+              </button>
+            )}
             {/* Model selector - visible always, disabled while the session or switch is busy */}
             {(modelOptions.length > 0 || model || modelError) && onModelChange && (
               <div className="chat-input-model-selector"><ModelSelector

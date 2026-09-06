@@ -53,7 +53,7 @@ For port and hostname, command-line options override the corresponding environme
 | `DOUBAO_SPEECH_ACCESS_KEY` | Volcengine Doubao Speech access key; kept on the Pi Web server | Voice input disabled |
 | `DOUBAO_ASR_RESOURCE_ID` | Streaming ASR resource ID enabled for the application | `volc.bigasr.sauc.duration` |
 | `DOUBAO_TTS_RESOURCE_ID` | Bidirectional TTS resource ID enabled for the application | `seed-tts-2.0` |
-| `DOUBAO_TTS_SPEAKER` | Doubao TTS speaker/voice ID | `zh_female_vv_uranus_bigtts` |
+| `DOUBAO_TTS_SPEAKER` | Doubao TTS speaker/voice ID | `zh_male_m191_uranus_bigtts` |
 | `DOUBAO_TTS_SAMPLE_RATE` | TTS output sample rate | `24000` |
 
 Doubao voice credentials can also be configured from **Settings → Voice**. Settings take precedence over the environment variables and are stored locally in `~/.pi/agent/auth.json` with restricted file permissions; the access key is never returned by the settings API.

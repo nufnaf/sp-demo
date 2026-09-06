@@ -11,12 +11,15 @@ test("the Dock opens a native App Store window", () => {
   assert.match(desktopSource, /id: "system:store", name: "应用商店"/);
   assert.match(desktopSource, /item\.id === "system:store"/);
   assert.match(desktopSource, /<DesktopWindow title="应用商店" kind="store"/);
-  assert.match(desktopSource, /<AppStore cwd=\{activeCwd\}/);
+  assert.match(desktopSource, /<AppStore onOpenApp=\{openLaunchpadApp\}/);
   assert.match(storeCss, /\.agent-store\{[^}]*grid-template-columns:168px/);
   assert.match(storeCss, /\.agent-store-hero\{/);
   assert.match(storeSource, /function AppStoreBrandIcon/);
-  assert.match(storeSource, /function StoreGlyph/);
-  assert.match(storeCss, /\.agent-store-icon svg\{/);
+  assert.doesNotMatch(storeSource, /function StoreGlyph|storeIconKind/);
+  assert.match(storeSource, /<img src=\{item\.logoUrl/);
+  assert.match(storeCss, /\.agent-store-icon img\{/);
+  assert.match(storeCss, /\.agent-store-icon\.is-huayu-law\{background:#184d69\}/);
+  assert.match(storeCss, /\.agent-store-icon\.is-huayu-law img\{width:86%;height:auto/);
   assert.match(storeCss, /\.agent-store-icon\{[^}]*rgba\(255,255,255,\.88\)[^}]*backdrop-filter:blur\(18px\)/);
   assert.match(storeCss, /\.agent-store-brand-icon\{[^}]*rgba\(255,255,255,\.88\)[^}]*backdrop-filter:blur\(18px\)/);
   assert.match(storeCss, /\.agent-store-dock-icon\{[^}]*background:transparent[^}]*box-shadow:none/);
@@ -24,22 +27,24 @@ test("the Dock opens a native App Store window", () => {
   assert.doesNotMatch(storeSource, /ICON_BACKGROUNDS|iconStyle/);
 });
 
-test("the store syncs the official catalog and reuses Pi plugin installation", () => {
-  assert.match(routeSource, /buildPiCatalogUrl/);
-  assert.match(routeSource, /parsePiPackageCatalog/);
+test("the store exposes only the curated China catalog and installs connectors", () => {
+  assert.match(routeSource, /chinaAppStorePackages/);
+  assert.doesNotMatch(routeSource, /buildPiCatalogUrl|parsePiPackageCatalog|pi\.dev/);
   assert.match(storeSource, /fetch\(`\/api\/app-store\?\$\{params\}`/);
-  assert.match(storeSource, /action: "install", source: item\.source, scope: "global"/);
+  assert.match(storeSource, /fetch\("\/api\/app-store\/installations"/);
+  assert.doesNotMatch(storeSource, /\/api\/plugins|installedFallback|Pi Community/);
   assert.match(storeSource, /window\.dispatchEvent\(new CustomEvent\("agent-os:apps-changed"\)\)/);
   assert.match(desktopSource, /window\.addEventListener\("agent-os:apps-changed", loadApps\)/);
 });
 
-test("the storefront presents every Pi package as an app and keeps its content scrollable", () => {
+test("the storefront presents curated China apps and keeps its content scrollable", () => {
   assert.doesNotMatch(storeSource, /label: "扩展"|label: "技能"/);
   assert.doesNotMatch(storeSource, /TYPE_LABELS/);
   assert.match(storeSource, /className="agent-store-sidebar-search"[\s\S]*?placeholder="搜索应用"/);
   assert.doesNotMatch(storeSource, /className="agent-store-toolbar"/);
   assert.match(storeSource, /aria-label="同步应用目录"/);
   assert.match(storeSource, /Agent OS 应用/);
+  assert.doesNotMatch(storeSource, /热门排行|最近上架|社区目录/);
   assert.match(storeCss, /\.agent-store-main\{[^}]*min-height:0[^}]*overflow:hidden/);
   assert.match(storeCss, /\.agent-store-scroll\{[^}]*min-height:0[^}]*overflow-y:auto[^}]*touch-action:pan-y/);
 });

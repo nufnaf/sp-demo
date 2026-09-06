@@ -4,12 +4,13 @@ import test from "node:test";
 
 const component = await readFile(new URL("./VoiceActivityIndicator.tsx", import.meta.url), "utf8");
 const engine = await readFile(new URL("../lib/voice/voice-engine.ts", import.meta.url), "utf8");
+const doubaoClient = await readFile(new URL("../lib/voice/doubao-client.ts", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
 test("voice input provides immediate status and a live level meter", () => {
   assert.match(component, /role=\{interruptible \? "button" : "status"\}/);
   assert.match(component, /voice-activity__meter/);
-  assert.match(engine, /chunk\.slice\(44\)/);
+  assert.match(doubaoClient, /chunk\.slice\(44\)/);
   assert.match(engine, /this\.patch\(\{ level:/);
 });
 

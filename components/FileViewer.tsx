@@ -22,6 +22,8 @@ import { resolveLocalFileHref } from "@/lib/file-links";
 import { parseFrontmatter } from "@/lib/frontmatter";
 import { markdownPreviewRehypePlugins, markdownPreviewRemarkPlugins, normalizeDisplayMath } from "@/lib/markdown";
 import { CodeBlock, MermaidBlock } from "./MermaidBlock";
+import { CrmInsightPreview } from "./CrmInsightPreview";
+import { RecruitingInsightPreview } from "./RecruitingInsightPreview";
 import { FrontmatterCard } from "./FrontmatterCard";
 import { parseUnifiedPatch } from "@/lib/patch";
 import type { GitFileDiffResponse } from "@/lib/git-types";
@@ -1430,6 +1432,10 @@ function TextFileViewer({
       >
         {effectiveDisplayMode === "diff" && hasGitDiff ? (
           <DiffView patch={gitDiff.patch!} />
+        ) : isHtml && effectiveDisplayMode === "preview" && /[\\/]crm-payment-blocker-[\w-]+\.html$/.test(filePath) ? (
+          <CrmInsightPreview content={content} filePath={filePath} />
+        ) : isHtml && effectiveDisplayMode === "preview" && /[\\/]recruiting-interviewer-alignment-[\w-]+\.html$/.test(filePath) ? (
+          <RecruitingInsightPreview content={content} />
         ) : isHtml && effectiveDisplayMode === "preview" ? (
           <iframe
             srcDoc={content}

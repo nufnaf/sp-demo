@@ -1,4 +1,6 @@
-export type ConnectedAppId = "github" | "figma" | "slack" | "notion" | "linear" | "google";
+import type { ChinaConnectorAppId } from "./china-apps";
+
+export type ConnectedAppId = "github" | "figma" | "slack" | "notion" | "linear" | "google" | ChinaConnectorAppId;
 
 export type AppConnectionState = "connected" | "disconnected" | "connecting" | "setup_required" | "error";
 
@@ -7,7 +9,7 @@ export interface AppConnectionStatus {
   state: AppConnectionState;
   account?: string;
   detail: string;
-  authMode: "token" | "oauth";
+  authMode: "token" | "oauth" | "mcp" | "openapi";
   dependency?: string;
   scopes: string[];
 }

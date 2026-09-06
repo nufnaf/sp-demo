@@ -8,6 +8,7 @@ import { countToolCallBlocks, getAssistantErrorMessage, getDisplayableAssistantB
 import { extractTurnWrittenFiles, type WrittenFile } from "@/lib/turn-written-files";
 import { MessageView } from "./MessageView";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
+import { useDictation } from "@/hooks/useDictation";
 import { ChatMinimap, useMessageRefs } from "./ChatMinimap";
 import { ExtensionStatusBar } from "./ExtensionStatusBar";
 import { AnsiText } from "./AnsiText";
@@ -556,10 +557,23 @@ export function ChatWindow({ session, sessionRunning, newSessionCwd, newSessionD
     ? (modelThinkingLevelMaps[`${displayModelValue.provider}:${displayModelValue.modelId}`] ?? null)
     : null;
 
+  const dictation = useDictation({
+    onResult: (text) => {
+      if (agentRunning) void handleSteer(text);
+      else void handleSend(text);
+    },
+    onAudioUnlock: unlockAudio,
+  });
+
   const chatInputElement = (
     <ChatInput
       ref={chatInputRef}
       onSend={handleSend}
+      dictationState={dictation.state}
+      dictationTranscript={dictation.transcript}
+      dictationLevel={dictation.level}
+      dictationError={dictation.error}
+      onDictationToggle={dictation.toggle}
       onAbort={handleAbort}
       onSteer={agentRunning ? handleSteer : undefined}
       onFollowUp={agentRunning ? handleFollowUp : undefined}

@@ -9,7 +9,8 @@ const pluginRouteSource = await readFile(new URL("../app/api/plugins/route.ts", 
 test("the Dock opens a searchable launchpad backed by built-in apps and the Pi plugins API", () => {
   assert.match(desktopSource, /function Launchpad/);
   assert.match(desktopSource, /fetch\(url, \{ cache: "no-store"/);
-  assert.match(desktopSource, /getLaunchpadApps\(data\.packages\)/);
+  assert.match(desktopSource, /getLaunchpadApps\(data\.packages, \[\.\.\.\(connectorData\.builtins/);
+  assert.match(desktopSource, /\/api\/app-store\/installations/);
   assert.match(desktopSource, /placeholder="搜索应用"/);
   assert.match(desktopSource, /className=\{`dock-launchpad\$\{launchpadOpen/);
   assert.match(desktopSource, /aria-pressed=\{launchpadOpen\}/);
@@ -20,9 +21,9 @@ test("Feishu opens as a built-in CLI app instead of a Pi plugin", () => {
   assert.match(desktopSource, /function FeishuAppView/);
   assert.match(desktopSource, /fetch\("\/api\/apps\/feishu"/);
   assert.match(desktopSource, /app\.kind === "builtin" \? \(\s*<FeishuAppView/);
-  assert.match(desktopSource, /不会安装 Pi Plugin/);
+  assert.match(desktopSource, /className="agent-os-native-onboarding"/);
   assert.match(desktopSource, /href="\/icons\/feishu-logo\.svg"/);
-  assert.match(desktopSource, /飞书官方设备授权流程/);
+  assert.match(desktopSource, /使用飞书官方授权，凭据保存在本机/);
   assert.match(desktopSource, /let cachedFeishuStatus: FeishuCliStatus \| null = null/);
   assert.match(desktopSource, /useState<FeishuCliStatus \| null>\(\(\) => cachedFeishuStatus\)/);
   assert.match(desktopSource, /if \(!status\) return <div className="agent-os-feishu-opening"/);
@@ -34,7 +35,7 @@ test("Feishu opens as a built-in CLI app instead of a Pi plugin", () => {
   assert.match(desktopSource, /\/api\/apps\/feishu\/documents/);
   assert.match(desktopSource, /全部文档/);
   assert.doesNotMatch(desktopSource, /agent-os-feishu-library-toolbar/);
-  assert.match(desktopSource, /documentWorkspace \? " is-documents"/);
+  assert.match(desktopSource, /if \(!documentWorkspace\) return/);
   assert.match(desktopSource, /onOpenDocument\(document\)/);
   assert.match(desktopSource, /function FeishuDocumentEditor/);
   assert.match(desktopSource, /<iframe src=\{document\.url\}/);
@@ -71,6 +72,7 @@ test("opened apps join the Dock temporarily and can be kept from their context m
   assert.match(desktopSource, /=== "system:code" \? "system:files"/);
   assert.match(desktopSource, /return currentSystemApp \? \[currentSystemApp\] : \[\]/);
   assert.match(cssSource, /\.agent-os-dock > \.dock-app\.is-feishu \.agent-os-app-logo\{[^}]*width:100%;height:100%/);
+  assert.match(desktopSource, /dock-app is-\$\{item\.appearance\}\$\{item\.kind === "connector" \? " is-official-icon"/);
 });
 
 test("global apps can load before a workspace exists without weakening cwd checks", () => {

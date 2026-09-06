@@ -11,12 +11,14 @@ import type {
   AppDataResponse,
   ConnectedAppId,
 } from "@/lib/app-connection-types";
+import { CHINA_CONNECTOR_APPS, getChinaAppDefinition, isChinaConnectorAppId, type ChinaConnectorAppId } from "./china-apps";
 
 type JsonObject = Record<string, unknown>;
 
 interface PrivateConnections {
   github?: { token?: string; login?: string };
   slack?: { botToken?: string; userToken?: string; team?: string };
+  connectors?: Partial<Record<ChinaConnectorAppId, { credentials: Record<string, string>; connectedAt: string }>>;
 }
 
 interface PendingOAuth {
@@ -33,6 +35,14 @@ interface PendingOAuth {
     clientId: string;
     clientSecret: string;
     redirectUri: string;
+    createdAt: number;
+  };
+  wps?: {
+    state: string;
+    clientId: string;
+    clientSecret: string;
+    redirectUri: string;
+    scopes: string;
     createdAt: number;
   };
 }
@@ -62,16 +72,18 @@ const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/documents",
   "https://www.googleapis.com/auth/presentations",
   "https://www.googleapis.com/auth/spreadsheets",
+  "https://www.googleapis.com/auth/gmail.readonly",
 ];
 
-const APP_SCOPES: Record<ConnectedAppId, string[]> = {
+const APP_SCOPES = {
   github: ["读取仓库", "读取 Pull Requests", "读取 Issues", "创建分支与 PR"],
   figma: ["读取获准访问的文件", "读取组件与变量", "导出节点图像"],
   slack: ["读取已加入频道", "读取消息与文件", "搜索（可选用户令牌）"],
   notion: ["通过 Notion 官方 MCP 访问已授权内容"],
   linear: ["读取工作区、项目和 Issues", "创建与更新 Issues"],
-  google: ["Google Drive", "Docs", "Sheets", "Slides"],
-};
+  google: ["Gmail（只读）", "Google Drive", "Docs", "Sheets", "Slides"],
+  ...Object.fromEntries(CHINA_CONNECTOR_APPS.map((app) => [app.id, app.scopes])),
+} as Record<ConnectedAppId, string[]>;
 
 function isRecord(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -115,7 +127,13 @@ async function readPrivateConnections(): Promise<PrivateConnections> {
 }
 
 export async function hydrateAppConnectionEnvironment(): Promise<void> {
-  await readPrivateConnections();
+  const connections = await readPrivateConnections();
+  for (const [appId, entry] of Object.entries(connections.connectors ?? {})) {
+    for (const [key, value] of Object.entries(entry?.credentials ?? {})) {
+      const envName = `AGENT_OS_${appId}_${key}`.replace(/[^a-z0-9]+/gi, "_").toUpperCase();
+      process.env[envName] = value;
+    }
+  }
 }
 
 async function savePrivateConnections(connections: PrivateConnections): Promise<void> {
@@ -155,14 +173,28 @@ async function fetchJson(url: string, init?: RequestInit): Promise<JsonObject> {
 }
 
 function status(appId: ConnectedAppId, state: AppConnectionStatus["state"], detail: string, options: Partial<AppConnectionStatus> = {}): AppConnectionStatus {
-  return { appId, state, detail, authMode: appId === "notion" || appId === "google" ? "oauth" : "token", scopes: APP_SCOPES[appId], ...options };
+  const definition = getChinaAppDefinition(appId);
+  return { appId, state, detail, authMode: appId === "notion" || appId === "google" ? "oauth" : definition?.authMode === "mcp" ? "mcp" : definition?.authMode === "openapi" ? "openapi" : "token", scopes: APP_SCOPES[appId], ...options };
 }
 
 export function isConnectedAppId(value: string): value is ConnectedAppId {
-  return ["github", "figma", "slack", "notion", "linear", "google"].includes(value);
+  return ["github", "figma", "slack", "notion", "linear", "google"].includes(value) || isChinaConnectorAppId(value);
 }
 
 export async function getAppConnectionStatus(appId: ConnectedAppId): Promise<AppConnectionStatus> {
+  if (isChinaConnectorAppId(appId)) {
+    const definition = getChinaAppDefinition(appId)!;
+    const entry = (await readPrivateConnections()).connectors?.[appId];
+    if (appId === "wps" && !entry) {
+      const managedOAuthReady = Boolean(process.env.AGENT_OS_WPS_CLIENT_ID?.trim() && process.env.AGENT_OS_WPS_CLIENT_SECRET?.trim() && process.env.AGENT_OS_WPS_SCOPES?.trim());
+      return status(appId, "disconnected", managedOAuthReady
+        ? "点击继续，通过 WPS 官方页面授权。"
+        : "支持 WPS OAuth；当前部署尚未配置服务商应用，也可以使用已有 Token。", { authMode: "oauth", ...(!managedOAuthReady ? { dependency: "部署管理员配置 WPS 服务商应用" } : {}) });
+    }
+    return entry
+      ? status(appId, "connected", `已配置${definition.authMode === "mcp" ? " MCP 服务" : "开放平台凭据"}；权限由厂商与企业管理员控制。`, { account: entry.credentials.corpId ?? entry.credentials.clientId ?? entry.credentials.appKey })
+      : status(appId, "disconnected", `需要连接${definition.authMode === "mcp" ? "厂商或企业 MCP 服务" : "厂商开放平台应用"}。`);
+  }
   if (appId === "github") {
     const connections = await readPrivateConnections();
     if (!await commandExists("gh")) return status(appId, "setup_required", "需要先安装 GitHub CLI，Pi Plugin 才能执行 GitHub 工作流。", { dependency: "GitHub CLI（gh）" });
@@ -190,7 +222,7 @@ export async function getAppConnectionStatus(appId: ConnectedAppId): Promise<App
   }
   const config = await readJson<GoogleConfig>(GOOGLE_PATH);
   return config?.tokens?.access_token
-    ? status(appId, "connected", "Google OAuth 凭据已保存到 Plugin 原生配置。")
+    ? status(appId, "connected", "Google OAuth 凭据已保存，可只读访问 Gmail 与 Workspace 文件。")
     : status(appId, "disconnected", "需要 Google Cloud OAuth Client ID 与 Client Secret。");
 }
 
@@ -228,6 +260,28 @@ async function slackApi(token: string, method: string, params?: URLSearchParams)
 }
 
 export async function connectApp(appId: ConnectedAppId, body: JsonObject, origin: string): Promise<AppConnectResponse> {
+  if (isChinaConnectorAppId(appId)) {
+    const definition = getChinaAppDefinition(appId)!;
+    if (appId === "wps" && !(typeof body.accessToken === "string" && body.accessToken.trim())) return startWpsOAuth(origin);
+    const credentials: Record<string, string> = {};
+    for (const field of definition.fields) {
+      const rawValue = body[field.name];
+      const value = typeof rawValue === "string" ? rawValue.trim() : "";
+      if (!value && !field.optional) throw new Error(`请输入${field.label}`);
+      if (value) credentials[field.name] = value;
+    }
+    if (credentials.mcpUrl) {
+      let url: URL;
+      try { url = new URL(credentials.mcpUrl); } catch { throw new Error("MCP Server 地址格式不正确"); }
+      if (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1", "::1"].includes(url.hostname))) throw new Error("MCP Server 必须使用 HTTPS；本机服务可使用 HTTP");
+    }
+    const connections = await readPrivateConnections();
+    connections.connectors ??= {};
+    connections.connectors[appId] = { credentials, connectedAt: new Date().toISOString() };
+    await savePrivateConnections(connections);
+    await hydrateAppConnectionEnvironment();
+    return { status: status(appId, "connected", `${definition.name} 授权配置已安全保存到本机。`, { account: credentials.corpId ?? credentials.clientId ?? credentials.appKey }) };
+  }
   if (appId === "github") {
     if (!await commandExists("gh")) throw new Error("未找到 GitHub CLI。请先安装 gh，再返回完成授权。");
     const token = typeof body.token === "string" ? body.token.trim() : "";
@@ -319,7 +373,28 @@ async function startGoogleOAuth(body: JsonObject, origin: string): Promise<AppCo
   return { status: status("google", "connecting", "正在等待 Google 完成授权。"), authUrl: url.toString() };
 }
 
-export async function completeOAuth(appId: "notion" | "google", params: URLSearchParams): Promise<string> {
+async function startWpsOAuth(origin: string): Promise<AppConnectResponse> {
+  const clientId = process.env.AGENT_OS_WPS_CLIENT_ID?.trim();
+  const clientSecret = process.env.AGENT_OS_WPS_CLIENT_SECRET?.trim();
+  const scopes = process.env.AGENT_OS_WPS_SCOPES?.trim();
+  if (!clientId || !clientSecret || !scopes) {
+    throw new Error("AgentOS 尚未配置 WPS 服务商应用。管理员需设置 WPS Client ID、Client Secret 与已审批权限；也可展开“使用已有 Token”手动连接。");
+  }
+  const redirectUri = `${origin}/api/apps/wps/oauth/callback`;
+  const state = randomBytes(20).toString("hex");
+  const pending = await readPending();
+  pending.wps = { state, clientId, clientSecret, redirectUri, scopes, createdAt: Date.now() };
+  await savePending(pending);
+  const url = new URL("https://openapi.wps.cn/oauth2/auth");
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("redirect_uri", redirectUri);
+  url.searchParams.set("scope", scopes);
+  url.searchParams.set("state", state);
+  return { status: status("wps", "connecting", "正在等待 WPS 完成授权。", { authMode: "oauth" }), authUrl: url.toString() };
+}
+
+export async function completeOAuth(appId: "notion" | "google" | "wps", params: URLSearchParams): Promise<string> {
   const pending = await readPending();
   const providerError = params.get("error");
   if (providerError) throw new Error(`授权被取消：${providerError}`);
@@ -340,6 +415,23 @@ export async function completeOAuth(appId: "notion" | "google", params: URLSearc
     return "Notion 已成功连接到 Agent OS。";
   }
 
+  if (appId === "wps") {
+    const entry = pending.wps;
+    if (!entry || Date.now() - entry.createdAt > 10 * 60_000) throw new Error("授权请求已过期，请返回 Agent OS 重试。");
+    if (params.get("state") !== entry.state) throw new Error("授权状态校验失败，请返回 Agent OS 重试。");
+    const body = new URLSearchParams({ grant_type: "authorization_code", client_id: entry.clientId, client_secret: entry.clientSecret, code, redirect_uri: entry.redirectUri });
+    const token = await fetchJson("https://openapi.wps.cn/oauth2/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
+    if (typeof token.access_token !== "string") throw new Error("WPS 没有返回访问令牌");
+    const connections = await readPrivateConnections();
+    connections.connectors ??= {};
+    connections.connectors.wps = { credentials: { mcpUrl: "https://openapi.wps.cn/mcp/v2/kso-doc/message", accessToken: token.access_token, ...(typeof token.refresh_token === "string" ? { refreshToken: token.refresh_token } : {}) }, connectedAt: new Date().toISOString() };
+    await savePrivateConnections(connections);
+    await hydrateAppConnectionEnvironment();
+    delete pending.wps;
+    await savePending(pending);
+    return "WPS 365 已成功连接到 Agent OS。";
+  }
+
   const entry = pending.google;
   if (!entry || Date.now() - entry.createdAt > 10 * 60_000) throw new Error("授权请求已过期，请返回 Agent OS 重试。");
   if (params.get("state") !== entry.state) throw new Error("授权状态校验失败，请返回 Agent OS 重试。");
@@ -354,7 +446,13 @@ export async function completeOAuth(appId: "notion" | "google", params: URLSearc
 }
 
 export async function disconnectApp(appId: ConnectedAppId): Promise<AppConnectionStatus> {
-  if (appId === "figma") await updateAuthPath("figma", "token");
+  if (isChinaConnectorAppId(appId)) {
+    const connections = await readPrivateConnections();
+    const credentials = connections.connectors?.[appId]?.credentials ?? {};
+    if (connections.connectors) delete connections.connectors[appId];
+    for (const key of Object.keys(credentials)) delete process.env[`AGENT_OS_${appId}_${key}`.replace(/[^a-z0-9]+/gi, "_").toUpperCase()];
+    await savePrivateConnections(connections);
+  } else if (appId === "figma") await updateAuthPath("figma", "token");
   else if (appId === "linear") await updateAuthPath("linear", "key");
   else if (appId === "notion") await rm(NOTION_PATH, { force: true });
   else if (appId === "google") await rm(GOOGLE_PATH, { force: true });
@@ -436,6 +534,48 @@ async function notionRpc(accessToken: string, method: string, params: JsonObject
   return { body: parseMcpResponse(raw), sessionId: response.headers.get("mcp-session-id") ?? sessionId };
 }
 
+async function connectorMcpRpc(appId: ChinaConnectorAppId, method: string, params: JsonObject, sessionId?: string): Promise<{ body: JsonObject; sessionId?: string }> {
+  const entry = (await readPrivateConnections()).connectors?.[appId];
+  const url = entry?.credentials.mcpUrl;
+  if (!entry || !url) throw new Error(`${getChinaAppDefinition(appId)?.name ?? appId} 尚未配置 MCP Server 地址`);
+  const token = entry.credentials.accessToken ?? entry.credentials.token;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Accept: "application/json, text/event-stream",
+      "Content-Type": "application/json",
+      ...(token && appId === "tencent-meeting" ? { "X-Tencent-Meeting-Token": token } : token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(sessionId ? { "Mcp-Session-Id": sessionId } : {}),
+    },
+    body: JSON.stringify({ jsonrpc: "2.0", id: randomBytes(4).toString("hex"), method, params }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  const raw = await response.text();
+  if (!response.ok) throw new Error(`MCP 请求失败（${response.status}）`);
+  const parsed = parseMcpResponse(raw);
+  if (isRecord(parsed.error)) throw new Error(text(parsed.error.message) ?? "MCP 返回错误");
+  return { body: parsed, sessionId: response.headers.get("mcp-session-id") ?? sessionId };
+}
+
+async function initializeConnectorMcp(appId: ChinaConnectorAppId) {
+  const initialized = await connectorMcpRpc(appId, "initialize", { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "Agent OS", version: "1.0.0" } });
+  await connectorMcpRpc(appId, "notifications/initialized", {}, initialized.sessionId);
+  return initialized.sessionId;
+}
+
+export async function listConnectorMcpTools(appId: ChinaConnectorAppId): Promise<unknown[]> {
+  const sessionId = await initializeConnectorMcp(appId);
+  const response = await connectorMcpRpc(appId, "tools/list", {}, sessionId);
+  const result = isRecord(response.body.result) ? response.body.result : {};
+  return Array.isArray(result.tools) ? result.tools : [];
+}
+
+export async function callConnectorMcpTool(appId: ChinaConnectorAppId, toolName: string, args: JsonObject): Promise<unknown> {
+  const sessionId = await initializeConnectorMcp(appId);
+  const response = await connectorMcpRpc(appId, "tools/call", { name: toolName, arguments: args }, sessionId);
+  return response.body.result ?? response.body;
+}
+
 async function getNotionData(section: string, query: string): Promise<AppDataResponse> {
   const config = await readJson<{ accessToken?: string }>(NOTION_PATH);
   if (!config?.accessToken) throw new Error("Notion 尚未连接");
@@ -468,11 +608,72 @@ async function getValidGoogleConfig(): Promise<GoogleConfig> {
 
 async function getGoogleData(section: string, query: string): Promise<AppDataResponse> {
   const config = await getValidGoogleConfig();
+  if (section === "邮件") {
+    const listParams = new URLSearchParams({ maxResults: "30" });
+    if (query) listParams.set("q", query);
+    const list = await fetchJson(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${listParams}`, { headers: { Authorization: `Bearer ${config.tokens.access_token}` } });
+    const messageRefs = Array.isArray(list.messages) ? list.messages.filter(isRecord).slice(0, 30) : [];
+    const messages = await Promise.all(messageRefs.map(async (message) => {
+      const id = text(message.id);
+      if (!id) return null;
+      const params = new URLSearchParams({ format: "metadata", fields: "id,threadId,internalDate,snippet,payload(headers)" });
+      for (const header of ["Subject", "From", "Date"]) params.append("metadataHeaders", header);
+      return fetchJson(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}?${params}`, { headers: { Authorization: `Bearer ${config.tokens.access_token}` } });
+    }));
+    const profile = await fetchJson("https://gmail.googleapis.com/gmail/v1/users/me/profile", { headers: { Authorization: `Bearer ${config.tokens.access_token}` } });
+    const items = messages.filter(isRecord).map((message, index): AppDataItem => {
+      const payload = isRecord(message.payload) ? message.payload : {};
+      const headers = Array.isArray(payload.headers) ? payload.headers.filter(isRecord) : [];
+      const header = (name: string) => text(headers.find((item) => text(item.name)?.toLocaleLowerCase() === name.toLocaleLowerCase())?.value);
+      const id = text(message.id) ?? `gmail-${index}`;
+      const internalDate = text(message.internalDate);
+      return {
+        id,
+        title: header("Subject") ?? "（无主题）",
+        subtitle: header("From") ?? text(message.snippet),
+        meta: header("Date") ?? (internalDate ? new Date(Number(internalDate)).toISOString() : undefined),
+        url: `https://mail.google.com/mail/u/0/#all/${encodeURIComponent(id)}`,
+        kind: "邮件",
+      };
+    });
+    return { appId: "google", section, account: text(profile.emailAddress), items, note: "Gmail 仅以只读权限访问；不会发送、修改或删除邮件。" };
+  }
   const params = new URLSearchParams({ pageSize: "40", orderBy: "modifiedTime desc", fields: "files(id,name,mimeType,modifiedTime,webViewLink,owners(displayName))" });
   if (query) params.set("q", `name contains '${query.replaceAll("'", "\\'")}' and trashed = false`);
   const body = await fetchJson(`https://www.googleapis.com/drive/v3/files?${params}`, { headers: { Authorization: `Bearer ${config.tokens.access_token}` } });
   const files = Array.isArray(body.files) ? body.files : [];
   return { appId: "google", section, items: files.filter(isRecord).map((row, index): AppDataItem => ({ id: String(row.id ?? `google-${index}`), title: text(row.name) ?? "Untitled", subtitle: text(row.mimeType), meta: text(row.modifiedTime), url: text(row.webViewLink), kind: "文件" })) };
+}
+
+async function getQichachaData(section: string, query: string): Promise<AppDataResponse> {
+  const entry = (await readPrivateConnections()).connectors?.qichacha;
+  const appKey = entry?.credentials.appKey;
+  const secretKey = entry?.credentials.secretKey;
+  if (!appKey || !secretKey) throw new Error("企查查尚未连接");
+  if (!query.trim()) {
+    return {
+      appId: "qichacha",
+      section,
+      account: appKey,
+      items: [],
+      note: "输入企业名称、统一社会信用代码、创始人或产品名，查询企查查企业模糊搜索接口。实际字段取决于机构已购买的接口套餐。",
+    };
+  }
+  const timespan = Math.floor(Date.now() / 1_000).toString();
+  const token = createHash("md5").update(`${appKey}${timespan}${secretKey}`).digest("hex").toUpperCase();
+  const params = new URLSearchParams({ key: appKey, searchKey: query.trim(), pageIndex: "1" });
+  const body = await fetchJson(`https://api.qichacha.com/FuzzySearch/GetList?${params}`, { headers: { Token: token, Timespan: timespan } });
+  const rows = Array.isArray(body.Result) ? body.Result : Array.isArray(body.Data) ? body.Data : [];
+  if (!rows.length && typeof body.Message === "string" && body.Message.trim()) throw new Error(`企查查：${body.Message.trim()}`);
+  const items = rows.filter(isRecord).map((row, index): AppDataItem => ({
+    id: text(row.KeyNo) ?? text(row.CreditCode) ?? `qichacha-${index}`,
+    title: text(row.Name) ?? "未命名企业",
+    subtitle: [text(row.OperName) ? `法定代表人 ${text(row.OperName)}` : undefined, text(row.Address)].filter(Boolean).join(" · ") || undefined,
+    meta: [text(row.Status), text(row.StartDate), text(row.CreditCode)].filter(Boolean).join(" · ") || undefined,
+    url: text(row.KeyNo) ? `https://www.qcc.com/firm/${encodeURIComponent(text(row.KeyNo)!)}` : undefined,
+    kind: "企业",
+  }));
+  return { appId: "qichacha", section, account: appKey, items, note: "结果来自企查查企业模糊搜索 API；调用会按企查查套餐计费。" };
 }
 
 function filterData(data: AppDataResponse, query: string): AppDataResponse {
@@ -482,6 +683,13 @@ function filterData(data: AppDataResponse, query: string): AppDataResponse {
 }
 
 export async function getAppData(appId: ConnectedAppId, section: string, query: string): Promise<AppDataResponse> {
+  if (appId === "qichacha") return getQichachaData(section, query);
+  if (isChinaConnectorAppId(appId)) {
+    const definition = getChinaAppDefinition(appId)!;
+    const entry = (await readPrivateConnections()).connectors?.[appId];
+    if (!entry) throw new Error(`${definition.name} 尚未连接`);
+    return filterData({ appId, section, account: entry.credentials.corpId ?? entry.credentials.clientId ?? entry.credentials.appKey, items: definition.capabilities.map((capability, index) => ({ id: `${appId}-${index}`, title: capability, subtitle: definition.authMode === "mcp" ? "可通过 MCP 调用" : "可通过开放平台访问", kind: definition.authMode.toUpperCase() })), note: "实际可用数据和操作范围由厂商账号、企业管理员审批及数据许可决定。" }, query);
+  }
   if (appId === "github") return getGitHubData(section, query);
   if (appId === "figma") return getFigmaData(section);
   if (appId === "slack") return getSlackData(section, query);

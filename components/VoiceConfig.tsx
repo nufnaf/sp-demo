@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import type { PublicDoubaoVoiceSettings } from "@/lib/voice/settings";
+import { DEFAULT_DOUBAO_TTS_SPEAKER, DOUBAO_TTS_SPEAKER_PRESETS } from "@/lib/voice/presets";
 import {
   ConfigButton,
   ConfigDetail,
@@ -27,9 +28,11 @@ const EMPTY_DRAFT: VoiceDraft = {
   accessKey: "",
   asrResourceId: "volc.bigasr.sauc.duration",
   ttsResourceId: "seed-tts-2.0",
-  ttsSpeaker: "zh_female_vv_uranus_bigtts",
+  ttsSpeaker: DEFAULT_DOUBAO_TTS_SPEAKER,
   ttsSampleRate: "24000",
 };
+
+const CUSTOM_SPEAKER = "__custom__";
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -58,6 +61,7 @@ function toDraft(settings: PublicDoubaoVoiceSettings): VoiceDraft {
 export function VoiceConfig({ onClose, embedded = false }: { onClose: () => void; embedded?: boolean }) {
   const { t } = useI18n();
   const [draft, setDraft] = useState<VoiceDraft>(EMPTY_DRAFT);
+  const speakerIsPreset = DOUBAO_TTS_SPEAKER_PRESETS.some((preset) => preset.id === draft.ttsSpeaker);
   const [settings, setSettings] = useState<PublicDoubaoVoiceSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<"save" | "test" | "remove" | null>(null);
@@ -179,7 +183,15 @@ export function VoiceConfig({ onClose, embedded = false }: { onClose: () => void
             <ConfigSectionTitle>{t("voiceSettings.resources")}</ConfigSectionTitle>
             <ConfigField label={t("voiceSettings.asrResource")}><input value={draft.asrResourceId} disabled={loading} onChange={(event) => update("asrResourceId", event.target.value)} style={inputStyle} spellCheck={false} /></ConfigField>
             <ConfigField label={t("voiceSettings.ttsResource")}><input value={draft.ttsResourceId} disabled={loading} onChange={(event) => update("ttsResourceId", event.target.value)} style={inputStyle} spellCheck={false} /></ConfigField>
-            <ConfigField label={t("voiceSettings.speaker")}><input value={draft.ttsSpeaker} disabled={loading} onChange={(event) => update("ttsSpeaker", event.target.value)} style={inputStyle} spellCheck={false} /></ConfigField>
+            <ConfigField label={t("voiceSettings.speaker")}>
+              <div style={{ display: "grid", gap: 6, width: "100%" }}>
+                <select value={speakerIsPreset ? draft.ttsSpeaker : CUSTOM_SPEAKER} disabled={loading} onChange={(event) => update("ttsSpeaker", event.target.value === CUSTOM_SPEAKER ? "" : event.target.value)} style={inputStyle}>
+                  {DOUBAO_TTS_SPEAKER_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.name} · {preset.note}</option>)}
+                  <option value={CUSTOM_SPEAKER}>{t("voiceSettings.speakerCustom")}</option>
+                </select>
+                {!speakerIsPreset && <input value={draft.ttsSpeaker} disabled={loading} onChange={(event) => update("ttsSpeaker", event.target.value)} placeholder={t("voiceSettings.speakerCustomPlaceholder")} style={inputStyle} spellCheck={false} />}
+              </div>
+            </ConfigField>
             <ConfigField label={t("voiceSettings.sampleRate")}><input type="number" min={8000} max={48000} step={1000} value={draft.ttsSampleRate} disabled={loading} onChange={(event) => update("ttsSampleRate", event.target.value)} style={inputStyle} /></ConfigField>
           </div>
         </ConfigDetailStack>
