@@ -113,7 +113,7 @@ function fallbackName(packageName: string): string {
     .split(/[-_]+/)
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ") || "Pi App";
+    .join(" ") || "Syntropic App";
 }
 
 export function toLaunchpadApp(plugin: PluginPackageInfo): PluginLaunchpadApp {
@@ -124,7 +124,7 @@ export function toLaunchpadApp(plugin: PluginPackageInfo): PluginLaunchpadApp {
     kind: "plugin",
     id: `${plugin.scope}:${plugin.source}`,
     name,
-    description: known?.description ?? "Pi Agent 扩展能力",
+    description: known?.description ?? "Syntropic 扩展能力",
     category: known?.category ?? "其他",
     icon: known?.icon ?? name.charAt(0).toUpperCase(),
     appearance: known?.appearance ?? "default",

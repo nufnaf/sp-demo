@@ -197,18 +197,18 @@ export async function getAppConnectionStatus(appId: ConnectedAppId): Promise<App
   }
   if (appId === "github") {
     const connections = await readPrivateConnections();
-    if (!await commandExists("gh")) return status(appId, "setup_required", "需要先安装 GitHub CLI，Pi Plugin 才能执行 GitHub 工作流。", { dependency: "GitHub CLI（gh）" });
+    if (!await commandExists("gh")) return status(appId, "setup_required", "需要先安装 GitHub CLI，Syntropic 插件才能执行 GitHub 工作流。", { dependency: "GitHub CLI（gh）" });
     return connections.github?.token
-      ? status(appId, "connected", "GitHub 凭据已保存在本机，并同时提供给 Pi Plugin。", { account: connections.github.login })
+      ? status(appId, "connected", "GitHub 凭据已保存在本机，并同时提供给 Syntropic 插件。", { account: connections.github.login })
       : status(appId, "disconnected", "使用 Fine-grained Personal Access Token 连接 GitHub。", { dependency: "GitHub CLI（gh）" });
   }
   if (appId === "figma") {
     const token = await readNativeToken("figma", "token", "FIGMA_TOKEN");
-    return token ? status(appId, "connected", "凭据来自 Pi 的原生 figma.token 配置。") : status(appId, "disconnected", "需要具备 File content/read 权限的 Figma Personal Access Token。");
+    return token ? status(appId, "connected", "凭据来自本机的 figma.token 配置。") : status(appId, "disconnected", "需要具备 File content/read 权限的 Figma Personal Access Token。");
   }
   if (appId === "linear") {
     const token = await readNativeToken("linear", "key", "LINEAR_API_KEY");
-    return token ? status(appId, "connected", "凭据来自 Pi 的原生 linear.key 配置。") : status(appId, "disconnected", "使用 Linear Personal API Key 连接工作区。");
+    return token ? status(appId, "connected", "凭据来自本机的 linear.key 配置。") : status(appId, "disconnected", "使用 Linear Personal API Key 连接工作区。");
   }
   if (appId === "slack") {
     const connections = await readPrivateConnections();
@@ -291,7 +291,7 @@ export async function connectApp(appId: ConnectedAppId, body: JsonObject, origin
     connections.github = { token, login };
     process.env.GH_TOKEN = token;
     await savePrivateConnections(connections);
-    return { status: status(appId, "connected", "GitHub 已连接，凭据同时提供给 Pi Plugin。", { account: login, dependency: "GitHub CLI（gh）" }) };
+    return { status: status(appId, "connected", "GitHub 已连接，凭据同时提供给 Syntropic 插件。", { account: login, dependency: "GitHub CLI（gh）" }) };
   }
   if (appId === "figma") {
     const token = typeof body.token === "string" ? body.token.trim() : "";
@@ -334,7 +334,7 @@ async function savePending(pending: PendingOAuth): Promise<void> {
 
 async function startNotionOAuth(origin: string): Promise<AppConnectResponse> {
   const redirectUri = `${origin}/api/apps/notion/oauth/callback`;
-  const registration = await fetchJson("https://mcp.notion.com/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ redirect_uris: [redirectUri], token_endpoint_auth_method: "client_secret_post", grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], client_name: "Agent OS" }) });
+  const registration = await fetchJson("https://mcp.notion.com/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ redirect_uris: [redirectUri], token_endpoint_auth_method: "client_secret_post", grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], client_name: "Syntropic" }) });
   if (typeof registration.client_id !== "string") throw new Error("Notion OAuth 客户端注册失败");
   const codeVerifier = randomBytes(32).toString("base64url");
   const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url");
@@ -403,8 +403,8 @@ export async function completeOAuth(appId: "notion" | "google" | "wps", params: 
 
   if (appId === "notion") {
     const entry = pending.notion;
-    if (!entry || Date.now() - entry.createdAt > 10 * 60_000) throw new Error("授权请求已过期，请返回 Agent OS 重试。");
-    if (params.get("state") !== entry.state) throw new Error("授权状态校验失败，请返回 Agent OS 重试。");
+    if (!entry || Date.now() - entry.createdAt > 10 * 60_000) throw new Error("授权请求已过期，请返回 Syntropic 重试。");
+    if (params.get("state") !== entry.state) throw new Error("授权状态校验失败，请返回 Syntropic 重试。");
     const body = new URLSearchParams({ grant_type: "authorization_code", client_id: entry.clientId, code, redirect_uri: entry.redirectUri, code_verifier: entry.codeVerifier });
     if (entry.clientSecret) body.set("client_secret", entry.clientSecret);
     const token = await fetchJson("https://mcp.notion.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
@@ -412,13 +412,13 @@ export async function completeOAuth(appId: "notion" | "google" | "wps", params: 
     await writePrivateJson(NOTION_PATH, { mcpUrl: NOTION_MCP_URL, accessToken: token.access_token, clientId: entry.clientId, clientSecret: entry.clientSecret });
     delete pending.notion;
     await savePending(pending);
-    return "Notion 已成功连接到 Agent OS。";
+    return "Notion 已成功连接到 Syntropic。";
   }
 
   if (appId === "wps") {
     const entry = pending.wps;
-    if (!entry || Date.now() - entry.createdAt > 10 * 60_000) throw new Error("授权请求已过期，请返回 Agent OS 重试。");
-    if (params.get("state") !== entry.state) throw new Error("授权状态校验失败，请返回 Agent OS 重试。");
+    if (!entry || Date.now() - entry.createdAt > 10 * 60_000) throw new Error("授权请求已过期，请返回 Syntropic 重试。");
+    if (params.get("state") !== entry.state) throw new Error("授权状态校验失败，请返回 Syntropic 重试。");
     const body = new URLSearchParams({ grant_type: "authorization_code", client_id: entry.clientId, client_secret: entry.clientSecret, code, redirect_uri: entry.redirectUri });
     const token = await fetchJson("https://openapi.wps.cn/oauth2/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
     if (typeof token.access_token !== "string") throw new Error("WPS 没有返回访问令牌");
@@ -429,12 +429,12 @@ export async function completeOAuth(appId: "notion" | "google" | "wps", params: 
     await hydrateAppConnectionEnvironment();
     delete pending.wps;
     await savePending(pending);
-    return "WPS 365 已成功连接到 Agent OS。";
+    return "WPS 365 已成功连接到 Syntropic。";
   }
 
   const entry = pending.google;
-  if (!entry || Date.now() - entry.createdAt > 10 * 60_000) throw new Error("授权请求已过期，请返回 Agent OS 重试。");
-  if (params.get("state") !== entry.state) throw new Error("授权状态校验失败，请返回 Agent OS 重试。");
+  if (!entry || Date.now() - entry.createdAt > 10 * 60_000) throw new Error("授权请求已过期，请返回 Syntropic 重试。");
+  if (params.get("state") !== entry.state) throw new Error("授权状态校验失败，请返回 Syntropic 重试。");
   const body = new URLSearchParams({ client_id: entry.clientId, client_secret: entry.clientSecret, code, grant_type: "authorization_code", redirect_uri: entry.redirectUri });
   const token = await fetchJson("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
   if (typeof token.access_token !== "string") throw new Error("Google 没有返回访问令牌");
@@ -442,7 +442,7 @@ export async function completeOAuth(appId: "notion" | "google" | "wps", params: 
   await writePrivateJson(GOOGLE_PATH, { clientId: entry.clientId, clientSecret: entry.clientSecret, redirectUri: entry.redirectUri, tokens: { access_token: token.access_token, refresh_token: typeof token.refresh_token === "string" ? token.refresh_token : undefined, token_type: typeof token.token_type === "string" ? token.token_type : "Bearer", scope: typeof token.scope === "string" ? token.scope : GOOGLE_SCOPES.join(" "), expiry_date: Date.now() + expiresIn * 1000 } } satisfies GoogleConfig);
   delete pending.google;
   await savePending(pending);
-  return "Google Workspace 已成功连接到 Agent OS。";
+  return "Google Workspace 已成功连接到 Syntropic。";
 }
 
 export async function disconnectApp(appId: ConnectedAppId): Promise<AppConnectionStatus> {
@@ -496,7 +496,7 @@ async function getFigmaData(section: string): Promise<AppDataResponse> {
   if (!token) throw new Error("Figma 尚未连接");
   const me = await fetchJson("https://api.figma.com/v1/me", { headers: { "X-Figma-Token": token } });
   const account = text(me.handle) ?? text(me.email);
-  return { appId: "figma", section, account, items: [{ id: String(me.id ?? "me"), title: account ?? "Figma 账号", subtitle: text(me.email), kind: "账号" }], note: "Figma API 不提供跨团队的“最近文件”列表；粘贴文件链接后，Pi Plugin 可读取对应设计数据。" };
+  return { appId: "figma", section, account, items: [{ id: String(me.id ?? "me"), title: account ?? "Figma 账号", subtitle: text(me.email), kind: "账号" }], note: "Figma API 不提供跨团队的“最近文件”列表；粘贴文件链接后，Syntropic 插件 可读取对应设计数据。" };
 }
 
 async function getSlackData(section: string, query: string): Promise<AppDataResponse> {
@@ -558,7 +558,7 @@ async function connectorMcpRpc(appId: ChinaConnectorAppId, method: string, param
 }
 
 async function initializeConnectorMcp(appId: ChinaConnectorAppId) {
-  const initialized = await connectorMcpRpc(appId, "initialize", { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "Agent OS", version: "1.0.0" } });
+  const initialized = await connectorMcpRpc(appId, "initialize", { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "Syntropic", version: "1.0.0" } });
   await connectorMcpRpc(appId, "notifications/initialized", {}, initialized.sessionId);
   return initialized.sessionId;
 }
@@ -579,7 +579,7 @@ export async function callConnectorMcpTool(appId: ChinaConnectorAppId, toolName:
 async function getNotionData(section: string, query: string): Promise<AppDataResponse> {
   const config = await readJson<{ accessToken?: string }>(NOTION_PATH);
   if (!config?.accessToken) throw new Error("Notion 尚未连接");
-  const initialized = await notionRpc(config.accessToken, "initialize", { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "Agent OS", version: "1.0.0" } });
+  const initialized = await notionRpc(config.accessToken, "initialize", { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "Syntropic", version: "1.0.0" } });
   await notionRpc(config.accessToken, "notifications/initialized", {}, initialized.sessionId);
   const tools = await notionRpc(config.accessToken, "tools/list", {}, initialized.sessionId);
   const result = isRecord(tools.body.result) ? tools.body.result : {};

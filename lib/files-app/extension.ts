@@ -23,8 +23,8 @@ export function createFilesAppExtension(): InlineExtension {
       pi.registerTool(defineTool({
         name: "file_open",
         label: "Open file",
-        description: "Open any workspace file in Agent OS's visible Files app and optionally reveal a line in text files. The user sees the same file while you continue to use the normal read/edit/write tools for file contents.",
-        promptSnippet: "Open workspace files in the visible Agent OS Files app",
+        description: "Open any workspace file in Syntropic's visible Files app and optionally reveal a line in text files. The user sees the same file while you continue to use the normal read/edit/write tools for file contents.",
+        promptSnippet: "Open workspace files in the visible Syntropic Files app",
         parameters: Type.Object({
           path: Type.String({ description: "Workspace-relative or absolute file path." }),
           line: Type.Optional(Type.Number({ minimum: 1 })),

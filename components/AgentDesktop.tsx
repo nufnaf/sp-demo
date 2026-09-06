@@ -1,5 +1,10 @@
 "use client";
 
+import { SyntropicMark } from "./SyntropicMark";
+import { DesktopStartStage } from "./DesktopStartStage";
+import { DesktopCollaboration } from "./DesktopCollaboration";
+import { compactDesktopTurns } from "@/lib/desktop-conversation";
+
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import {
@@ -13,6 +18,7 @@ import {
   type ReactNode,
 } from "react";
 import { AppShell } from "./AppShell";
+import { fitWindow, resizeWindow, type ResizeEdge, type WindowFrame, type WindowArea } from "@/lib/window-geometry";
 import { APP_LOGO_GLYPHS } from "./AppLogoGlyphs";
 import { AppStore, AppStoreBrandIcon } from "./AppStore";
 import { clearDesktopReminders, DesktopReminders } from "./DesktopReminders";
@@ -65,7 +71,7 @@ const TerminalApp = dynamic(
 );
 
 type IconName =
-  | "arrow-up" | "bell" | "chat" | "clock" | "close"
+  | "arrow-up" | "bell" | "chat" | "chevron-down" | "clock" | "close"
   | "browser"
   | "eye" | "file" | "folder" | "grid" | "insight" | "list" | "maximize" | "mic" | "minimize" | "waveform"
   | "sales" | "files" | "investment" | "plus" | "recruiting" | "search" | "settings" | "tasks" | "terminal" | "tiles";
@@ -93,7 +99,7 @@ const SYSTEM_DOCK_APPS: SystemDockApp[] = [
   { kind: "system", id: "system:browser", name: "浏览器", description: "和 Agent 共同浏览并操作网页", category: "知识办公", icon: "browser", rank: 5 },
   { kind: "system", id: "system:files", name: "文件", description: "浏览、预览和轻量编辑工作台文件", category: "产品开发", icon: "folder", rank: 6 },
   { kind: "system", id: "system:terminal", name: "终端", description: "在当前工作台运行开发命令", category: "产品开发", icon: "terminal", rank: 7 },
-  { kind: "system", id: "system:store", name: "应用商店", description: "发现和管理 Pi 应用", category: "其他", icon: "grid", rank: 8 },
+  { kind: "system", id: "system:store", name: "应用商店", description: "发现和管理 Syntropic 应用", category: "其他", icon: "grid", rank: 8 },
   { kind: "system", id: "system:settings", name: "设置", description: "配置模型、技能与 Agent", category: "其他", icon: "settings", rank: 9 },
 ];
 
@@ -102,6 +108,7 @@ const ICONS: Record<IconName, ReactNode> = {
   bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></>,
   browser: APP_LOGO_GLYPHS.browser,
   chat: <><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"/><path d="M8 9h8M8 13h5"/></>,
+  "chevron-down": <path d="m7 10 5 5 5-5"/>,
   clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
   close: <path d="m7 7 10 10M17 7 7 17"/>,
   eye: <><path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6S2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.5"/></>,
@@ -135,11 +142,7 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
 function BrandMark({ compact = false }: { compact?: boolean }) {
   return (
     <span className={`agent-os-brand-mark${compact ? " compact" : ""}`} aria-hidden="true">
-      <svg viewBox="0 0 32 32" fill="none">
-        <path d="M5 6.5h10.5c6 0 10 3.6 10 8.7 0 4.9-3.4 8.1-8.5 8.1h-3" stroke="currentColor" strokeWidth="5.4" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M5 25.5l8.4-8.2a2.9 2.9 0 0 1 4.1 0l8 8.2" stroke="currentColor" strokeWidth="5.4" strokeLinecap="round" strokeLinejoin="round"/>
-        <circle cx="15.45" cy="19.25" r="3.25" fill="#8ed8af"/>
-      </svg>
+      <SyntropicMark size="100%"/>
     </span>
   );
 }
@@ -243,7 +246,7 @@ type DataLaunchpadApp = PluginLaunchpadApp | ConnectorLaunchpadApp;
 
 const CONNECTED_APP_CONFIG: Record<PluginLaunchpadApp["appearance"], ConnectedAppConfig> = {
   github: { sections: ["概览", "仓库", "Pull Requests", "Issues"], dataLabel: "代码协作数据", emptyTitle: "还没有载入 GitHub 数据", emptyDescription: "连接 GitHub 账号后，仓库、PR 和 Issue 会集中展示在这里。" },
-  figma: { sections: ["最近文件", "项目", "组件", "评论"], dataLabel: "设计协作数据", emptyTitle: "还没有载入 Figma 文件", emptyDescription: "连接 Figma 后，可以在 Agent OS 内浏览文件、组件和评论上下文。" },
+  figma: { sections: ["最近文件", "项目", "组件", "评论"], dataLabel: "设计协作数据", emptyTitle: "还没有载入 Figma 文件", emptyDescription: "连接 Figma 后，可以在 Syntropic 内浏览文件、组件和评论上下文。" },
   slack: { sections: ["收件箱", "频道", "私信", "搜索"], dataLabel: "团队沟通数据", emptyTitle: "还没有载入 Slack 消息", emptyDescription: "连接工作区后，频道消息、私信和搜索结果会展示在这里。" },
   notion: { sections: ["最近页面", "团队空间", "数据库", "搜索"], dataLabel: "知识库数据", emptyTitle: "还没有载入 Notion 内容", emptyDescription: "连接 Notion 后，页面、数据库和团队知识会展示在这里。" },
   linear: { sections: ["我的事项", "Issues", "项目", "周期"], dataLabel: "研发管理数据", emptyTitle: "还没有载入 Linear 数据", emptyDescription: "连接 Linear 后，Issue、项目与周期进度会展示在这里。" },
@@ -299,7 +302,7 @@ function ConnectionPanel({ app, status, busy, error, onClose, onConnect, onDisco
 
   return <div className="agent-os-connection-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section className="agent-os-connection-panel" role="dialog" aria-modal="true" aria-label={`管理 ${app.name} 连接`}>
-      <header><AppLogo app={app}/><span><strong>{connected ? `${app.name} 已连接` : `连接 ${app.name}`}</strong><small>授权信息只保存在此设备，并供 Agent OS 连接器使用。</small></span><button type="button" onClick={onClose} aria-label="关闭"><Icon name="close" size={16}/></button></header>
+      <header><AppLogo app={app}/><span><strong>{connected ? `${app.name} 已连接` : `连接 ${app.name}`}</strong><small>授权信息只保存在此设备，并供 Syntropic 连接器使用。</small></span><button type="button" onClick={onClose} aria-label="关闭"><Icon name="close" size={16}/></button></header>
       <div className="agent-os-connection-body">
         <div className={`agent-os-connection-state is-${status?.state ?? "connecting"}`}><i/><span><strong>{status?.account ?? (connected ? "连接有效" : "等待授权")}</strong><small>{status?.detail ?? "正在检查连接状态…"}</small></span></div>
         {status?.dependency ? <p className="agent-os-connection-dependency"><strong>运行依赖：</strong>{status.dependency}</p> : null}
@@ -307,10 +310,10 @@ function ConnectionPanel({ app, status, busy, error, onClose, onConnect, onDisco
           <div className="agent-os-connection-scopes"><strong>授权后可读取</strong>{status.scopes.map((scope) => <span key={scope}><i/> {scope}</span>)}</div>
           <button className="agent-os-connection-danger" type="button" disabled={busy} onClick={onDisconnect}>断开连接</button>
         </> : <form onSubmit={submit}>
-          {appId === "notion" ? <p className="agent-os-connection-help">点击后将打开 Notion 官方授权页面。你可以在 Notion 中选择 Agent OS 能访问的页面与团队空间。</p> : null}
+          {appId === "notion" ? <p className="agent-os-connection-help">点击后将打开 Notion 官方授权页面。你可以在 Notion 中选择 Syntropic 能访问的页面与团队空间。</p> : null}
           {appId === "google" ? <p className="agent-os-connection-help">在 Google Cloud 创建“Web application”OAuth 凭据，并加入以下 Authorized redirect URI。授权范围包含 Gmail 只读以及 Drive、Docs、Sheets 与 Slides。<code className="agent-os-connection-uri">{`${window.location.origin}/api/apps/google/oauth/callback`}</code></p> : null}
           {appId === "slack" ? <p className="agent-os-connection-help">Bot Token 用于频道数据；User Token 仅用于全局消息搜索，可留空。Bot 还需被邀请进入要读取的频道。</p> : null}
-          {appId === "github" && status?.state === "setup_required" ? <p className="agent-os-connection-help is-warning">当前设备没有检测到 <code>gh</code>。先安装 GitHub CLI，才能保证应用界面和 Pi Plugin 使用同一套授权。</p> : null}
+          {appId === "github" && status?.state === "setup_required" ? <p className="agent-os-connection-help is-warning">当前设备没有检测到 <code>gh</code>。先安装 GitHub CLI，才能保证应用界面和 Syntropic 插件 使用同一套授权。</p> : null}
           {connectorAuthorization ? <div className={`agent-os-connection-guide is-${connectorAuthorization.kind}`}><span className="agent-os-connection-guide-icon">{connectorAuthorization.kind === "oauth" ? "↗" : connectorAuthorization.kind === "browser-token" ? "1" : "i"}</span><span><strong>{connectorAuthorization.title}</strong><small>{connectorAuthorization.description}</small></span></div> : null}
           {connectorAuthorization?.actionUrl ? <a className="agent-os-connection-action" href={connectorAuthorization.actionUrl} target="_blank" rel="noreferrer">{connectorAuthorization.actionLabel ?? "打开官方授权页面"}<span>↗</span></a> : null}
           {app.kind === "connector" && connectorAuthorization?.kind !== "browser-token" && connectorAuthorization?.kind !== "oauth" ? <button className="agent-os-connection-advanced-toggle" type="button" onClick={() => setShowAdvanced((value) => !value)}>{showAdvanced ? "收起管理员配置" : "我已获得管理员凭据"}</button> : null}
@@ -431,7 +434,7 @@ function CollaborationCliAppView({ app, onNotice }: { app: ConnectorLaunchpadApp
       </> : <section className="agent-os-onboarding-welcome">
         <AppLogo app={app}/>
         <h1>连接 {app.name}</h1>
-        <p>登录后即可在 Agent OS 中使用{app.connector.capabilities.slice(0, 3).join("、")}。</p>
+        <p>登录后即可在 Syntropic 中使用{app.connector.capabilities.slice(0, 3).join("、")}。</p>
         {error ? <p className="agent-os-onboarding-error" role="alert">{error}</p> : null}
         <button className="agent-os-onboarding-primary" type="button" disabled={busy} onClick={() => { void connect(); }}>{busy ? <><span className="agent-os-spinner"/>正在准备</> : "继续"}</button>
         <small className="agent-os-onboarding-privacy"><span>✓</span> 授权凭据仅保存在这台设备上</small>
@@ -442,7 +445,7 @@ function CollaborationCliAppView({ app, onNotice }: { app: ConnectorLaunchpadApp
   </div>;
 
   return <div className="agent-os-feishu-app agent-os-cli-app is-connected">
-    <header><AppLogo app={app}/><span><small>已连接</small><h1>{status?.account || status?.organization || app.name}</h1><p>{app.name} 已可供 Agent OS 使用。</p></span><em className="is-ready">已连接</em></header>
+    <header><AppLogo app={app}/><span><small>已连接</small><h1>{status?.account || status?.organization || app.name}</h1><p>{app.name} 已可供 Syntropic 使用。</p></span><em className="is-ready">已连接</em></header>
     <section className="agent-os-cli-capabilities"><header><span><small>已授予 Agent</small><h2>可用能力</h2></span></header><div>{app.connector.capabilities.map((capability) => <span key={capability}><i/> {capability}</span>)}</div><p>授权信息由本机安全保存。</p></section>
   </div>;
 }
@@ -586,7 +589,7 @@ function ConnectedAppDataView({ app, onNotice }: { app: DataLaunchpadApp; onNoti
     <main><section className="agent-os-onboarding-welcome">
       <AppLogo app={app}/>
       <h1>连接 {app.name}</h1>
-      <p>登录后即可在 Agent OS 中使用{app.connector.capabilities.slice(0, 3).join("、")}。</p>
+      <p>登录后即可在 Syntropic 中使用{app.connector.capabilities.slice(0, 3).join("、")}。</p>
       {connectionError ? <p className="agent-os-onboarding-error" role="alert">{connectionError}</p> : null}
       <button className="agent-os-onboarding-primary" type="button" disabled={busy} onClick={() => { void connect({}); }}>{busy ? <><span className="agent-os-spinner"/>等待授权</> : "继续"}</button>
       <small className="agent-os-onboarding-privacy"><span>✓</span> 将前往 {app.name} 官方页面授权</small>
@@ -596,7 +599,7 @@ function ConnectedAppDataView({ app, onNotice }: { app: DataLaunchpadApp; onNoti
 
   return <div className={`agent-os-connected-app is-${app.appearance}`}>
     <aside>
-      <header><AppLogo app={app}/><span><strong>{app.name}</strong><small>Agent OS 数据应用</small></span></header>
+      <header><AppLogo app={app}/><span><strong>{app.name}</strong><small>Syntropic 数据应用</small></span></header>
       <nav aria-label={`${app.name} 数据分类`}>{config.sections.map((item) => <button key={item} type="button" aria-current={section === item ? "page" : undefined} onClick={() => setSection(item)}><i/>{item}</button>)}</nav>
       <footer><span className={disabled || !connected ? "is-disabled" : ""}/><div><strong>{disabled ? "应用已停用" : connected ? "数据连接正常" : "等待账号连接"}</strong><small>{appScope === "全局" ? "所有工作区可用" : "当前项目可用"}</small></div></footer>
     </aside>
@@ -606,7 +609,7 @@ function ConnectedAppDataView({ app, onNotice }: { app: DataLaunchpadApp; onNoti
         <button type="button" disabled={loadingData} onClick={() => { void refresh(); }}>{loadingData ? "刷新中…" : "刷新"}</button>
       </header>
       <div className="agent-os-connected-content">
-        <header><span><small>{config.dataLabel}</small><h1>{section}</h1><p>通过 Agent OS 连接器读取并组织 {app.name} 数据，不改变原应用中的内容。</p></span><em>{disabled ? "已停用" : "已安装"}</em></header>
+        <header><span><small>{config.dataLabel}</small><h1>{section}</h1><p>通过 Syntropic 连接器读取并组织 {app.name} 数据，不改变原应用中的内容。</p></span><em>{disabled ? "已停用" : "已安装"}</em></header>
         <section className="agent-os-connected-metrics" aria-label="连接概览">
           <article><small>连接状态</small><strong>{disabled ? "不可用" : connection?.state === "connected" ? connection.account ?? "已授权" : connection?.state === "setup_required" ? "需要配置" : connection?.state === "connecting" ? "授权中" : "等待授权"}</strong></article>
           <article><small>Agent 能力</small><strong>{resourceCount}</strong></article>
@@ -895,7 +898,7 @@ function FeishuAppView({ app, onNotice, onOpenDocument }: {
       </> : <section className="agent-os-onboarding-welcome">
         <AppLogo app={app}/>
         <h1>连接飞书</h1>
-        <p>登录后即可在 Agent OS 中使用消息、文档和多维表格。</p>
+        <p>登录后即可在 Syntropic 中使用消息、文档和多维表格。</p>
         {error ? <p className="agent-os-onboarding-error" role="alert">{error}</p> : null}
         <button className="agent-os-onboarding-primary" type="button" disabled={busy || loading} onClick={() => { void connect(); }}>{busy ? <><span className="agent-os-spinner"/>正在准备</> : "继续"}</button>
         <small className="agent-os-onboarding-privacy"><span>✓</span> 使用飞书官方授权，凭据保存在本机</small>
@@ -1002,7 +1005,7 @@ function Launchpad({ open, cwd, onClose, onOpenApp }: {
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const visibleApps = allApps.filter((app) => {
     if (category !== "全部" && app.category !== category) return false;
-    const source = app.kind === "plugin" ? app.plugin.source : app.kind === "connector" ? `${app.connector.authMode} ${app.connector.capabilities.join(" ")}` : app.kind === "builtin" ? "飞书 lark cli builtin" : "Agent OS system app";
+    const source = app.kind === "plugin" ? app.plugin.source : app.kind === "connector" ? `${app.connector.authMode} ${app.connector.capabilities.join(" ")}` : app.kind === "builtin" ? "飞书 lark cli builtin" : "Syntropic system app";
     return !normalizedQuery || `${app.name} ${app.description} ${source}`.toLocaleLowerCase().includes(normalizedQuery);
   });
 
@@ -1234,6 +1237,10 @@ function DesktopWindow({
   children: ReactNode;
   cascadeIndex?: number;
 }) {
+  const windowRef = useRef<HTMLElement>(null);
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  const [resizing, setResizing] = useState(false);
+  const resizeRef = useRef<{ pointerId: number; edge: ResizeEdge; pointerX: number; pointerY: number; frame: WindowFrame; area: WindowArea } | null>(null);
   const [maximized, setMaximized] = useState(false);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const dragRef = useRef<{
@@ -1251,9 +1258,65 @@ function DesktopWindow({
     translate: "-50% -50%",
   };
 
+
+  useEffect(() => {
+    const layer = windowRef.current?.parentElement;
+    if (!layer) return;
+    const observer = new ResizeObserver(() => {
+      // Mobile uses full-screen CSS; preserve the desktop restore geometry.
+      if (window.innerWidth <= 760) return;
+      const area = { width: layer.clientWidth, height: layer.clientHeight };
+      setSize((current) => {
+        if (!current) return current;
+        const fitted = fitWindow({ x: 8, y: 8, ...current }, area);
+        return { width: fitted.width, height: fitted.height };
+      });
+      setPosition((current) => {
+        const element = windowRef.current;
+        if (!current || !element) return current;
+        const fitted = fitWindow({ ...current, width: element.offsetWidth, height: element.offsetHeight }, area);
+        return { x: fitted.x, y: fitted.y };
+      });
+    });
+    observer.observe(layer);
+    return () => observer.disconnect();
+  }, []);
+
+  const startResize = (event: ReactPointerEvent<HTMLDivElement>, edge: ResizeEdge) => {
+    if (event.button !== 0 || !event.isPrimary || maximized) return;
+    const element = windowRef.current;
+    const layer = element?.parentElement;
+    if (!element || !layer) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onFocus();
+    const rect = element.getBoundingClientRect();
+    const layerRect = layer.getBoundingClientRect();
+    const area = { width: layer.clientWidth, height: layer.clientHeight };
+    const frame = fitWindow({ x: rect.left - layerRect.left, y: rect.top - layerRect.top, width: element.offsetWidth, height: element.offsetHeight }, area);
+    resizeRef.current = { pointerId: event.pointerId, edge, pointerX: event.clientX, pointerY: event.clientY, frame, area };
+    setPosition({ x: frame.x, y: frame.y });
+    setSize({ width: frame.width, height: frame.height });
+    setResizing(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const resize = resizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    const frame = resizeWindow(resize.frame, resize.edge, event.clientX - resize.pointerX, event.clientY - resize.pointerY, resize.area);
+    setPosition({ x: frame.x, y: frame.y });
+    setSize({ width: frame.width, height: frame.height });
+  };
+  const finishResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (resizeRef.current?.pointerId !== event.pointerId) return;
+    resizeRef.current = null;
+    setResizing(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
   const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     onFocus();
-    if (maximized || (event.target as HTMLElement).closest("button")) return;
+    if (event.button !== 0 || window.innerWidth <= 760 || maximized || (event.target as HTMLElement).closest("button")) return;
     const windowElement = event.currentTarget.parentElement;
     const windowLayer = windowElement?.parentElement;
     if (!windowElement || !windowLayer) return;
@@ -1285,19 +1348,20 @@ function DesktopWindow({
 
   return (
     <article
-      className={`agent-os-window agent-os-window-${kind}${className ? ` ${className}` : ""}${front ? " is-front" : ""}${maximized ? " is-maximized" : ""}`}
-      style={maximized ? undefined : position
-        ? { left: position.x, top: position.y, translate: "none" }
-        : centeredPosition}
+      ref={windowRef}
+      aria-label={title}
+      className={`agent-os-window agent-os-window-${kind}${className ? ` ${className}` : ""}${front ? " is-front" : ""}${maximized ? " is-maximized" : ""}${resizing ? " is-resizing" : ""}`}
+      style={maximized ? undefined : { ...(position ? { left: position.x, top: position.y, translate: "none" } : centeredPosition), ...(size ? { width: size.width, height: size.height } : {}) }}
       onPointerDown={onFocus}
     >
       <header
         className="agent-os-window-bar"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
-        onPointerUp={(event) => { dragRef.current = null; event.currentTarget.releasePointerCapture(event.pointerId); }}
+        onPointerUp={(event) => { dragRef.current = null; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
         onPointerCancel={() => { dragRef.current = null; }}
-        onDoubleClick={() => setMaximized((value) => !value)}
+        onLostPointerCapture={() => { dragRef.current = null; }}
+        onDoubleClick={(event) => { if (!(event.target as HTMLElement).closest("button")) setMaximized((value) => !value); }}
       >
         <span className="agent-os-traffic" aria-label="窗口控制">
           <button className="close" type="button" aria-label="关闭" onClick={onClose}/>
@@ -1308,6 +1372,11 @@ function DesktopWindow({
         <span />
       </header>
       <div className="agent-os-window-body">{children}</div>
+      {!maximized && (["n", "e", "s", "w", "ne", "se", "sw", "nw"] as ResizeEdge[]).map((edge) => (
+        <div key={edge} className={`agent-os-window-resize is-${edge}`} aria-hidden="true"
+          onPointerDown={(event) => startResize(event, edge)} onPointerMove={moveResize}
+          onPointerUp={finishResize} onPointerCancel={finishResize} onLostPointerCapture={finishResize}/>
+      ))}
     </article>
   );
 }
@@ -1317,10 +1386,41 @@ export function AgentDesktop() {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [runningIds, setRunningIds] = useState<Set<string>>(() => new Set());
   const [activeCwd, setActiveCwd] = useState<string | null>(null);
+  const [engagedWorkspaces, setEngagedWorkspaces] = useState<Set<string>>(() => new Set());
+  const markWorkspaceEngaged = useCallback((cwd: string | null) => {
+    if (!cwd) return;
+    setEngagedWorkspaces((current) => current.has(cwd) ? current : new Set(current).add(cwd));
+    try { localStorage.setItem(`pi-web:desktop-engaged:${cwd}`, "true"); } catch { /* Optional persistence. */ }
+  }, []);
+  useEffect(() => {
+    if (!activeCwd) return;
+    try { if (localStorage.getItem(`pi-web:desktop-engaged:${activeCwd}`) === "true") markWorkspaceEngaged(activeCwd); } catch { /* Storage may be unavailable. */ }
+  }, [activeCwd, markWorkspaceEngaged]);
   const [managedWorkspaces, setManagedWorkspaces] = useState<WorkspaceOption[]>([]);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [workspaceBusy, setWorkspaceBusy] = useState(false);
+  const liveVoiceActiveRef = useRef(false);
+  const [liveDispatches, setLiveDispatches] = useState<Array<{ task: JarvisTask; expiresAt: number }>>([]);
   const [prompt, setPrompt] = useState("");
+  const composerInputRef = useRef<HTMLInputElement>(null);
+  const [startMode, setStartMode] = useState<"research" | "files" | "apps" | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [openingStartResource, setOpeningStartResource] = useState(false);
+  const [guideDismissed, setGuideDismissed] = useState(true);
+  const [reminderCount, setReminderCount] = useState(0);
+  useEffect(() => {
+    setStartMode(null);
+    setGuideOpen(false);
+    setReminderCount(0);
+    try { setGuideDismissed(localStorage.getItem(`pi-web:desktop-start:${activeCwd ?? "default"}`) === "dismissed"); }
+    catch { setGuideDismissed(false); }
+  }, [activeCwd]);
+  const handleReminderHistory = useCallback((items: { completed: boolean }[]) => setReminderCount(items.length), []);
+  const dismissGuide = () => {
+    setGuideOpen(false);
+    setGuideDismissed(true);
+    try { localStorage.setItem(`pi-web:desktop-start:${activeCwd ?? "default"}`, "dismissed"); } catch { /* Optional preference. */ }
+  };
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [taskSessionId, setTaskSessionId] = useState<string | null>(null);
@@ -1461,6 +1561,7 @@ export function AgentDesktop() {
         session.cwd === activeCwd
         && session.id !== jarvisSessionId
         && session.name !== "Jarvis"
+        && session.name !== "Syntropic"
       ))
       : [],
     [activeCwd, jarvisSessionId, sessions],
@@ -1915,9 +2016,10 @@ export function AgentDesktop() {
         id: data.sessionId!, path: "", cwd, created: new Date().toISOString(), modified: new Date().toISOString(),
         messageCount: 1, firstMessage: normalizedMessage, transient: true,
       }, ...current.filter((session) => session.id !== data.sessionId)]);
+      markWorkspaceEngaged(cwd);
       setRunningIds((current) => new Set(current).add(data.sessionId!));
       setPrompt("");
-      setNotice("任务已交给 Pi Agent，正在桌面持续推进");
+      setNotice("任务已交给 Syntropic，正在桌面持续推进");
       window.setTimeout(() => void refreshSessions(), 450);
       return data.sessionId;
     } catch (error) {
@@ -1926,15 +2028,18 @@ export function AgentDesktop() {
     } finally {
       setSubmitting(false);
     }
-  }, [ensureCwd, refreshSessions]);
+  }, [ensureCwd, refreshSessions, markWorkspaceEngaged]);
 
   // Jarvis is the desktop's conversation partner. It only talks and delegates;
   // real work runs in background Pi sessions that show up as tasks here.
   const handleJarvisTaskStarted = useCallback((task: JarvisTask) => {
-    setNotice(`Jarvis 已派出任务：${task.description}`);
+    if (liveVoiceActiveRef.current) setLiveDispatches((current) => [...current.filter((item) => item.task.sessionId !== task.sessionId), { task, expiresAt: Date.now() + 12_000 }]);
+    markWorkspaceEngaged(activeCwd);
+    if (activeCwd) setSessions((current) => current.some((session) => session.id === task.sessionId) ? current : [{ id: task.sessionId, path: "", cwd: activeCwd, created: task.createdAt, modified: task.createdAt, messageCount: 1, firstMessage: task.description, transient: true }, ...current]);
+    setNotice(`Syntropic 已派出任务：${task.description}`);
     setRunningIds((current) => new Set(current).add(task.sessionId));
     window.setTimeout(() => void refreshSessions(), 450);
-  }, [refreshSessions]);
+  }, [activeCwd, markWorkspaceEngaged, refreshSessions]);
   const handleJarvisTaskSettled = useCallback((task: JarvisTask) => {
     setNotice(`任务「${task.description}」${task.status === "aborted" ? "已停止" : "已完成"}`);
     setRunningIds((current) => {
@@ -1968,24 +2073,13 @@ export function AgentDesktop() {
   // The Jarvis panel opens itself when the conversation is active and stays
   // closed once the user dismisses it, until the next exchange.
   const [jarvisPanelOpen, setJarvisPanelOpen] = useState(false);
+  const compactTurns = useMemo(() => compactDesktopTurns(jarvis.turns, jarvis.tasks), [jarvis.turns, jarvis.tasks]);
+  const followConversationRef = useRef(true);
   const latestJarvisTurnId = jarvis.turns.length ? jarvis.turns[jarvis.turns.length - 1].id : 0;
-  // While the panel is collapsed, a new reply shows as a one-line ticker for a moment.
-  const [tickerTurnId, setTickerTurnId] = useState(0);
-  useEffect(() => {
-    if (!latestJarvisTurnId || jarvisPanelOpen) return;
-    const latest = jarvis.turns[jarvis.turns.length - 1];
-    if (latest?.role !== "assistant") return;
-    setTickerTurnId(latest.id);
-    const timer = window.setTimeout(() => setTickerTurnId(0), 14_000);
-    return () => window.clearTimeout(timer);
-    // The ticker only reacts to new turns, not to the panel toggling.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jarvis.latestReplyTurnId]);
-  const tickerTurn = tickerTurnId && !jarvisPanelOpen && !desktopVoice.isActive ? jarvis.turns.find((turn) => turn.id === tickerTurnId) : undefined;
   const jarvisTranscriptRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const element = jarvisTranscriptRef.current;
-    if (element) element.scrollTop = element.scrollHeight;
+    if (element && followConversationRef.current) element.scrollTop = element.scrollHeight;
   }, [jarvisPanelOpen, latestJarvisTurnId, jarvis.streamingText]);
 
   // Tell the server when the user is talking or Jarvis is speaking, so task
@@ -2008,13 +2102,20 @@ export function AgentDesktop() {
     if (desktopVoice.error) setNotice(desktopVoice.error);
   }, [desktopVoice.error]);
 
-  const submitPrompt = async (event: FormEvent) => {
-    event.preventDefault();
-    const message = prompt.trim();
-    if (!message) return;
+  const sendDesktopMessage = async (text: string) => {
+    const message = text.trim();
+    if (!message || !jarvis.sessionId) return;
+    markWorkspaceEngaged(activeCwd);
+    dismissGuide();
+    followConversationRef.current = true;
+    setJarvisPanelOpen(true);
     setPrompt("");
     desktopVoice.noteUserInput();
     await jarvis.send(message);
+  };
+  const submitPrompt = async (event: FormEvent) => {
+    event.preventDefault();
+    await sendDesktopMessage(prompt);
   };
   const dictationCompletionRef = useRef<"draft" | "send">("draft");
   // Tap-to-dictate can either return the finished transcript to the composer
@@ -2026,9 +2127,8 @@ export function AgentDesktop() {
         setPrompt(completeText);
         return;
       }
-      setPrompt("");
-      desktopVoice.noteUserInput();
-      void jarvis.send(completeText);
+      setPrompt(completeText);
+      void sendDesktopMessage(completeText);
     },
   });
   const startConversation = useCallback(() => {
@@ -2037,8 +2137,8 @@ export function AgentDesktop() {
   }, [dictation, desktopVoice]);
   const jarvisRunningTasks = jarvis.tasks.filter((task) => task.status === "running");
 
-  // Live mode: a caption that lingers briefly after speech, task chips that
-  // stay a moment after settling, controls that only appear on demand.
+  // Live discussion keeps captions and short dispatch receipts beside the orb.
+  // Ongoing task progress belongs to the persistent collaboration shelf.
   const liveCaptionSource = desktopVoice.transcript
     ? { kind: "user" as const, text: desktopVoice.transcript }
     : desktopVoice.caption
@@ -2060,19 +2160,20 @@ export function AgentDesktop() {
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desktopVoice.isActive, liveCaptionSource?.kind, liveCaptionSource?.text]);
-  const [settledChips, setSettledChips] = useState<JarvisTask[]>([]);
-  const settledSeenRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    const fresh = jarvis.tasks.filter((task) => task.status !== "running" && !settledSeenRef.current.has(task.sessionId));
-    if (!fresh.length) return;
-    for (const task of fresh) settledSeenRef.current.add(task.sessionId);
-    if (!desktopVoice.isActive) return;
-    setSettledChips((current) => [...current, ...fresh]);
+    liveVoiceActiveRef.current = desktopVoice.isActive;
+    if (!desktopVoice.isActive) setLiveDispatches([]);
+    return () => { liveVoiceActiveRef.current = false; };
+  }, [desktopVoice.isActive]);
+  useEffect(() => { setLiveDispatches([]); }, [activeCwd]);
+  useEffect(() => {
+    if (!liveDispatches.length) return;
+    const nextExpiry = Math.min(...liveDispatches.map((item) => item.expiresAt));
     const timer = window.setTimeout(() => {
-      setSettledChips((current) => current.filter((task) => !fresh.some((item) => item.sessionId === task.sessionId)));
-    }, 9_000);
+      setLiveDispatches((current) => current.filter((item) => item.expiresAt > Date.now()));
+    }, Math.max(0, nextExpiry - Date.now()));
     return () => window.clearTimeout(timer);
-  }, [desktopVoice.isActive, jarvis.tasks]);
+  }, [liveDispatches]);
   const [liveMenuOpen, setLiveMenuOpen] = useState(false);
   useEffect(() => {
     if (!desktopVoice.isActive) {
@@ -2086,11 +2187,20 @@ export function AgentDesktop() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [desktopVoice.isActive, desktopVoice.toggle]);
-  const liveChips = [...jarvisRunningTasks, ...settledChips.filter((task) => !jarvisRunningTasks.some((item) => item.sessionId === task.sessionId))];
 
   const formatDate = new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", weekday: "short" }).format(now);
   const formatTime = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
   const runningCount = workspaceSessions.filter((session) => runningIds.has(session.id) && !isInsightTaskSession(session)).length;
+  const hasOpenWindow = Boolean(taskSessionId || artifactLibraryOpen || settingsOpen || appStoreOpen || salesCrmOpen || hrRecruitingOpen || investmentWorkspaceOpen || browserOpen || filesOpen || terminalOpen || launchpadOpen || openApps.length || openArtifacts.length || openFeishuDocuments.length);
+  const hasStartedWork = Boolean(activeCwd && engagedWorkspaces.has(activeCwd)) || visibleTasks.length > 0 || artifacts.length > 0;
+  useEffect(() => {
+    if (visibleTasks.length > 0 || artifacts.length > 0 || jarvis.running) markWorkspaceEngaged(activeCwd);
+  }, [activeCwd, visibleTasks.length, artifacts.length, jarvis.running, markWorkspaceEngaged]);
+  const showStart = !hasStartedWork && !hasOpenWindow && !jarvisPanelOpen && !desktopVoice.isActive && !jarvis.running && (guideOpen || (!guideDismissed && visibleTasks.length === 0 && artifacts.length === 0 && reminderCount === 0 && insightResults.length === 0));
+  const startPlaceholder = startMode === "files" ? "想怎样处理这份材料？" : startMode === "apps" ? "想让应用帮你做什么？" : "比较两款产品，或研究一个你关心的问题…";
+  const chooseStart = (mode: "research" | "files" | "apps") => {
+    setStartMode(mode);
+  };
   const dockContextApp = dockContextMenu ? dockApps.find((app) => app.id === dockContextMenu.appId) : null;
   const pinnedDockItems = dockApps.filter((item) => pinnedDockAppIds.has(item.id));
   const temporaryDockItems = dockApps.filter((item) => !pinnedDockAppIds.has(item.id));
@@ -2116,7 +2226,7 @@ export function AgentDesktop() {
   };
 
   return (
-    <main className="agent-os">
+    <main className={`agent-os${showStart ? " has-start-guide" : ""}`}>
       <div className="agent-os-wallpaper" aria-hidden="true"><i/><i/><span/></div>
 
       <header className="agent-os-menu-bar">
@@ -2125,7 +2235,7 @@ export function AgentDesktop() {
         </button>
         <div className="agent-os-workspace-wrap">
           <button className="agent-os-workspace" type="button" aria-haspopup="dialog" aria-expanded={workspaceOpen} onClick={() => setWorkspaceOpen((value) => !value)}>
-            <i/><span>{workspaces.find((item) => item.cwd === activeCwd)?.name ?? "Agent 工作台"}</span><small className={workspaceOpen ? "open" : ""}>⌄</small>
+            <i/><span className="agent-os-workspace-name">{workspaces.find((item) => item.cwd === activeCwd)?.name ?? "Agent 工作台"}</span><span className={`agent-os-workspace-chevron${workspaceOpen ? " open" : ""}`} aria-hidden="true"><Icon name="chevron-down" size={12}/></span>
           </button>
           {workspaceOpen && <section className="agent-os-workspace-menu" role="dialog" aria-label="管理工作台">
             <header>
@@ -2156,7 +2266,7 @@ export function AgentDesktop() {
             <Icon name="bell" size={18}/>
             {(runningCount > 0 || insightNotification) && <i className={insightNotification ? "is-insight" : ""}/>}
           </button>
-          <span>{formatDate}</span><span>{formatTime}</span><button className="agent-os-avatar" type="button">J</button>
+          <span>{formatDate}</span><span>{formatTime}</span><button className="agent-os-avatar" type="button" aria-label="Syntropic"><SyntropicMark size={16}/></button>
           {notificationCenterOpen && (
             <section className="agent-os-notification-center" aria-label="通知中心">
               <header><strong>通知</strong><small>{insightResults.length ? `${insightResults.length} 条洞察` : "暂无新通知"}</small></header>
@@ -2174,9 +2284,9 @@ export function AgentDesktop() {
         </div>
       </header>
 
-      <section className="agent-os-desktop" aria-label="Agent OS 桌面">
+      <section className="agent-os-desktop" aria-label="Syntropic 桌面">
         <DraggableDesktopWidget
-          className="agent-os-widget-reminders"
+          className={`agent-os-widget-reminders${reminderCount === 0 ? " is-empty-hidden" : ""}`}
           defaultPosition={{ left: "clamp(34px, 9vw, 180px)", top: "clamp(90px, 15vh, 165px)" }}
           widgetId="reminders"
         >
@@ -2185,56 +2295,25 @@ export function AgentDesktop() {
             workspaceKey={activeCwd ?? "default"}
             onLaunch={(title) => startTask(`请完成以下待办事项：${title}\n\n请先理解当前项目上下文，然后直接实施并验证结果。除非待办事项明确提到某项外部服务，否则只使用当前项目文件和本地工具，不要主动检查或请求配置 Linear、Slack、Notion、Figma 等外部账号。`)}
             onOpenTask={openTask}
+            onHistoryChange={handleReminderHistory}
           />
         </DraggableDesktopWidget>
 
-        <DraggableDesktopWidget
-          className="agent-os-widget-tasks"
-          defaultPosition={{ right: "clamp(34px, 9vw, 180px)", top: "clamp(90px, 15vh, 165px)" }}
-          widgetId="tasks"
-        >
-          <article className="agent-os-card agent-os-task-widget">
-            <header><span><i className="agent-os-live-dot"/><strong>当前任务</strong></span><em>{runningCount} 项</em></header>
-            <div className="agent-os-task-list">
-              {visibleTasks.length ? visibleTasks.map((session) => {
-                const running = runningIds.has(session.id);
-                const taskArtifacts = artifacts.filter((artifact) => artifact.sessionId === session.id);
-                return <button type="button" className="agent-os-task-row" key={session.id} onClick={() => openTask(session.id)}>
-                  <span><strong>{compactText(taskTitle(session), 42)}</strong><small>{running ? "Pi Agent 正在执行，过程会持续同步" : taskArtifacts.length ? `已生成 ${taskArtifacts.length} 个文件产物` : "任务已完成，可打开查看详情"}</small></span>
-                  <i className={running ? "running" : "done"}>{running ? "" : "✓"}</i>
-                </button>;
-              }) : <div className="agent-os-empty"><Icon name="tasks" size={29}/><strong>任务会在这里持续推进</strong><small>从下方输入框发送你的第一个任务</small></div>}
-            </div>
-          </article>
-        </DraggableDesktopWidget>
-
-        <DraggableDesktopWidget
-          className="agent-os-widget-insight"
-          defaultPosition={{ right: "clamp(34px, 9vw, 180px)", top: "calc(clamp(90px, 15vh, 165px) + 312px)" }}
-          widgetId="insight"
-        >
-          <article className="agent-os-card agent-os-insight-card">
-            <header><span><i className="agent-os-live-dot"/><strong>AI 洞察</strong></span><em>{insightRunning ? "分析中" : insightResults.length ? `${insightResults.length} 项` : "持续观察"}</em></header>
-            <div className="agent-os-insight-list">
-              {insightResults.length ? insightResults.slice(0, 4).map((result, index) => (
-                <button type="button" key={`${result.sessionId}:${result.filePath}`} onClick={() => openInsightResult(result)}>
-                  <span className="agent-os-insight-item-icon"><Icon name="insight" size={15}/></span>
-                  <span className="agent-os-insight-item-copy">
-                    <strong>{result.title}</strong>
-                    <small className="meta">{index === 0 ? "最新洞察" : "洞察报告"} · {formatInsightModified(result.modified)}</small>
-                  </span>
-                  <span className="agent-os-insight-item-chevron">›</span>
-                </button>
-              )) : (
-                <div className="agent-os-insight-empty">
-                  <span><Icon name="insight" size={20}/></span>
-                  <strong>{insightRunning ? "正在分析最新变化" : "洞察会在这里汇集"}</strong>
-                  <small>{insightRunning ? "正在判断是否值得主动提醒" : "持续监听飞书文档、会议和任务变化"}</small>
-                </div>
-              )}
-            </div>
-          </article>
-        </DraggableDesktopWidget>
+        {hasStartedWork && <DraggableDesktopWidget className="collaboration-shelf" widgetId="collaboration-shelf-v1" defaultPosition={{ left: "24px", top: "32px" }}>
+          <DesktopCollaboration
+            working={runningCount > 0 || jarvis.running}
+            analyzing={insightRunning}
+            tasks={visibleTasks.map((session) => {
+              const running = runningIds.has(session.id);
+              const files = artifacts.filter((artifact) => artifact.sessionId === session.id).length;
+              const status = jarvis.tasks.find((task) => task.sessionId === session.id)?.status;
+              return { id: session.id, title: taskTitle(session), running, detail: running ? "正在推进" : status === "aborted" ? "已停止 · 查看详情" : files ? `已生成 ${files} 个文件` : "查看任务进展", onOpen: () => openTask(session.id) };
+            })}
+            artifacts={artifacts.map((artifact) => ({ id: artifactIdentity(artifact), title: getFileName(artifact.filePath), detail: artifact.taskTitle, onOpen: () => openArtifact(artifact) }))}
+            insights={insightResults.map((result) => ({ id: `${result.sessionId}:${result.filePath}`, title: result.title, detail: formatInsightModified(result.modified), onOpen: () => openInsightResult(result) }))}
+            onOpenLibrary={openArtifactLibrary}
+          />
+        </DraggableDesktopWidget>}
 
       </section>
 
@@ -2364,18 +2443,20 @@ export function AgentDesktop() {
         })}
       </section>
 
-      <section className={`agent-os-ai-surface${desktopVoice.isActive ? ` voice-active voice-${desktopVoice.state}` : ""}`}>
+      <section className={`agent-os-ai-surface${showStart ? " is-starting" : ""}${desktopVoice.isActive ? ` voice-active voice-${desktopVoice.state}` : ""}`}>
+        {showStart && <DesktopStartStage scene={startMode ?? "research"} onSceneChange={chooseStart} onDismiss={dismissGuide}/>}
         {jarvisPanelOpen ? (
-          <section className={`agent-os-jarvis-panel voice-${desktopVoice.state}${jarvis.running ? " is-running" : ""}${desktopVoice.isActive ? " is-live" : ""}`} aria-label="Jarvis 对话">
+          <section className={`agent-os-jarvis-panel voice-${desktopVoice.state}${jarvis.running ? " is-running" : ""}${desktopVoice.isActive ? " is-live" : ""}`} aria-label="Syntropic 对话" id="desktop-conversation">
             <header>
+              <span className="conversation-heading"><Icon name="chat" size={14}/><strong>对话</strong><small>{jarvis.running ? "正在回应" : "Syntropic"}</small></span>
               <button type="button" onClick={jarvis.reset} title="开始一段新的对话">新对话</button>
               <button type="button" aria-label="收起对话记录" onClick={() => setJarvisPanelOpen(false)}><Icon name="close" size={14}/></button>
             </header>
-            <div className="agent-os-jarvis-transcript" ref={jarvisTranscriptRef}>
+            <div className="agent-os-jarvis-transcript" ref={jarvisTranscriptRef} onScroll={(event) => { const el = event.currentTarget; followConversationRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }}>
               {jarvis.turns.length === 0 && !jarvis.running ? (
-                <p className="agent-os-jarvis-empty">你好，我是 Jarvis。想聊什么、想做什么，直接说就行；需要动手的活我会派给后台的 Pi Agent，做完再告诉你。</p>
+                <p className="agent-os-jarvis-empty">你好，我是 Syntropic。告诉我你想做什么，我会帮你理清思路、推进任务，并在完成后告诉你。</p>
               ) : null}
-              {jarvis.turns.map((turn) => turn.role === "task" && turn.task ? (
+              {compactTurns.map((turn) => turn.role === "task" && turn.task ? (
                 <button
                   key={turn.id}
                   type="button"
@@ -2383,9 +2464,9 @@ export function AgentDesktop() {
                   onClick={() => openTask(turn.task!.sessionId)}
                   title="打开任务窗口查看细节"
                 >
-                  <i/>
-                  <span>{turn.task.description}</span>
-                  <em>{turn.taskEvent === "started" ? "已派出" : turn.task.status === "aborted" ? "已停止" : "已完成"}</em>
+                  <span className="conversation-task-icon"><Icon name={turn.task.status === "running" ? "clock" : "tasks"} size={16}/></span>
+                  <span className="conversation-task-copy"><small>后台任务 · {turn.task.status === "running" ? "正在执行" : turn.task.status === "aborted" ? "已停止" : "已完成"}</small><strong>{turn.task.description}</strong></span>
+                  <span className="conversation-task-open" aria-hidden="true">↗</span>
                 </button>
               ) : (
                 <div key={turn.id} className={`agent-os-jarvis-bubble is-${turn.role}`}>{turn.text}</div>
@@ -2394,20 +2475,8 @@ export function AgentDesktop() {
               {jarvis.running && !jarvis.streamingText ? <div className="agent-os-jarvis-bubble is-assistant is-thinking"><i/><i/><i/></div> : null}
               {desktopVoice.transcript ? <div className="agent-os-jarvis-bubble is-user is-live">{desktopVoice.transcript}</div> : null}
             </div>
-            {jarvisRunningTasks.length ? (
-              <footer>
-                <small>后台进行中</small>
-                {jarvisRunningTasks.map((task) => (
-                  <button key={task.sessionId} type="button" onClick={() => openTask(task.sessionId)}><i/>{task.description}</button>
-                ))}
-              </footer>
-            ) : null}
+            {jarvisRunningTasks.length > 0 && <footer><small><i className="conversation-active-dot"/>{jarvisRunningTasks.length} 个任务在后台推进</small><span>收起后仍会继续</span></footer>}
           </section>
-        ) : null}
-        {tickerTurn ? (
-          <button type="button" className="agent-os-caption is-jarvis is-ticker" onClick={() => { setTickerTurnId(0); setJarvisPanelOpen(true); }} title="打开对话记录">
-            {tickerTurn.text}
-          </button>
         ) : null}
         {desktopVoice.isActive ? (
           <div className={`agent-os-live${liveMenuOpen ? " is-menu-open" : ""}`} data-state={desktopVoice.state}>
@@ -2415,17 +2484,17 @@ export function AgentDesktop() {
               <div key={liveCaption.kind} className={`agent-os-caption is-${liveCaption.kind}`} aria-live="polite">{liveCaption.text}</div>
             ) : null}
             <div className="agent-os-live__row">
-              <div className="agent-os-live__chips" aria-label="后台任务">
-                {liveChips.map((task) => (
-                  <button key={task.sessionId} type="button" className={`agent-os-live__chip is-${task.status}`} onClick={() => openTask(task.sessionId)} title="打开任务窗口">
-                    <i/>{task.description}
+              <div className="agent-os-live__chips" aria-label="新派出的任务" aria-live="polite">
+                {liveDispatches.slice(-3).map(({ task }) => (
+                  <button key={task.sessionId} type="button" className="agent-os-live__chip is-dispatched" onClick={() => openTask(task.sessionId)} title="打开任务窗口">
+                    <i/><span><small>已派出</small><strong>{task.description}</strong><em>进展见「当前任务」</em></span><Icon name="arrow-up" size={13}/>
                   </button>
                 ))}
               </div>
               <button
                 type="button"
                 className="agent-os-live__orb"
-                aria-label={desktopVoice.isSpeaking ? "打断 Jarvis" : liveMenuOpen ? "收起选项" : "Jarvis 选项"}
+                aria-label={desktopVoice.isSpeaking ? "打断 Syntropic" : liveMenuOpen ? "收起选项" : "Syntropic 选项"}
                 onClick={() => {
                   if (desktopVoice.isSpeaking) desktopVoice.interrupt();
                   else setLiveMenuOpen((value) => !value);
@@ -2443,7 +2512,7 @@ export function AgentDesktop() {
         <form className={`agent-os-composer${dictation.isRecording ? " is-dictating" : ""}`} onSubmit={submitPrompt}>
           {dictation.isRecording ? (
             <div className="agent-os-dictation" role="status" aria-live="polite">
-              <button className="jarvis-toggle" type="button" aria-label={jarvisPanelOpen ? "收起 Jarvis 面板" : "打开 Jarvis 面板"} aria-pressed={jarvisPanelOpen} onClick={() => setJarvisPanelOpen((value) => !value)}><BrandMark compact/></button>
+              <button className="jarvis-toggle" type="button" aria-label={jarvisPanelOpen ? "收起 Syntropic 面板" : "打开 Syntropic 面板"} aria-pressed={jarvisPanelOpen} onClick={() => setJarvisPanelOpen((value) => !value)}><BrandMark compact/></button>
               <div className="agent-os-dictation__capture">
                 <span className="agent-os-dictation__wave" aria-hidden="true" style={{ "--voice-level": dictation.level } as React.CSSProperties}>
                   {DICTATION_BARS.map((weight, index) => <i key={index} style={{ "--bar": weight, "--delay": `${index * 37}ms` } as React.CSSProperties}/>)}
@@ -2455,11 +2524,18 @@ export function AgentDesktop() {
             </div>
           ) : (
             <>
-              <button className="jarvis-toggle" type="button" aria-label={jarvisPanelOpen ? "收起 Jarvis 面板" : "打开 Jarvis 面板"} aria-pressed={jarvisPanelOpen} onClick={() => setJarvisPanelOpen((value) => !value)}><BrandMark compact/></button>
-              <input value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={jarvis.ready ? "和 Jarvis 说点什么" : "Jarvis 正在启动…"} aria-label="和 Jarvis 对话"/>
+              <button className="jarvis-toggle" type="button" aria-label={jarvisPanelOpen ? "收起 Syntropic 面板" : "打开 Syntropic 面板"} aria-pressed={jarvisPanelOpen} onClick={() => setJarvisPanelOpen((value) => !value)}><BrandMark compact/></button>
+              {showStart && (startMode === "files" || startMode === "apps") && <button className="stage-resource-button" type="button" disabled={openingStartResource} onClick={async () => {
+                if (startMode === "apps") { setGuideOpen(false); setLaunchpadOpen(true); return; }
+                setOpeningStartResource(true);
+                try { await ensureCwd(); setGuideOpen(false); setFilesOpen(true); setFrontWindow("files"); }
+                catch (error) { setNotice(error instanceof Error ? error.message : "无法打开工作台文件"); }
+                finally { setOpeningStartResource(false); }
+              }}>{openingStartResource ? "打开中…" : startMode === "files" ? "浏览文件" : "选择应用"}</button>}
+              <input ref={composerInputRef} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={showStart ? startPlaceholder : jarvis.ready ? "和 Syntropic 说点什么" : "Syntropic 正在启动…"} aria-label="和 Syntropic 对话"/>
               <button className="voice dictate" type="button" aria-label="语音输入" onClick={() => { dictationCompletionRef.current = "draft"; dictation.toggle(); }}><Icon name="mic" size={19}/></button>
               {prompt.trim() ? (
-                <button className="send" type="submit" aria-label="发送给 Jarvis" disabled={!jarvis.sessionId}>{submitting ? <span className="agent-os-spinner"/> : <Icon name="arrow-up" size={19}/>}</button>
+                <button className="send" type="submit" aria-label="发送给 Syntropic" disabled={!jarvis.sessionId}>{submitting ? <span className="agent-os-spinner"/> : <Icon name="arrow-up" size={19}/>}</button>
               ) : (
                 <button className="voice realtime" type="button" aria-label="开始实时语音对话" onClick={startConversation}><Icon name="waveform" size={19}/></button>
               )}
@@ -2467,6 +2543,10 @@ export function AgentDesktop() {
           )}
         </form>
         )}
+        {!desktopVoice.isActive && !showStart && (hasStartedWork || jarvis.turns.length > 0 || jarvisPanelOpen) && <div className="conversation-access"><button type="button" aria-expanded={jarvisPanelOpen} aria-controls="desktop-conversation" onClick={() => { followConversationRef.current = true; setJarvisPanelOpen((open) => !open); }}><Icon name="chat" size={13}/>{jarvisPanelOpen ? "收起对话" : "对话记录"}{!jarvisPanelOpen && jarvis.running && <i className="conversation-active-dot"/>}</button></div>}
+        {!desktopVoice.isActive && !showStart && !hasStartedWork && !hasOpenWindow && !jarvisPanelOpen && <div className="agent-os-start-footer">
+          <button type="button" aria-expanded={showStart} onClick={() => { setGuideOpen(true); setJarvisPanelOpen(false); }}><Icon name="tiles" size={13}/><span>可以做什么</span><span className="guide-entry-arrow" aria-hidden="true">›</span></button>
+        </div>}
       </section>
 
       <nav

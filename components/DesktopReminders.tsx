@@ -126,12 +126,12 @@ export function DesktopReminders({ workspaceKey, onLaunch, onOpenTask, onHistory
           <button
             className="agent-os-reminder-action is-run"
             type="button"
-            title="交给 Pi"
+            title="交给 Syntropic"
             disabled={Boolean(launchingId) || item.completed}
             onClick={() => void launch(item)}
-            aria-label={`交给 Pi 执行：${item.title}`}
+            aria-label={`交给 Syntropic 执行：${item.title}`}
           >
-            <span>{launching ? "下发中" : "交给 Pi"}</span>
+            <span>{launching ? "下发中" : "交给 Syntropic"}</span>
             {launching ? <i className="agent-os-reminder-spinner" aria-hidden="true"/> : (
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7.25 5.65 7 4.35-7 4.35Z"/></svg>
             )}
@@ -187,7 +187,7 @@ export function DesktopReminders({ workspaceKey, onLaunch, onOpenTask, onHistory
           <div className="agent-os-reminders-empty">
             <i aria-hidden="true">＋</i>
             <strong>想到什么，先记下来</strong>
-            <small>一句话就够了，之后可以交给 Pi</small>
+            <small>一句话就够了，之后可以交给 Syntropic</small>
           </div>
         )}
       </div>

@@ -25,6 +25,7 @@
 .agent-os-wallpaper > span { position: absolute; inset: 0; opacity: .22; background-image: radial-gradient(rgba(52,77,89,.13) .5px, transparent .6px); background-size: 5px 5px; mask-image: linear-gradient(to bottom, transparent, black 28%, transparent 84%); }
 
 .agent-os-menu-bar { position: absolute; z-index: 120; inset: 0 0 auto; height: 44px; padding: 0 18px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; background: linear-gradient(180deg, rgba(255,255,255,.72), rgba(255,255,255,.22)); border-bottom: 1px solid rgba(255,255,255,.38); backdrop-filter: blur(18px) saturate(1.2); }
+.agent-os-menu-bar:has(.agent-os-workspace-menu) { z-index: 210; }
 .agent-os-brand { justify-self: start; height: 36px; border: 0; padding: 0 8px 0 0; display: flex; align-items: center; gap: 9px; color: #23272c; background: transparent; cursor: pointer; transition: transform 140ms var(--os-ease-out); }
 .agent-os-brand:active { transform: scale(.97); }
 .agent-os-brand strong { font-size: 14px; letter-spacing: .09em; }
@@ -35,9 +36,10 @@
 .agent-os-workspace { min-width: 206px; height: 32px; border: 1px solid rgba(255,255,255,.92); border-radius: 18px; padding: 0 15px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #30363a; background: rgba(255,255,255,.52); box-shadow: inset 0 1px rgba(255,255,255,.9), 0 7px 22px rgba(71,98,112,.07); cursor: pointer; transition: background 160ms ease, transform 140ms var(--os-ease-out); }
 .agent-os-workspace:active { transform: scale(.98); }
 .agent-os-workspace > i { width: 7px; height: 7px; border-radius: 50%; background: #3da574; box-shadow: 0 0 0 3px rgba(61,165,116,.08); }
-.agent-os-workspace > span { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 650; }
-.agent-os-workspace > small { color: var(--os-muted); font-size: 12px; transform-origin:center; transition:transform 180ms var(--os-ease-out); }.agent-os-workspace > small.open { transform:rotate(180deg); }
-.agent-os-workspace-menu { position: absolute; top: 47px; left: 50%; width: min(760px, calc(100vw - 40px)); max-height: min(650px, calc(100vh - 92px)); overflow:auto; padding: 20px 22px 24px; border: 1px solid rgba(255,255,255,.94); border-radius: 24px; color:var(--os-text); background: linear-gradient(145deg,rgba(251,253,254,.91),rgba(237,245,248,.84)); box-shadow: inset 0 1px rgba(255,255,255,.98),0 2px 5px rgba(52,76,89,.05),0 30px 90px rgba(46,76,93,.24); backdrop-filter: blur(42px) saturate(1.45); transform: translateX(-50%); transform-origin: 50% -12px; animation: agent-os-workspace-arrive 220ms var(--os-ease-out) both; scrollbar-width:none; }
+.agent-os-workspace-name { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 650; }
+.agent-os-workspace-chevron { width: 12px; height: 12px; flex: 0 0 12px; display: grid; place-items: center; color: var(--os-muted); transform: rotate(0deg); transform-origin: 50% 50%; transition: transform 180ms var(--os-ease-out); }
+.agent-os-workspace-chevron.open { transform: rotate(180deg); }
+.agent-os-workspace-menu { position: absolute; z-index: 1; top: 47px; left: 50%; width: min(760px, calc(100vw - 40px)); max-height: min(650px, calc(100vh - 92px)); overflow:auto; padding: 20px 22px 24px; border: 1px solid rgba(255,255,255,.94); border-radius: 24px; color:var(--os-text); background: linear-gradient(145deg,rgba(251,253,254,.91),rgba(237,245,248,.84)); box-shadow: inset 0 1px rgba(255,255,255,.98),0 2px 5px rgba(52,76,89,.05),0 30px 90px rgba(46,76,93,.24); backdrop-filter: blur(42px) saturate(1.45); transform: translateX(-50%); transform-origin: 50% -12px; animation: agent-os-workspace-arrive 220ms var(--os-ease-out) both; scrollbar-width:none; }
 .agent-os-workspace-menu::-webkit-scrollbar{display:none}.agent-os-workspace-menu::before{content:"";position:absolute;left:50%;top:-7px;width:14px;height:14px;border-left:1px solid rgba(255,255,255,.9);border-top:1px solid rgba(255,255,255,.9);background:rgba(249,252,253,.88);transform:translateX(-50%) rotate(45deg)}
 .agent-os-workspace-menu > header { min-height:38px; display:flex;align-items:center;justify-content:space-between;gap:16px; }
 .agent-os-workspace-menu > header > span{display:flex;align-items:baseline;gap:10px}.agent-os-workspace-menu > header strong{font-size:17px;font-weight:720;letter-spacing:-.025em}.agent-os-workspace-menu > header small{color:rgba(38,49,55,.43);font-size:11px;font-weight:520}
@@ -531,7 +533,7 @@
 }
 
 @media (max-width: 760px) {
-  .agent-os-menu-bar { padding: 0 10px; grid-template-columns: auto minmax(0,1fr) auto; gap: 6px; }.agent-os-brand strong { display:none }.agent-os-workspace-wrap { display: block; min-width:0; justify-self:center }.agent-os-workspace { width:min(180px,46vw); min-width:0; padding-inline:10px }.agent-os-workspace > span { min-width:0 }.agent-os-workspace-grid { grid-template-columns:repeat(2,minmax(0,1fr)) }.agent-os-system-status { gap:2px }.agent-os-system-status > span { display: none; }.agent-os-system-status > button:not(.agent-os-avatar) { display:none }
+  .agent-os-menu-bar { padding: 0 10px; grid-template-columns: auto minmax(0,1fr) auto; gap: 6px; }.agent-os-brand strong { display:none }.agent-os-workspace-wrap { display: block; min-width:0; justify-self:center }.agent-os-workspace { width:min(180px,46vw); min-width:0; padding-inline:10px }.agent-os-workspace-name { min-width:0 }.agent-os-workspace-grid { grid-template-columns:repeat(2,minmax(0,1fr)) }.agent-os-system-status { gap:2px }.agent-os-system-status > span { display: none; }.agent-os-system-status > button:not(.agent-os-avatar) { display:none }
   .agent-os-desktop-widget { display: none; }
   .agent-os-window-layer { inset: 44px 0 92px; }.agent-os-window, .agent-os-window-file, .agent-os-window-document, .agent-os-window-library, .agent-os-window-settings, .agent-os-window-store { inset: 0 !important; width: 100%; min-width: 0; height: 100%; min-height: 0; border-radius: 0; translate: none !important; }.agent-os-window.is-maximized { inset: 0 !important; width: 100%; height: 100%; }
   .agent-os-library-toolbar{grid-template-columns:1fr auto auto}.agent-os-library-toolbar>label{display:none}.agent-os-library-files.is-grid{grid-template-columns:repeat(auto-fill,minmax(94px,1fr));padding:16px;gap:12px}.agent-os-library-quicklook{width:calc(100% - 24px);height:min(340px,calc(100% - 42px))}
@@ -749,4 +751,80 @@
 .agent-os-jarvis-panel.is-live { max-height: min(38vh, 360px); margin-bottom: 12px; }
 @keyframes agent-os-live-caption-in { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes agent-os-live-chip-in { from { opacity: 0; transform: translateX(14px) scale(.9); } to { opacity: 1; transform: translateX(0) scale(1); } }
-@keyframes agent-os-orb-in { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
+@keyframes agent-os-orb-in { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
+
+/* Direct window manipulation: never scale or tween a grabbed surface. */
+.agent-os-window { transform: none; }
+.agent-os-window:not(.is-maximized) {
+  min-width: min(480px, calc(100% - 16px));
+  min-height: min(320px, calc(100% - 16px));
+  max-width: calc(100% - 16px);
+  max-height: calc(100% - 16px);
+}
+.agent-os-window.is-resizing { transition: none; user-select: none; }
+.agent-os-window.is-resizing .agent-os-window-body { pointer-events: none; }
+.agent-os-window-resize { position: absolute; z-index: 20; touch-action: none; user-select: none; }
+.agent-os-window-resize:is(.is-n, .is-s) { left: 14px; right: 14px; height: 6px; cursor: ns-resize; }
+.agent-os-window-resize:is(.is-e, .is-w) { top: 14px; bottom: 14px; width: 6px; cursor: ew-resize; }
+.agent-os-window-resize.is-n { top: 0; }
+.agent-os-window-resize.is-s { bottom: 0; }
+.agent-os-window-resize.is-e { right: 0; }
+.agent-os-window-resize.is-w { left: 0; }
+.agent-os-window-resize:is(.is-ne, .is-nw, .is-se, .is-sw) { width: 14px; height: 14px; z-index: 21; }
+.agent-os-window-resize.is-ne { top: 0; right: 0; cursor: nesw-resize; }
+.agent-os-window-resize.is-nw { top: 0; left: 0; cursor: nwse-resize; }
+.agent-os-window-resize.is-se { bottom: 0; right: 0; cursor: nwse-resize; }
+.agent-os-window-resize.is-sw { bottom: 0; left: 0; cursor: nesw-resize; }
+@media (max-width: 760px) {
+  .agent-os-window:not(.is-maximized) { width: 100% !important; height: 100% !important; min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; }
+  .agent-os-window-resize { display: none; }
+}
+
+/* The first desktop invites a real task; widgets appear as work accumulates. */
+.agent-os-widget-reminders.is-empty-hidden { display: none; }
+.agent-os-composer:focus-within { outline: 2px solid rgba(75,124,109,.35); outline-offset: 3px; }
+.agent-os-start-footer { display: flex; justify-content: center; padding-top: 12px; }
+.agent-os-start-footer button { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 5px 12px; border: 1px solid rgba(255,255,255,.45); border-radius: 18px; color: #516e72; background: rgba(255,255,255,.24); cursor: pointer; font-size: 11px; transition: background 160ms ease; }
+.agent-os-start-footer button:hover { color: #253f39; background: rgba(255,255,255,.55); }
+.agent-os-start-footer .guide-entry-arrow { margin-left: 3px; color: #80948d; font-size: 15px; }
+.agent-os-start button:focus-visible, .agent-os-start-footer button:focus-visible { outline: 2px solid #648d80; outline-offset: 4px; }
+.agent-os-widget-artifacts .agent-os-card > header button { border: 0; background: transparent; color: #55746a; font-size: 10px; cursor: pointer; }
+.agent-os.has-start-guide .agent-os-desktop { visibility: hidden; }
+
+/* Conversation is a compact companion to the desktop, anchored to its composer. */
+.agent-os .agent-os-jarvis-panel { height: min(340px, 42dvh); max-height: calc(100dvh - 230px); grid-template-rows: auto minmax(0, 1fr) auto; border-radius: 18px; box-shadow: 0 10px 32px rgba(56,79,76,.1), inset 0 1px white; }
+.agent-os .agent-os-jarvis-panel > header { position: static; min-height: 42px; padding: 7px 12px; border-bottom: 1px solid rgba(64,91,77,.06); }
+.conversation-heading { display: flex; align-items: center; gap: 7px; margin-right: auto; color: #586d65; }
+.conversation-heading strong { font-size: 11px; font-weight: 550; }
+.conversation-heading small { margin-left: 3px; font-size: 9px; color: #95a29c; }
+.agent-os .agent-os-jarvis-panel > header > button { box-shadow: none; background: transparent; border-color: transparent; color: #83938b; font-size: 10px; font-weight: 450; }
+.agent-os .agent-os-jarvis-panel > header > button:hover { background: rgba(255,255,255,.8); color: #405d4e; }
+.agent-os .agent-os-jarvis-transcript { min-height: 0; padding: 12px 15px 16px; gap: 12px; }
+.agent-os .agent-os-jarvis-bubble { font-size: 11px; line-height: 1.65; flex-shrink: 0; }
+.agent-os .agent-os-jarvis-bubble.is-assistant { background: transparent; border: 0; box-shadow: none; padding: 3px 2px; max-width: 94%; color: #43554d; }
+.agent-os .agent-os-jarvis-bubble.is-user { background: rgba(61,87,75,.08); color: #344e41; border-radius: 12px 12px 4px 12px; padding: 7px 11px; }
+.agent-os .agent-os-jarvis-task { flex-shrink: 0; display: grid; grid-template-columns: 32px minmax(0, 1fr) 16px; min-height: 62px; padding: 10px 12px; gap: 10px; border: 1px solid rgba(83,116,96,.12); border-radius: 12px; background: rgba(255,255,255,.55); }
+.agent-os .agent-os-jarvis-task:hover { background: rgba(255,255,255,.9); }
+.agent-os .agent-os-jarvis-task > .conversation-task-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: #78988b12; color: #6f8b7d; }
+.conversation-task-copy { min-width: 0; }
+.agent-os .agent-os-jarvis-task .conversation-task-copy small { display: block; font-size: 9px; font-weight: 400; color: #91a095; margin-bottom: 5px; }
+.agent-os .agent-os-jarvis-task .conversation-task-copy strong { display: block; font-size: 11px; font-weight: 500; color: #465e50; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.agent-os .agent-os-jarvis-task.is-running .conversation-task-icon { color: #408466; background: #4e987a18; }
+.agent-os .agent-os-jarvis-task.is-aborted .conversation-task-icon { color: #9c8667; }
+.agent-os .agent-os-jarvis-task > .conversation-task-open { color: #98a69f; font-weight: 400; font-size: 14px; }
+.agent-os .agent-os-jarvis-panel > footer { justify-content: space-between; padding: 9px 15px; }
+.agent-os .agent-os-jarvis-panel > footer small { display: flex; align-items: center; gap: 6px; font-size: 9px; }
+.agent-os .agent-os-jarvis-panel > footer > span { color: #99a69d; font-size: 9px; }
+.conversation-active-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #62a586; }
+.conversation-access { display: flex; justify-content: center; padding-top: 10px; }
+.conversation-access button { display: flex; align-items: center; gap: 6px; min-height: 28px; padding: 4px 10px; border: 0; border-radius: 14px; color: #688276; background: rgba(255,255,255,.25); font-size: 10px; cursor: pointer; }
+.conversation-access button:hover { background: rgba(255,255,255,.6); }
+.conversation-access button:focus-visible, .agent-os-jarvis-task:focus-visible { outline: 2px solid #769c89; outline-offset: 2px; }
+
+.agent-os-live__chip.is-dispatched { height: auto; min-height: 58px; max-width: 250px; padding: 10px 12px; gap: 9px; border-radius: 14px; border-color: rgba(104,145,125,.2); color: #526e5f; background: rgba(247,252,249,.86); box-shadow: 0 6px 20px rgba(51,81,67,.06); }
+.agent-os-live__chip.is-dispatched > i { width: 5px; height: 5px; flex-shrink: 0; animation: none; background: #78b197; }
+.agent-os-live__chip.is-dispatched > span { min-width: 0; text-align: left; }
+.agent-os-live__chip.is-dispatched small { display: block; color: #8da296; font-size: 8px; font-weight: 400; }
+.agent-os-live__chip.is-dispatched strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 4px; color: #4e6959; font-size: 10px; font-weight: 500; }
+.agent-os-live__chip.is-dispatched em { display: block; margin-top: 4px; color: #96a79b; font-size: 8px; font-style: normal; font-weight: 400; }
+.agent-os-live__chip.is-dispatched > svg { flex-shrink: 0; color: #8caa98; transform: rotate(45deg); }

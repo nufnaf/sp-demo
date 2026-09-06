@@ -10,12 +10,13 @@ interface VoiceOrbProps {
 }
 
 /**
- * The presence of the assistant in voice mode: a soft sphere that breathes
- * while listening, swells with the user's voice, drifts while thinking, and
- * pulses with its own speech. Everything is CSS; the level drives a variable.
+ * A stable voice presence. CSS gently follows the audio envelope while slow
+ * internal drift and interpolated colors distinguish conversational states.
  */
 export function VoiceOrb({ state, level = 0, size = 168, className = "" }: VoiceOrbProps) {
-  const clamped = Math.max(0, Math.min(1, level));
+  const clamped = Number.isFinite(level) && (state === "hearing" || state === "speaking")
+    ? Math.max(0, Math.min(1, (level - 0.04) / 0.96))
+    : 0;
   return (
     <div
       className={`voice-orb voice-orb--${state}${className ? ` ${className}` : ""}`}

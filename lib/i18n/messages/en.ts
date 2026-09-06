@@ -1,6 +1,6 @@
 import type { LocalePlugin } from "../types";
 
-/** Pi Web 内置英语语言包。 */
+/** Syntropic 内置英语语言包。 */
 export const enLocale: LocalePlugin = {
   id: "en",
   label: "English",
@@ -14,7 +14,7 @@ export const enLocale: LocalePlugin = {
     "common.settings": "Settings",
     "settings.title": "Settings",
     "settings.general": "General",
-    "settings.generalDescription": "Choose how Pi Web looks and which language it uses.",
+    "settings.generalDescription": "Choose how Syntropic looks and which language it uses.",
     "settings.appearance": "Appearance",
     "settings.appearanceDescription": "Select a theme or follow your system preference.",
     "settings.themeLight": "Light",
@@ -27,7 +27,7 @@ export const enLocale: LocalePlugin = {
     "settings.projectRequired": "Open a project to configure this section",
     "voiceSettings.title": "Voice",
     "voiceSettings.doubao": "Doubao realtime voice",
-    "voiceSettings.description": "Configure realtime speech recognition and streamed speech playback without changing the Pi Agent runtime.",
+    "voiceSettings.description": "Choose how you talk to Syntropic, with realtime speech recognition and spoken replies.",
     "voiceSettings.credentials": "Credentials",
     "voiceSettings.appId": "Speech App ID",
     "voiceSettings.accessKey": "Access Key",
@@ -53,8 +53,8 @@ export const enLocale: LocalePlugin = {
     "skills.scope.project": "project",
     "skills.scope.path": "path",
     "agents.close": "Close",
-    "agents.builtInTitle": "Enable Pi Web built-in sub-agents",
-    "agents.builtInDescription": "Provides Pi Web's integrated Agent tools and disables a conflicting pi-subagents extension.",
+    "agents.builtInTitle": "Enable Syntropic built-in sub-agents",
+    "agents.builtInDescription": "Provides Syntropic's integrated Agent tools and disables a conflicting pi-subagents extension.",
     "agents.reloadRequired": "Reload the current session to apply this change.",
     "agents.reloadSession": "Reload session",
     "agents.reloading": "Reloading...",
@@ -107,7 +107,7 @@ export const enLocale: LocalePlugin = {
     "agentSwitcher.status.failed": "Failed",
     "agentSwitcher.status.aborted": "Aborted",
     "agentSwitcher.status.interrupted": "Interrupted",
-    "appUpdate.releaseNotes": "Pi Web v{version} is available. View release notes",
+    "appUpdate.releaseNotes": "Syntropic v{version} is available. View release notes",
     "sidebar.hide": "Hide sidebar",
     "sidebar.show": "Show sidebar",
     "theme.light": "Light mode (click for dark)",
@@ -370,10 +370,10 @@ export const enLocale: LocalePlugin = {
     "chat.voiceConnecting": "Connecting to Doubao voice…",
     "chat.voiceListening": "Listening — just talk",
     "chat.voiceHearing": "Hearing you…",
-    "chat.voiceThinking": "Got it — Pi is working…",
+    "chat.voiceThinking": "Got it — Syntropic is working…",
     "chat.voiceSpeaking": "Speaking — talk to interrupt",
     "chat.voiceError": "Voice is unavailable",
-    "chat.thinkingUseDefault": "Use pi default",
+    "chat.thinkingUseDefault": "Use Syntropic default",
     "chat.thinkingOff": "Reasoning off",
     "chat.thinkingMinimal": "Minimal reasoning",
     "chat.thinkingLow": "Low reasoning",
@@ -617,7 +617,7 @@ export const enLocale: LocalePlugin = {
     "i18n.after": "After",
     "i18n.sessionComplete": "Session complete",
     "i18n.taskFinished": "Task finished.",
-    "i18n.attentionNeeded": "Pi needs your attention",
+    "i18n.attentionNeeded": "Syntropic needs your attention",
     "i18n.extensionInputNeeded": "An extension is waiting for your input.",
   },
 };

@@ -1,5 +1,7 @@
 "use client";
 
+import { SyntropicMark } from "./SyntropicMark";
+
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { useTheme, type ThemePreference } from "@/hooks/useTheme";
@@ -69,7 +71,7 @@ function GeneralSettings({
     <div className="agent-settings-general">
       <header className="agent-settings-detail-heading">
         <span className="agent-settings-heading-icon general"><SettingsSectionIcon section="general" size={25}/></span>
-        <span><h1>{t("settings.general")}</h1><p>管理 Agent OS 的外观、语言与默认工作环境。</p></span>
+        <span><h1>{t("settings.general")}</h1><p>管理 Syntropic 的外观、语言与默认工作环境。</p></span>
       </header>
 
       <section className="agent-settings-group">
@@ -92,7 +94,7 @@ function GeneralSettings({
       <section className="agent-settings-group">
         <h2>语言与地区</h2>
         <div className="agent-settings-form-list">
-          <label><span><strong>界面语言</strong><small>应用到 Agent OS 和 Pi 任务应用</small></span><select value={locale} onChange={(event) => setLocale(event.target.value as typeof locale)}>{supportedLocales.map((item) => <option value={item.id} key={item.id}>{item.label}</option>)}</select></label>
+          <label><span><strong>界面语言</strong><small>应用到 Syntropic 的桌面与任务界面</small></span><select value={locale} onChange={(event) => setLocale(event.target.value as typeof locale)}>{supportedLocales.map((item) => <option value={item.id} key={item.id}>{item.label}</option>)}</select></label>
         </div>
       </section>
 
@@ -174,7 +176,7 @@ export function AgentSettingsApp({ cwd, sessionId, onClose, onSessionReloaded }:
             <span><strong>{item.label}</strong><small>{item.description}</small></span>
           </button>)}
         </nav>
-        <footer><span className="agent-settings-pi-mark">π</span><span><strong>Pi Agent</strong><small>Agent OS Runtime</small></span><i>已连接</i></footer>
+        <footer><span className="agent-settings-pi-mark"><SyntropicMark size={20}/></span><span><strong>Syntropic</strong><small>智能工作空间</small></span><i>已连接</i></footer>
       </aside>
       <main className="agent-settings-content">
         {host("general", <GeneralSettings cwd={cwd} onOpenModels={() => activate("models")} onOpenVoice={() => activate("voice")}/>)}

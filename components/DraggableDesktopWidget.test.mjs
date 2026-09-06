@@ -13,7 +13,7 @@ test("remaining desktop widgets drag directly from their headers and persist pos
   assert.match(widgetSource, /translate3d\(\$\{position\.x\}px, \$\{position\.y\}px, 0\)/);
   assert.match(widgetSource, /pi-web:desktop-widget-position:/);
   assert.match(widgetSource, /Math\.max\(8, Math\.min\(drag\.maxX/);
-  assert.equal((desktopSource.match(/<DraggableDesktopWidget/g) ?? []).length, 3);
+  assert.equal((desktopSource.match(/<DraggableDesktopWidget/g) ?? []).length, 2);
 });
 
 test("business goal and calendar widgets are removed", () => {

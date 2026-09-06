@@ -96,7 +96,7 @@ function calendarNotes(input: LocalCalendarEventInput, marker: string): string {
   const agenda = input.agenda.map((item, index) => `${index + 1}. ${item}`).join("\n");
   const materials = input.materials.map((item) => `• ${item}`).join("\n");
   return [
-    input.sourceLabel ? `由 Agent OS 根据${input.sourceLabel}创建。` : "由 Agent OS 根据招聘洞察创建。",
+    input.sourceLabel ? `由 Syntropic 根据${input.sourceLabel}创建。` : "由 Syntropic 根据招聘洞察创建。",
     "",
     "参会人",
     attendees,

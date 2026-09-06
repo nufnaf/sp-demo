@@ -68,7 +68,7 @@ const LANGUAGE_MENU_WIDTH = 176;
 const AGENT_PANEL_WIDTH = 420;
 
 interface AppShellProps {
-  /** Opens a concrete session when Pi Web is hosted inside the Agent OS task window. */
+  /** Opens a concrete session when Syntropic is hosted inside the Syntropic task window. */
   initialSessionId?: string | null;
 }
 
@@ -988,7 +988,7 @@ export function AppShell({ initialSessionId: embeddedInitialSessionId }: AppShel
 
   const activeFileTab = fileTabs.find((tab) => tab.id === activeFileTabId) ?? null;
   const activeCwdName = activeCwd ? getFileName(activeCwd) || activeCwd : null;
-  const windowTitle = activeCwdName ? `${activeCwdName} - Pi Web` : "Pi Web";
+  const windowTitle = activeCwdName ? `${activeCwdName} - Syntropic` : "Syntropic";
 
   useEffect(() => {
     const syncWindowTitle = () => {

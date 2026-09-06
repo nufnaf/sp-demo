@@ -1,5 +1,7 @@
 "use client";
 
+import { SyntropicMark } from "./SyntropicMark";
+
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { getLaunchpadApps, type LaunchpadApp } from "@/lib/launchpad-apps";
 import type { AppStoreCatalogResponse, AppStorePackage } from "@/lib/app-store-types";
@@ -39,7 +41,7 @@ function StoreIcon({ item, large = false }: { item: AppStorePackage; large?: boo
 
 function displayDescription(item: AppStorePackage): string {
   return item.description
-    .replace(/\bPi\s+(?:coding\s+agent\s+)?extension\b/gi, "Agent OS app")
+    .replace(/\bPi\s+(?:coding\s+agent\s+)?extension\b/gi, "Syntropic app")
     .replace(/\bplugin\b/gi, "app");
 }
 
@@ -132,15 +134,15 @@ export function AppStore({ onOpenApp, onNotice }: {
 
   return <div className="agent-store">
     <aside className="agent-store-sidebar">
-      <header><AppStoreBrandIcon className="agent-store-mark"/><div><strong>应用商店</strong><small>Agent OS Apps</small></div></header>
+      <header><AppStoreBrandIcon className="agent-store-mark"/><div><strong>应用商店</strong><small>Syntropic Apps</small></div></header>
       <label className="agent-store-sidebar-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索应用" aria-label="搜索应用商店"/></label>
       <nav aria-label="应用商店分类">{SECTIONS.map((item) => <button key={item.id} type="button" aria-current={section === item.id ? "page" : undefined} onClick={() => setSection(item.id)}><i><StoreNavIcon section={item.id}/></i><span>{item.label}</span></button>)}</nav>
-      <footer><span>π</span><div><strong>中国区精选</strong><small>{catalog ? `${catalog.total.toLocaleString()} 个应用` : "正在同步"}</small></div><button type="button" aria-label="同步应用目录" title="同步应用目录" onClick={() => { void loadInstallations(); setRefreshRevision((value) => value + 1); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 9a7 7 0 0 1 11.8-2L20 9M4 15l2.1 2a7 7 0 0 0 11.8-2"/></svg></button></footer>
+      <footer><span><SyntropicMark size={20}/></span><div><strong>中国区精选</strong><small>{catalog ? `${catalog.total.toLocaleString()} 个应用` : "正在同步"}</small></div><button type="button" aria-label="同步应用目录" title="同步应用目录" onClick={() => { void loadInstallations(); setRefreshRevision((value) => value + 1); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 9a7 7 0 0 1 11.8-2L20 9M4 15l2.1 2a7 7 0 0 0 11.8-2"/></svg></button></footer>
     </aside>
 
     <main className="agent-store-main">
       <div className="agent-store-scroll">
-        <header className="agent-store-title"><small>{SECTIONS.find((item) => item.id === section)?.label}</small><h1>{section === "installed" ? "你的应用" : query ? `“${query}”的搜索结果` : "让 Pi Agent 更懂你的工作"}</h1><p>{section === "installed" ? "这里汇总你已经安装的所有应用。" : "探索 Agent OS 应用，安装后会自动出现在启动台。"}</p></header>
+        <header className="agent-store-title"><small>{SECTIONS.find((item) => item.id === section)?.label}</small><h1>{section === "installed" ? "你的应用" : query ? `“${query}”的搜索结果` : "让 Syntropic 更懂你的工作"}</h1><p>{section === "installed" ? "这里汇总你已经安装的所有应用。" : "探索 Syntropic 应用，安装后会自动出现在启动台。"}</p></header>
 
         {loading && !catalog ? <div className="agent-store-state"><span/>正在同步中国区应用目录…</div> : null}
         {error ? <div className="agent-store-state is-error"><strong>无法载入应用目录</strong><small>{error}</small></div> : null}
@@ -153,7 +155,7 @@ export function AppStore({ onOpenApp, onNotice }: {
         {!error && list.length ? <section className="agent-store-featured"><header><h2>{section === "installed" ? "已安装" : "精选应用"}</h2><span>{list.length} 个结果</span></header><div className="agent-store-grid">{list.map((item) => {
           const installed = installedNames.has(item.packageName);
           return <article key={item.packageName} onClick={() => setSelected(item)}>
-            <StoreIcon item={item}/><div><strong>{item.name}</strong><small>{item.author} · Agent OS 应用</small><p>{displayDescription(item)}</p><em>{item.downloadsLabel} · 更新于 {item.updatedLabel}</em></div>
+            <StoreIcon item={item}/><div><strong>{item.name}</strong><small>{item.author} · Syntropic 应用</small><p>{displayDescription(item)}</p><em>{item.downloadsLabel} · 更新于 {item.updatedLabel}</em></div>
             <button type="button" disabled={installing === item.packageName} onClick={(event) => { event.stopPropagation(); if (installed) openInstalled(item); else void install(item); }}>{installing === item.packageName ? <span className="agent-os-spinner"/> : installed ? "打开" : "获取"}</button>
           </article>;
         })}</div></section> : null}
@@ -166,7 +168,7 @@ export function AppStore({ onOpenApp, onNotice }: {
       <header><StoreIcon item={selected} large/><div><h2>{selected.name}</h2><p>{selected.packageName}</p><small>{selected.author} · {selected.downloadsLabel}</small></div><button type="button" disabled={installing === selected.packageName} onClick={() => installedNames.has(selected.packageName) ? openInstalled(selected) : void install(selected)}>{installing === selected.packageName ? "安装中…" : installedNames.has(selected.packageName) ? "打开" : "获取"}</button></header>
       <p>{displayDescription(selected)}</p>
       {selected.capabilities?.length ? <div className="agent-store-capabilities">{selected.capabilities.map((capability) => <span key={capability}>{capability}</span>)}</div> : null}
-      <div className="agent-store-detail-meta"><span><small>兼容性</small><strong>Agent OS</strong></span><span><small>更新</small><strong>{selected.updatedLabel}</strong></span><span><small>来源</small><strong>官方/企业连接器</strong></span></div>
+      <div className="agent-store-detail-meta"><span><small>兼容性</small><strong>Syntropic</strong></span><span><small>更新</small><strong>{selected.updatedLabel}</strong></span><span><small>来源</small><strong>官方/企业连接器</strong></span></div>
       <footer><a href={selected.catalogUrl} target="_blank" rel="noreferrer">官方接入文档</a></footer>
     </article></section> : null}
   </div>;

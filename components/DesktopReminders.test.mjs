@@ -9,7 +9,7 @@ const cssSource = await readFile(new URL("./AgentDesktop.css", import.meta.url),
 test("desktop reminders persist per workspace and turn launches into task links", () => {
   assert.match(remindersSource, /pi-web:desktop-reminders:/);
   assert.match(remindersSource, /window\.localStorage\.setItem/);
-  assert.match(remindersSource, /aria-label=\{`交给 Pi 执行：\$\{item\.title\}`\}/);
+  assert.match(remindersSource, /aria-label=\{`交给 Syntropic 执行：\$\{item\.title\}`\}/);
   assert.match(remindersSource, /const sessionId = await onLaunch\(item\.title\)/);
   assert.match(remindersSource, /candidate\.id === item\.id \? \{ \.\.\.candidate, sessionId \}/);
   assert.match(remindersSource, /aria-label=\{`查看任务：\$\{item\.title\}`\}/);
@@ -17,7 +17,7 @@ test("desktop reminders persist per workspace and turn launches into task links"
   assert.match(remindersSource, /className="agent-os-reminder-action is-detail"/);
   assert.match(remindersSource, /className="agent-os-reminder-action is-run"/);
   assert.match(remindersSource, /<span>查看任务<\/span>/);
-  assert.match(remindersSource, /launching \? "下发中" : "交给 Pi"/);
+  assert.match(remindersSource, /launching \? "下发中" : "交给 Syntropic"/);
   assert.match(desktopSource, /<DesktopReminders/);
   assert.match(desktopSource, /请完成以下待办事项：\$\{title\}/);
   assert.match(desktopSource, /onOpenTask=\{openTask\}/);
@@ -37,7 +37,7 @@ test("desktop reminders follow the desktop material and accessibility rules", ()
   assert.match(remindersSource, />待完成</);
   assert.match(remindersSource, />已完成 /);
   assert.match(remindersSource, /想到什么，先记下来/);
-  assert.match(remindersSource, /一句话就够了，之后可以交给 Pi/);
+  assert.match(remindersSource, /一句话就够了，之后可以交给 Syntropic/);
   assert.doesNotMatch(remindersSource, />发起</);
   assert.doesNotMatch(remindersSource, />查看 /);
   assert.match(cssSource, /\.agent-os-reminder-row\.is-completed \.agent-os-reminder-check/);

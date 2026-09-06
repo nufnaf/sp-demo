@@ -1,0 +1,38 @@
+.agent-os-desktop-widget.collaboration-shelf { width: 272px; max-height: calc(100dvh - 200px); overflow-y: auto; padding: 5px 5px 16px; scrollbar-width: thin; }
+.desktop-collaboration { display: grid; gap: 12px; }
+.desktop-collaboration .collaboration-card { width: 100%; min-height: 0; height: auto; border: 1px solid rgba(255,255,255,.52); border-radius: 16px; background: rgba(247,251,250,.4); box-shadow: 0 4px 16px rgba(57,80,75,.035); backdrop-filter: blur(22px); overflow: hidden; transition: background 180ms ease, box-shadow 180ms ease; }
+.desktop-collaboration .collaboration-card:hover { background: rgba(250,253,251,.68); box-shadow: 0 8px 22px rgba(57,80,75,.06); }
+.desktop-collaboration .collaboration-card > header { height: 42px; min-height: 0; padding: 0 15px; display: flex; justify-content: space-between; align-items: center; border: 0; cursor: grab; touch-action: none; }
+.collaboration-title { display: flex; align-items: center; gap: 8px; color: #536b63; }
+.collaboration-title > i { font-style: normal; font-size: 17px; color: #7d9389; }
+.collaboration-title > strong { font-size: 11px; font-weight: 550; }
+.collaboration-status { display: flex; align-items: center; gap: 5px; color: #8c9b94; font-size: 9px; }
+.collaboration-status.is-live { color: #47866c; }
+.collaboration-status > i { width: 5px; height: 5px; border-radius: 50%; background: #55a27f; }
+.desktop-collaboration header button { padding: 5px 0 5px 8px; border: 0; color: #7b9086; background: transparent; font-size: 10px; cursor: pointer; }
+.collaboration-body { padding: 0 8px 10px; }
+.collaboration-row { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 51px; padding: 8px; border: 0; border-radius: 9px; background: transparent; text-align: left; cursor: pointer; }
+.collaboration-row:hover { background: #ffffff65; }
+.collaboration-row > span { flex: 1; min-width: 0; }
+.collaboration-row strong, .collaboration-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.collaboration-row strong { color: #40564d; font-size: 11px; font-weight: 500; }
+.collaboration-row small { margin-top: 5px; color: #829289; font-size: 9px; }
+.collaboration-row > i { color: #91a198; font-style: normal; font-size: 15px; }
+.collaboration-row > i.is-working { width: 7px; height: 7px; border-radius: 50%; background: #60a68b; box-shadow: 0 0 0 4px #60a68b12; }
+.collaboration-empty { padding: 8px 8px 12px; }
+.collaboration-empty p { margin: 0; color: #768a80; font-size: 11px; }
+.collaboration-empty small { display: block; margin-top: 7px; color: #94a299; font-size: 9px; }
+.collaboration-more { display: block; padding: 4px 8px 0; color: #8b9c92; font-size: 9px; }
+.desktop-collaboration button:focus-visible { outline: 2px solid #688c7b; outline-offset: -2px; }
+@media (max-width: 700px) {
+  .agent-os-desktop-widget.collaboration-shelf { display: block; left: 12px !important; right: 12px; top: 16px !important; width: auto; transform: none !important; max-height: calc(100dvh - 240px); }
+  .desktop-collaboration { gap: 8px; }
+  .desktop-collaboration .collaboration-card > header { height: 34px; }
+  .collaboration-empty { padding-bottom: 5px; }
+  .collaboration-empty small { display: none; }
+  .collaboration-row { min-height: 42px; }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .desktop-collaboration .collaboration-card { background: #f2f6f2; backdrop-filter: none; }
+}
+@media (prefers-reduced-motion: reduce) { .desktop-collaboration .collaboration-card { transition: none; } }

@@ -43,7 +43,7 @@ test("the storefront presents curated China apps and keeps its content scrollabl
   assert.match(storeSource, /className="agent-store-sidebar-search"[\s\S]*?placeholder="搜索应用"/);
   assert.doesNotMatch(storeSource, /className="agent-store-toolbar"/);
   assert.match(storeSource, /aria-label="同步应用目录"/);
-  assert.match(storeSource, /Agent OS 应用/);
+  assert.match(storeSource, /Syntropic 应用/);
   assert.doesNotMatch(storeSource, /热门排行|最近上架|社区目录/);
   assert.match(storeCss, /\.agent-store-main\{[^}]*min-height:0[^}]*overflow:hidden/);
   assert.match(storeCss, /\.agent-store-scroll\{[^}]*min-height:0[^}]*overflow-y:auto[^}]*touch-action:pan-y/);

@@ -1,3 +1,5 @@
+import { appendHtmlArtifactPrompt } from "./html-artifact-prompt";
+
 export interface SubagentPromptPlan {
   chatOnly: boolean;
   appendSystemPrompt: string[];
@@ -20,7 +22,7 @@ export function buildSubagentPromptPlan(options: {
   }
   return {
     chatOnly,
-    appendSystemPrompt,
+    appendSystemPrompt: chatOnly ? appendSystemPrompt : appendHtmlArtifactPrompt(appendSystemPrompt),
     delegatedTask: options.inheritedParentContext && chatOnly
       ? `${options.task}\n\n${options.inheritedParentContext}`
       : options.task,

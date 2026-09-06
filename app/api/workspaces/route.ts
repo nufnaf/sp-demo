@@ -45,7 +45,7 @@ export async function DELETE(req: Request) {
     }
     const cwd = body.cwd;
     if (!isManagedWorkspacePath(cwd)) {
-      return NextResponse.json({ error: "Only Pi Web managed workspaces can be deleted" }, { status: 403 });
+      return NextResponse.json({ error: "Only Syntropic managed workspaces can be deleted" }, { status: 403 });
     }
     if (existsSync(cwd) && lstatSync(cwd).isSymbolicLink()) {
       return NextResponse.json({ error: "Symbolic-link workspaces cannot be deleted" }, { status: 400 });

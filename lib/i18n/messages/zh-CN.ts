@@ -1,6 +1,6 @@
 import type { LocalePlugin } from "../types";
 
-/** Pi Web 内置简体中文语言包。 */
+/** Syntropic 内置简体中文语言包。 */
 export const zhCNLocale: LocalePlugin = {
   id: "zh-CN",
   label: "简体中文",
@@ -14,7 +14,7 @@ export const zhCNLocale: LocalePlugin = {
     "common.settings": "设置",
     "settings.title": "设置",
     "settings.general": "常规",
-    "settings.generalDescription": "选择 Pi Web 的显示方式和界面语言。",
+    "settings.generalDescription": "选择 Syntropic 的显示方式和界面语言。",
     "settings.appearance": "外观",
     "settings.appearanceDescription": "选择浅色或深色主题，也可以跟随系统设置。",
     "settings.themeLight": "浅色",
@@ -27,7 +27,7 @@ export const zhCNLocale: LocalePlugin = {
     "settings.projectRequired": "打开项目后才能配置此项",
     "voiceSettings.title": "语音",
     "voiceSettings.doubao": "豆包实时语音",
-    "voiceSettings.description": "在不改变 Pi Agent 运行逻辑的前提下，配置实时语音识别与流式语音播报。",
+    "voiceSettings.description": "配置实时语音识别与语音播报，自然地与 Syntropic 交谈。",
     "voiceSettings.credentials": "鉴权信息",
     "voiceSettings.appId": "语音应用 App ID",
     "voiceSettings.accessKey": "Access Key",
@@ -53,8 +53,8 @@ export const zhCNLocale: LocalePlugin = {
     "skills.scope.project": "项目",
     "skills.scope.path": "路径",
     "agents.close": "关闭",
-    "agents.builtInTitle": "启用 Pi Web 内置子代理",
-    "agents.builtInDescription": "提供 Pi Web 集成的 Agent 工具，并停用发生冲突的 pi-subagents 扩展。",
+    "agents.builtInTitle": "启用 Syntropic 内置子代理",
+    "agents.builtInDescription": "提供 Syntropic 集成的 Agent 工具，并停用发生冲突的 pi-subagents 扩展。",
     "agents.reloadRequired": "重新加载当前会话后生效。",
     "agents.reloadSession": "重新加载会话",
     "agents.reloading": "正在重新加载...",
@@ -107,7 +107,7 @@ export const zhCNLocale: LocalePlugin = {
     "agentSwitcher.status.failed": "失败",
     "agentSwitcher.status.aborted": "已中止",
     "agentSwitcher.status.interrupted": "已中断",
-    "appUpdate.releaseNotes": "Pi Web v{version} 可用，查看更新说明",
+    "appUpdate.releaseNotes": "Syntropic v{version} 可用，查看更新说明",
     "sidebar.hide": "隐藏侧边栏",
     "sidebar.show": "显示侧边栏",
     "theme.light": "浅色模式（点击切换到深色）",
@@ -370,10 +370,10 @@ export const zhCNLocale: LocalePlugin = {
     "chat.voiceConnecting": "正在连接豆包语音…",
     "chat.voiceListening": "我在听，随时说",
     "chat.voiceHearing": "正在听你说…",
-    "chat.voiceThinking": "已听到，Pi 正在处理…",
+    "chat.voiceThinking": "已听到，Syntropic 正在处理…",
     "chat.voiceSpeaking": "正在说话，开口即可打断",
     "chat.voiceError": "语音暂不可用",
-    "chat.thinkingUseDefault": "使用 pi 默认设置",
+    "chat.thinkingUseDefault": "使用 Syntropic 默认设置",
     "chat.thinkingOff": "关闭推理",
     "chat.thinkingMinimal": "最低限度推理",
     "chat.thinkingLow": "低强度推理",
@@ -617,7 +617,7 @@ export const zhCNLocale: LocalePlugin = {
     "i18n.after": "之后",
     "i18n.sessionComplete": "任务完成",
     "i18n.taskFinished": "任务已完成。",
-    "i18n.attentionNeeded": "Pi 需要你的操作",
+    "i18n.attentionNeeded": "Syntropic 需要你的操作",
     "i18n.extensionInputNeeded": "扩展正在等待你的输入。",
   },
 };

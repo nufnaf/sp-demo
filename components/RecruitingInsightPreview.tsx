@@ -59,7 +59,7 @@ export function RecruitingInsightPreview({ content }: { content: string }) {
           type: "recruiting-calendar-result",
           requestId: data.requestId,
           ok: false,
-          error: "本地日历服务暂时不可用，请确认 Agent OS 正在运行后重试",
+          error: "本地日历服务暂时不可用，请确认 Syntropic 正在运行后重试",
         }, "*");
       }
     };

@@ -56,7 +56,7 @@ export function parsePiPackageCatalog(html: string, page = 1): AppStoreCatalogRe
       packageName,
       source: `npm:${packageName}`,
       name: packageTitle(packageName),
-      description: description || "Pi Agent 社区应用",
+      description: description || "Syntropic 社区应用",
       author: meta[0] || "Pi Community",
       monthlyDownloads: Number(attribute(attrs, "data-package-downloads")) || 0,
       downloadsLabel: meta[1] || "—",

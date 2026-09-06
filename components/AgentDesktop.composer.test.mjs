@@ -9,7 +9,7 @@ const jarvisHook = await readFile(new URL("../hooks/useJarvis.ts", import.meta.u
 test("restored Jarvis history does not appear as a fresh desktop reply", () => {
   assert.match(jarvisHook, /setLatestReplyTurnId\(pushTurn\(\{ role: "assistant", text \}\)\)/);
   assert.doesNotMatch(jarvisHook, /setLatestReplyTurnId\([^)]*lastAssistant/);
-  assert.match(desktop, /\}, \[jarvis\.latestReplyTurnId\]\);/);
+  assert.doesNotMatch(desktop, /tickerTurn|is-ticker/);
 });
 
 test("the desktop composer stays compact and swaps live voice for send when text exists", () => {
@@ -30,4 +30,15 @@ test("dictation returns stopped speech to the composer and only sends from the s
   assert.match(desktopCss, /agent-os-dictation__stop > span[^}]*width: 9px;[^}]*height: 9px;[^}]*border-radius: 2px/);
   assert.match(desktopCss, /agent-os-dictation__wave > i[^}]*background: rgba\(43,53,59,\.5\)/);
   assert.doesNotMatch(desktopCss, /agent-os-dictation__(?:dot|wave)[^}]*#ff453a/);
+});
+
+test("dictation and typing share the chat-opening send path", () => {
+  assert.match(desktop, /await sendDesktopMessage\(prompt\)/);
+  assert.match(desktop, /void sendDesktopMessage\(completeText\)/);
+  assert.match(desktop, /const sendDesktopMessage[\s\S]*?setJarvisPanelOpen\(true\)[\s\S]*?await jarvis.send\(message\)/);
+});
+test("live dispatch receipts come from new events, not restored task history", () => {
+  assert.match(desktop, /if \(liveVoiceActiveRef.current\) setLiveDispatches/);
+  assert.doesNotMatch(desktop, /settledChips|settledSeenRef|liveChips/);
+  assert.match(desktop, /item.expiresAt > Date.now\(\)/);
 });

@@ -167,7 +167,7 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
         const data = await response.json() as { sessionId?: string; tasks?: JarvisTask[]; created?: boolean; error?: string };
         if (cancelled) return;
         resetPendingRef.current = false;
-        if (!response.ok || !data.sessionId) throw new Error(data.error ?? "Jarvis 启动失败");
+        if (!response.ok || !data.sessionId) throw new Error(data.error ?? "Syntropic 启动失败");
         const id = data.sessionId;
         if (!data.created) {
           try {
@@ -213,7 +213,7 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
           if (payload.isStreaming === true) dispatch({ type: "start" });
           break;
         case "startup_error":
-          setError(typeof payload.errorMessage === "string" ? payload.errorMessage : "Jarvis 启动失败");
+          setError(typeof payload.errorMessage === "string" ? payload.errorMessage : "Syntropic 启动失败");
           break;
         case "agent_start":
           runningRef.current = true;

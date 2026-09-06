@@ -38,8 +38,11 @@ async function acceptSnapshot(cwd: string, input: Connection, snapshot: ReturnTy
   runtime().statuses.set(cwd, { connected: true, state: "ready", baseUrl: input.baseUrl, checkedAt: new Date().toISOString(), insightWarning });
 }
 export async function connectCompanyCrm(cwd: string, baseUrl: unknown, token: unknown): Promise<void> {
-  if (typeof baseUrl !== "string" || typeof token !== "string" || !token.trim() || token.length > 1000 || /[\r\n]/.test(token)) throw new Error("请填写有效的网站地址和访问令牌");
-  const input = { baseUrl: normalizeCompanyCrmUrl(baseUrl), token: token.trim() };
+  if (typeof baseUrl !== "string") throw new Error("请填写有效的网站地址");
+  const normalizedUrl = normalizeCompanyCrmUrl(baseUrl);
+  const publicDemo = isCompanyCrmDemo(normalizedUrl, true);
+  if (!publicDemo && (typeof token !== "string" || !token.trim() || token.length > 1000 || /[\r\n]/.test(token))) throw new Error("请填写有效的访问令牌");
+  const input = { baseUrl: normalizedUrl, token: publicDemo ? "" : (token as string).trim() };
   await exclusive(cwd, async () => {
     const snapshot = await verifyCompanyCrm(input.baseUrl, input.token);
     await updateStoredAuthSection(section(cwd), input);

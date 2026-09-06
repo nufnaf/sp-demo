@@ -1,6 +1,6 @@
 import type { LocalePlugin } from "../types";
 
-/** Pi Web 內建繁體中文語系。 */
+/** Syntropic 內建繁體中文語系。 */
 export const zhTWLocale: LocalePlugin = {
   id: "zh-TW",
   label: "繁體中文",
@@ -14,7 +14,7 @@ export const zhTWLocale: LocalePlugin = {
     "common.settings": "設定",
     "settings.title": "設定",
     "settings.general": "一般",
-    "settings.generalDescription": "選擇 Pi Web 的外觀與介面語言。",
+    "settings.generalDescription": "選擇 Syntropic 的外觀與介面語言。",
     "settings.appearance": "外觀",
     "settings.appearanceDescription": "選擇淺色或深色主題，也可以跟隨系統設定。",
     "settings.themeLight": "淺色",
@@ -27,7 +27,7 @@ export const zhTWLocale: LocalePlugin = {
     "settings.projectRequired": "開啟專案後才能設定此項",
     "voiceSettings.title": "語音",
     "voiceSettings.doubao": "豆包即時語音",
-    "voiceSettings.description": "在不改變 Pi Agent 執行邏輯的前提下，設定即時語音辨識與串流語音播報。",
+    "voiceSettings.description": "設定即時語音辨識與語音播報，自然地與 Syntropic 交談。",
     "voiceSettings.credentials": "驗證資訊",
     "voiceSettings.appId": "語音應用程式 App ID",
     "voiceSettings.accessKey": "Access Key",
@@ -53,8 +53,8 @@ export const zhTWLocale: LocalePlugin = {
     "skills.scope.project": "專案",
     "skills.scope.path": "路徑",
     "agents.close": "關閉",
-    "agents.builtInTitle": "啟用 Pi Web 內建子代理",
-    "agents.builtInDescription": "提供 Pi Web 整合的 Agent 工具，並停用發生衝突的 pi-subagents 擴充功能。",
+    "agents.builtInTitle": "啟用 Syntropic 內建子代理",
+    "agents.builtInDescription": "提供 Syntropic 整合的 Agent 工具，並停用發生衝突的 pi-subagents 擴充功能。",
     "agents.reloadRequired": "重新載入目前工作階段後生效。",
     "agents.reloadSession": "重新載入工作階段",
     "agents.reloading": "正在重新載入...",
@@ -107,7 +107,7 @@ export const zhTWLocale: LocalePlugin = {
     "agentSwitcher.status.failed": "失敗",
     "agentSwitcher.status.aborted": "已中止",
     "agentSwitcher.status.interrupted": "已中斷",
-    "appUpdate.releaseNotes": "Pi Web v{version} 已推出，查看版本資訊",
+    "appUpdate.releaseNotes": "Syntropic v{version} 已推出，查看版本資訊",
     "sidebar.hide": "隱藏側邊欄",
     "sidebar.show": "顯示側邊欄",
     "theme.light": "淺色模式（點選切換到深色）",
@@ -370,10 +370,10 @@ export const zhTWLocale: LocalePlugin = {
     "chat.voiceConnecting": "正在連接豆包語音…",
     "chat.voiceListening": "我在聽，隨時說",
     "chat.voiceHearing": "正在聽你說…",
-    "chat.voiceThinking": "已聽到，Pi 正在處理…",
+    "chat.voiceThinking": "已聽到，Syntropic 正在處理…",
     "chat.voiceSpeaking": "正在說話，開口即可打斷",
     "chat.voiceError": "語音暫時無法使用",
-    "chat.thinkingUseDefault": "使用 pi 預設設定",
+    "chat.thinkingUseDefault": "使用 Syntropic 預設設定",
     "chat.thinkingOff": "關閉推理",
     "chat.thinkingMinimal": "最低程度推理",
     "chat.thinkingLow": "低程度推理",
@@ -617,7 +617,7 @@ export const zhTWLocale: LocalePlugin = {
     "i18n.after": "變更後",
     "i18n.sessionComplete": "工作階段已完成",
     "i18n.taskFinished": "任務已完成。",
-    "i18n.attentionNeeded": "Pi 需要你處理",
+    "i18n.attentionNeeded": "Syntropic 需要你處理",
     "i18n.extensionInputNeeded": "擴充功能正在等待你的輸入。",
   },
 };

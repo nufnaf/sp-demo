@@ -42,6 +42,7 @@ import { createSubagentController } from "./subagent-runtime";
 import { isBuiltInSubagentsEnabled } from "./subagent-settings";
 import { resolveShellTools } from "./powershell-settings";
 import { CHAT_ONLY_RESOURCE_LOADER_OPTIONS, contextFilesSystemPrompt } from "./chat-only";
+import { appendHtmlArtifactPrompt } from "./html-artifact-prompt";
 import {
   buildJarvisSystemPrompt,
   createJarvisExtension,
@@ -343,7 +344,7 @@ export class AgentSessionWrapper {
       JARVIS_TASKS.flushReports(this.sessionId);
     } else {
       void JARVIS_TASKS.handleTaskSettled(this.sessionId).catch((error) => {
-        console.error("[pi-web] failed to report a task to Jarvis:", error instanceof Error ? error.message : error);
+        console.error("[pi-web] failed to report a task to Syntropic:", error instanceof Error ? error.message : error);
       });
     }
     if (this.shouldObserveTaskInsights()) {
@@ -405,7 +406,7 @@ export class AgentSessionWrapper {
             id: randomUUID(),
             method: "notify",
             notifyType: "warning",
-            message: "Extension requested shutdown, but shutdown is not supported in Pi Web.",
+            message: "Extension requested shutdown, but shutdown is not supported in Syntropic.",
           } as ExtensionUiRequest as AgentEvent),
           onError: (error) => this.emit({
             type: "extension_error",
@@ -1638,7 +1639,7 @@ export class AgentSessionWrapper {
       get theme() { return PLAIN_TEXT_THEME; },
       getAllThemes: () => [],
       getTheme: () => undefined,
-      setTheme: () => ({ success: false, error: "Theme switching is not supported in Pi Web extension UI yet" }),
+      setTheme: () => ({ success: false, error: "Theme switching is not supported in Syntropic extension UI yet" }),
       getToolsExpanded: () => false,
       setToolsExpanded: () => {},
     };
@@ -1800,7 +1801,7 @@ function createJarvisTaskRuntime(): JarvisRuntime & {
     inbox.flushTimer = setTimeout(() => {
       inbox.flushTimer = null;
       void flush(jarvisSessionId).catch((error) => {
-        console.error("[pi-web] failed to report tasks to Jarvis:", error instanceof Error ? error.message : error);
+        console.error("[pi-web] failed to report tasks to Syntropic:", error instanceof Error ? error.message : error);
       });
     }, delay);
   };
@@ -1857,7 +1858,7 @@ function createJarvisTaskRuntime(): JarvisRuntime & {
   return {
     async startTask({ jarvisSessionId, prompt, description }) {
       const jarvis = getRegistry().get(jarvisSessionId);
-      if (!jarvis?.isAlive()) throw new Error("Jarvis session is no longer available");
+      if (!jarvis?.isAlive()) throw new Error("Syntropic session is no longer available");
       const message = prompt.trim();
       if (!message) throw new Error("Task prompt is required");
       const label = description.trim() || message.slice(0, 24);
@@ -2296,6 +2297,7 @@ export async function startRpcSession(
                 }
               : {}),
             appendSystemPrompt: subagentResources.appendSystemPrompt,
+            ...(!chatOnly ? { appendSystemPromptOverride: appendHtmlArtifactPrompt } : {}),
           }
         : jarvis
           ? {
@@ -2312,6 +2314,7 @@ export async function startRpcSession(
         : chatOnly
           ? CHAT_ONLY_RESOURCE_LOADER_OPTIONS
         : {
+            appendSystemPromptOverride: appendHtmlArtifactPrompt,
             extensionFactories: [
               createBrowserExtension(),
               createFilesAppExtension(),
