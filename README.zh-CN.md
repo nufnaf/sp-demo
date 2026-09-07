@@ -1,5 +1,10 @@
 # Pi Web
 
+
+## Syntropic 桌面开发版
+
+在本 checkout 执行 `npm run desktop` 即可同时启动本机后台与 Electron。详见[启动、数据与验证说明](docs/electron-development.md)。当前为开发阶段桌面版本，尚不是独立分发安装包。
+
 [English](./README.md) | [日本語](./README.ja.md) | [Русский](./README.ru.md)
 
 [pi 编程智能体](https://github.com/earendil-works/pi)的本地浏览器界面。Pi Web 与 pi 共用本机配置和会话文件，可在浏览器中查找和继续对话、运行智能体、配置模型与资源，并查看项目文件。

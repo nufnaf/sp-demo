@@ -15,11 +15,12 @@ import {
   type PointerEvent,
   type WheelEvent,
 } from "react";
-import type { BrowserPageState, BrowserSystemEvent } from "@/lib/browser/types";
+import type { BrowserPageState, BrowserSystemEvent, BrowserTaskState } from "@/lib/browser/types";
 
 interface BrowserAppProps {
   cwd: string;
   initialPageId?: string | null;
+  onOpenSettings?: () => void;
 }
 
 const BROWSER_CONTENT_SCALE = 0.8;
@@ -50,7 +51,11 @@ function displayTitle(page: BrowserPageState): string {
   return page.title || (page.url === "about:blank" ? "新标签页" : page.url);
 }
 
-export function BrowserApp({ cwd, initialPageId }: BrowserAppProps) {
+export function BrowserApp({ cwd, initialPageId, onOpenSettings }: BrowserAppProps) {
+  const [tasks, setTasks] = useState<BrowserTaskState[]>([]);
+  const [frame, setFrame] = useState(0);
+  const [screen, setScreen] = useState<{ pageId: string; url: string } | null>(null);
+  const [stoppingTaskId, setStoppingTaskId] = useState<string | null>(null);
   const [pages, setPages] = useState<BrowserPageState[]>([]);
   const [activePageId, setActivePageId] = useState<string | null>(initialPageId ?? null);
   const [address, setAddress] = useState("");
@@ -58,6 +63,7 @@ export function BrowserApp({ cwd, initialPageId }: BrowserAppProps) {
   const [error, setError] = useState<string | null>(null);
   const [interactionPoint, setInteractionPoint] = useState<{ x: number; y: number; id: number } | null>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  const closedPageIdsRef = useRef(new Set<string>());
   const viewportRef = useRef<HTMLDivElement>(null);
   const keyboardSinkRef = useRef<HTMLTextAreaElement>(null);
   const composingRef = useRef(false);
@@ -68,14 +74,24 @@ export function BrowserApp({ cwd, initialPageId }: BrowserAppProps) {
     () => pages.find((page) => page.pageId === activePageId) ?? pages[0] ?? null,
     [activePageId, pages],
   );
+  const latestTask = tasks[tasks.length - 1];
+  const closedTask = latestTask?.pageId && !pages.some((page) => page.pageId === latestTask.pageId) ? latestTask : undefined;
+  const task = closedTask ?? tasks.find((item) => item.pageId === activePage?.pageId);
+  const aiBusy = activePage?.controller === "agent";
+  const taskRunning = task && ["starting", "running", "stopping"].includes(task.status);
+  const mergeTask = useCallback((task: BrowserTaskState) => {
+    if (task.cwd !== cwd) return;
+    setTasks((current) => current.some((item) => item.id === task.id)
+      ? current.map((item) => item.id === task.id && task.elapsedMs >= item.elapsedMs ? task : item) : [...current, task]);
+  }, [cwd]);
   const selectedPageId = activePage?.pageId ?? null;
   const selectedPageUrl = activePage?.url ?? null;
   const pageCaret = activePage?.focus?.caret;
 
   const mergePage = useCallback((page: BrowserPageState) => {
-    if (page.cwd !== cwd) return;
+    if (page.cwd !== cwd || closedPageIdsRef.current.has(page.pageId)) return;
     setPages((current) => current.some((item) => item.pageId === page.pageId)
-      ? current.map((item) => item.pageId === page.pageId ? page : item)
+      ? current.map((item) => item.pageId === page.pageId && page.revision >= item.revision ? page : item)
       : [...current, page]);
     setActivePageId((current) => current ?? page.pageId);
   }, [cwd]);
@@ -133,10 +149,11 @@ export function BrowserApp({ cwd, initialPageId }: BrowserAppProps) {
     let cancelled = false;
     setBusy(true);
     void fetch(`/api/browser/state?cwd=${encodeURIComponent(cwd)}`, { cache: "no-store" })
-      .then((response) => responseJson<{ pages: BrowserPageState[] }>(response))
+      .then((response) => responseJson<{ pages: BrowserPageState[]; tasks: BrowserTaskState[] }>(response))
       .then((body) => {
         if (cancelled) return;
-        setPages(body.pages);
+        setPages(body.pages.filter((page) => !closedPageIdsRef.current.has(page.pageId)));
+        setTasks(body.tasks ?? []);
         const preferred = body.pages.find((page) => page.pageId === initialPageId)?.pageId ?? body.pages[0]?.pageId;
         if (preferred) setActivePageId(preferred);
         else void openPage();
@@ -151,15 +168,20 @@ export function BrowserApp({ cwd, initialPageId }: BrowserAppProps) {
     stream.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data) as BrowserSystemEvent | { type: "browser.ready" };
-        if (message.type === "browser.opened" || message.type === "browser.updated") mergePage(message.page);
+        if (message.type === "browser.task") mergeTask(message.task);
+        else if (message.type === "browser.opened" || message.type === "browser.updated") {
+          mergePage(message.page);
+          if (message.type === "browser.opened" && message.foreground && message.page.cwd === cwd) setActivePageId(message.page.pageId);
+        }
         else if (message.type === "browser.closed") {
+          closedPageIdsRef.current.add(message.pageId);
           setPages((current) => current.filter((page) => page.pageId !== message.pageId));
           setActivePageId((current) => current === message.pageId ? null : current);
         }
       } catch { /* ignore malformed extension events */ }
     };
     return () => stream.close();
-  }, [mergePage]);
+  }, [mergePage, mergeTask, cwd]);
 
   useEffect(() => {
     if (selectedPageUrl !== null) setAddress(selectedPageUrl === "about:blank" ? "" : selectedPageUrl);
@@ -190,19 +212,62 @@ export function BrowserApp({ cwd, initialPageId }: BrowserAppProps) {
     };
   }, [selectedPageId, sendPageCommand]);
 
+  useEffect(() => {
+    if (!selectedPageId) return;
+    const pageId = selectedPageId;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    let imageUrl: string | undefined;
+    const refresh = async () => {
+      if (controller.signal.aborted) return;
+      if (document.visibilityState === "visible") {
+        try {
+          const response = await fetch(`/api/browser/pages/${encodeURIComponent(pageId)}/screenshot`, { cache: "no-store", signal: controller.signal });
+          if (!response.ok) throw new Error("网页画面暂时无法读取");
+          const blob = await response.blob();
+          if (controller.signal.aborted) return;
+          const previous = imageUrl;
+          imageUrl = URL.createObjectURL(blob);
+          setScreen({ pageId, url: imageUrl });
+          setFrame(Date.now());
+          if (previous) URL.revokeObjectURL(previous);
+        } catch { /* Closure and navigation events reconcile page state. */ }
+      }
+      if (!controller.signal.aborted) timer = setTimeout(() => { void refresh(); }, aiBusy ? 250 : 750);
+    };
+    void refresh();
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+      if (imageUrl) URL.revokeObjectURL(imageUrl);
+    };
+  }, [selectedPageId, aiBusy]);
+
+  const stopTask = async () => {
+    if (!task) return;
+    setStoppingTaskId(task.id);
+    try {
+      const body = await responseJson<{ task: BrowserTaskState }>(await fetch(`/api/browser/tasks/${task.id}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "stop" }),
+      }));
+      mergeTask(body.task);
+    } catch (error) { setError(error instanceof Error ? error.message : String(error)); }
+    finally { setStoppingTaskId(null); }
+  };
+
   const navigate = (event: FormEvent) => {
     event.preventDefault();
-    if (address.trim()) void command({ type: "navigate", url: address.trim() });
+    if (!aiBusy && address.trim()) void command({ type: "navigate", url: address.trim() });
   };
 
   const handleAddressKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
-    if (address.trim()) void command({ type: "navigate", url: address.trim() });
+    if (!aiBusy && address.trim()) void command({ type: "navigate", url: address.trim() });
   };
 
   const queueInput = useCallback((body: Record<string, unknown>) => {
-    if (!activePage) return;
+    if (!activePage || activePage.controller === "agent") return;
     const pageId = activePage.pageId;
     inputTailRef.current = inputTailRef.current
       .then(() => sendPageCommand(pageId, body, { quiet: true }))
@@ -211,16 +276,22 @@ export function BrowserApp({ cwd, initialPageId }: BrowserAppProps) {
 
   const closePage = async (pageId: string, event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
+    const closing = pages.find((page) => page.pageId === pageId);
+    closedPageIdsRef.current.add(pageId);
     const closingIndex = pages.findIndex((page) => page.pageId === pageId);
     const remaining = pages.filter((page) => page.pageId !== pageId);
     setPages(remaining);
     if (activePageId === pageId) setActivePageId(remaining[Math.min(closingIndex, remaining.length - 1)]?.pageId ?? null);
     const result = await sendPageCommand(pageId, { type: "close" }, { quiet: true });
+    if (!result && closing) {
+      closedPageIdsRef.current.delete(pageId);
+      mergePage(closing);
+    }
     if (result && remaining.length === 0) void openPage();
   };
 
   const handleViewportPointerDown = (event: PointerEvent<HTMLImageElement>) => {
-    if (!activePage) return;
+    if (!activePage || activePage.controller === "agent") return;
     if (event.button !== 0) return;
     event.preventDefault();
     const image = imageRef.current;
@@ -249,9 +320,12 @@ export function BrowserApp({ cwd, initialPageId }: BrowserAppProps) {
   };
 
   const handleViewportKey = (event: KeyboardEvent<HTMLElement>) => {
-    if (!activePage) return;
+    if (!activePage || activePage.controller === "agent") return;
     event.stopPropagation();
     if (event.nativeEvent.isComposing || composingRef.current || event.key === "Process" || event.key === "Dead") return;
+    // Let Electron paste into the input sink. onPaste forwards the actual
+    // clipboard text; forwarding Meta+V to headless Chrome loses that text.
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "v") return;
     const supported = ["Tab", "Enter", "Escape", "Backspace", "Delete", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End"];
     const modifier = event.metaKey ? "Meta" : event.ctrlKey ? "Control" : event.altKey ? "Alt" : null;
     if (supported.includes(event.key) || (modifier && event.key.length === 1)) {
@@ -280,7 +354,7 @@ export function BrowserApp({ cwd, initialPageId }: BrowserAppProps) {
   };
 
   const handleViewportWheel = (event: WheelEvent<HTMLDivElement>) => {
-    if (!activePage) return;
+    if (!activePage || activePage.controller === "agent") return;
     event.preventDefault();
     queueInput({
       type: "input",
@@ -292,7 +366,7 @@ export function BrowserApp({ cwd, initialPageId }: BrowserAppProps) {
 
   const isNewTab = activePage?.url === "about:blank";
 
-  return <section className="agent-browser-app">
+  return <section className={`agent-browser-app${task ? " has-task" : ""}`}>
     <nav className="agent-browser-tabs" aria-label="浏览器标签页">
       <div className="agent-browser-tab-list" role="tablist">
         {pages.map((page) => <div className={`agent-browser-tab${page.pageId === activePage?.pageId ? " is-active" : ""}`} key={page.pageId}>
@@ -308,28 +382,39 @@ export function BrowserApp({ cwd, initialPageId }: BrowserAppProps) {
 
     <header className="agent-browser-toolbar">
       <div className="agent-browser-navigation">
-        <button type="button" aria-label="后退" disabled={!activePage || busy} onClick={() => void command({ type: "navigate", action: "back" })}><BrowserGlyph name="back"/></button>
-        <button type="button" aria-label="前进" disabled={!activePage || busy} onClick={() => void command({ type: "navigate", action: "forward" })}><BrowserGlyph name="forward"/></button>
-        <button type="button" className={activePage?.loading ? "is-loading" : ""} aria-label="重新载入" disabled={!activePage || busy} onClick={() => void command({ type: "navigate", action: "reload" })}><BrowserGlyph name="reload"/></button>
+        <button type="button" aria-label="后退" disabled={!activePage || busy || aiBusy} onClick={() => void command({ type: "navigate", action: "back" })}><BrowserGlyph name="back"/></button>
+        <button type="button" aria-label="前进" disabled={!activePage || busy || aiBusy} onClick={() => void command({ type: "navigate", action: "forward" })}><BrowserGlyph name="forward"/></button>
+        <button type="button" className={activePage?.loading ? "is-loading" : ""} aria-label="重新载入" disabled={!activePage || busy || aiBusy} onClick={() => void command({ type: "navigate", action: "reload" })}><BrowserGlyph name="reload"/></button>
       </div>
       <form className="agent-browser-address" onSubmit={navigate}>
         <BrowserGlyph name="globe" size={13}/>
-        <input value={address} onChange={(event) => setAddress(event.target.value)} onKeyDown={handleAddressKeyDown} onFocus={(event) => event.currentTarget.select()} aria-label="网址或搜索" placeholder="搜索或输入网址" autoCapitalize="off" autoCorrect="off" spellCheck={false}/>
+        <input disabled={aiBusy} value={address} onChange={(event) => setAddress(event.target.value)} onKeyDown={handleAddressKeyDown} onFocus={(event) => event.currentTarget.select()} aria-label="网址或搜索" placeholder="搜索或输入网址" autoCapitalize="off" autoCorrect="off" spellCheck={false}/>
         {activePage?.loading ? <span className="agent-browser-address-spinner" aria-label="正在载入"/> : null}
       </form>
     </header>
 
-    <div ref={viewportRef} className="agent-browser-viewport" tabIndex={activePage ? 0 : -1} aria-busy={activePage?.loading} onKeyDown={handleViewportKey} onWheel={handleViewportWheel}>
+    {task ? <div className="agent-browser-task" role="status" aria-live="polite">
+      <div className="agent-browser-task-summary">
+        <strong>{task.progress}</strong>
+        <span>GPT-5.6 Luna · {task.steps} 步 · {Math.round((taskRunning ? Math.max(task.elapsedMs, frame - Date.parse(task.startedAt)) : task.elapsedMs) / 1000)} 秒</span>
+        {taskRunning ? <button type="button" onClick={() => void stopTask()} disabled={task.status === "stopping" || stoppingTaskId === task.id}>{stoppingTaskId === task.id ? "正在请求停止…" : "停止任务"}</button> : null}
+      </div>
+      <div className="agent-browser-task-detail">{task.error || task.result || "正在专用页面执行网页任务，完成后由主 Agent 汇总。"}</div>
+      {aiBusy ? <small>AI 正在操作专用页面。人工浏览请新建标签页。</small> : null}
+      {task.error && /授权|模型目录|登录|unauthorized|authentication/i.test(task.error) ? <button type="button" onClick={onOpenSettings}>打开设置与登录</button> : null}
+    </div> : null}
+
+    <div ref={viewportRef} className="agent-browser-viewport" tabIndex={activePage && !aiBusy ? 0 : -1} aria-busy={activePage?.loading} onKeyDown={handleViewportKey} onWheel={handleViewportWheel}>
       {activePage && !isNewTab ? <img
         ref={imageRef}
-        src={`/api/browser/pages/${encodeURIComponent(activePage.pageId)}/screenshot?revision=${activePage.revision}`}
+        src={screen?.pageId === activePage.pageId ? screen.url : `/api/browser/pages/${encodeURIComponent(activePage.pageId)}/screenshot`}
         alt={activePage.title || activePage.url}
         draggable={false}
         onPointerDown={handleViewportPointerDown}
       /> : activePage ? <div className="agent-browser-start">
         <div className="agent-browser-start-mark"><BrowserGlyph name="compass" size={24}/></div>
         <h2>从这里开始浏览</h2>
-        <p>你和 AI 可以在同一个页面中一起查找、阅读和操作。</p>
+        <p>在这里手动浏览网页；AI 网页任务会自动打开专用标签页。</p>
       </div> : <div className="agent-browser-state"><span className="agent-os-spinner"/>{busy ? "正在启动浏览器…" : "没有打开的页面"}</div>}
       {activePage?.loading ? <div className="agent-browser-progress"><i/></div> : null}
       {interactionPoint ? <i

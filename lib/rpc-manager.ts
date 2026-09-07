@@ -2309,7 +2309,7 @@ export async function startRpcSession(
               noThemes: true,
               noContextFiles: true,
               appendSystemPrompt: [buildJarvisSystemPrompt(sessionCwd)],
-              extensionFactories: [createJarvisExtension(JARVIS_TASKS)],
+              extensionFactories: [createJarvisExtension(JARVIS_TASKS), createBrowserExtension(true)],
             }
         : chatOnly
           ? CHAT_ONLY_RESOURCE_LOADER_OPTIONS

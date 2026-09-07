@@ -1,4 +1,23 @@
-export type BrowserController = "shared";
+export type BrowserController = "shared" | "agent";
+
+export interface BrowserTaskState {
+  id: string;
+  cwd: string;
+  parentSessionId: string;
+  pageId?: string;
+  task: string;
+  status: "starting" | "running" | "stopping" | "completed" | "failed" | "stopped";
+  provider: string;
+  modelId: string;
+  thinkingLevel: string;
+  progress: string;
+  steps: number;
+  turns: number;
+  startedAt: string;
+  elapsedMs: number;
+  result?: string;
+  error?: string;
+}
 
 export interface BrowserFocusState {
   editable: true;
@@ -17,9 +36,11 @@ export interface BrowserPageState {
   viewport: { width: number; height: number };
   focus: BrowserFocusState | null;
   updatedAt: string;
+  task?: BrowserTaskState;
 }
 
 export type BrowserSystemEvent =
+  | { type: "browser.task"; task: BrowserTaskState }
   | { type: "browser.opened"; page: BrowserPageState; foreground: boolean }
   | { type: "browser.updated"; page: BrowserPageState }
   | { type: "browser.closed"; pageId: string; cwd: string };

@@ -1435,6 +1435,7 @@ export function AgentDesktop() {
   const [hrRecruitingOpen, setHrRecruitingOpen] = useState(false);
   const [investmentWorkspaceOpen, setInvestmentWorkspaceOpen] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(false);
+  const [jarvisPanelOpen, setJarvisPanelOpen] = useState(false);
   const [browserPageId, setBrowserPageId] = useState<string | null>(null);
   const [filesOpen, setFilesOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
@@ -1468,6 +1469,7 @@ export function AgentDesktop() {
         setBrowserPageId(message.page.pageId);
         setBrowserOpen(true);
         setFrontWindow("browser");
+        if (message.page.controller === "agent") setJarvisPanelOpen(false);
       } catch { /* ignore malformed browser events */ }
     };
     return () => stream.close();
@@ -2072,7 +2074,6 @@ export function AgentDesktop() {
   }, [jarvis.sessionId]);
   // The Jarvis panel opens itself when the conversation is active and stays
   // closed once the user dismisses it, until the next exchange.
-  const [jarvisPanelOpen, setJarvisPanelOpen] = useState(false);
   const compactTurns = useMemo(() => compactDesktopTurns(jarvis.turns, jarvis.tasks), [jarvis.turns, jarvis.tasks]);
   const followConversationRef = useRef(true);
   const latestJarvisTurnId = jarvis.turns.length ? jarvis.turns[jarvis.turns.length - 1].id : 0;
@@ -2409,7 +2410,7 @@ export function AgentDesktop() {
           setBrowserOpen(false);
           releaseTemporaryDockItem("system:browser");
         }} titleIcon={<Icon name="browser" size={16}/> }>
-          <BrowserApp key={activeCwd} cwd={activeCwd} initialPageId={browserPageId}/>
+          <BrowserApp key={activeCwd} cwd={activeCwd} initialPageId={browserPageId} onOpenSettings={() => { setSettingsOpen(true); setFrontWindow("settings"); }}/>
         </DesktopWindow>}
         {filesOpen && activeCwd && <DesktopWindow title="文件" kind="app" front={frontWindow === "files"} onFocus={() => setFrontWindow("files")} onClose={() => {
           if (filesHaveUnsavedChanges && !window.confirm("文件应用中有未保存的修改，确定关闭吗？")) return;
