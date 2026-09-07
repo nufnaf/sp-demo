@@ -366,7 +366,7 @@ export function BrowserApp({ cwd, initialPageId, onOpenSettings, onUserInteracti
 
   const isNewTab = activePage?.url === "about:blank";
 
-  return <section className={`agent-browser-app${showTaskStatus ? " has-task" : ""}`} onPointerDownCapture={onUserInteraction} onKeyDownCapture={onUserInteraction}>
+  return <section className="agent-browser-app" onPointerDownCapture={onUserInteraction} onKeyDownCapture={onUserInteraction}>
     <nav className="agent-browser-tabs" aria-label="浏览器标签页">
       <div className="agent-browser-tab-list" role="tablist">
         {pages.map((page) => <div className={`agent-browser-tab${page.pageId === activePage?.pageId ? " is-active" : ""}`} key={page.pageId}>
@@ -391,15 +391,14 @@ export function BrowserApp({ cwd, initialPageId, onOpenSettings, onUserInteracti
         <input disabled={aiBusy} value={address} onChange={(event) => setAddress(event.target.value)} onKeyDown={handleAddressKeyDown} onFocus={(event) => event.currentTarget.select()} aria-label="网址或搜索" placeholder="搜索或输入网址" autoCapitalize="off" autoCorrect="off" spellCheck={false}/>
         {activePage?.loading ? <span className="agent-browser-address-spinner" aria-label="正在载入"/> : null}
       </form>
+      {showTaskStatus ? <div className="agent-browser-task" role="status" aria-live="polite">
+        <div className="agent-browser-task-summary">
+          <strong>{task.status === "failed" ? "网页任务未完成，请查看对话结果。" : task.status === "starting" ? "正在打开网页…" : task.status === "stopping" ? "正在停止…" : "正在处理网页任务…"}</strong>
+          {taskRunning ? <button type="button" onClick={() => void stopTask()} disabled={task.status === "stopping" || stoppingTaskId === task.id}>{stoppingTaskId === task.id ? "正在请求停止…" : "停止任务"}</button> : null}
+          {task.error && /授权|模型目录|登录|unauthorized|authentication/i.test(task.error) ? <button type="button" onClick={onOpenSettings}>打开设置与登录</button> : null}
+        </div>
+      </div> : <div className="agent-browser-task-placeholder" aria-hidden="true"/>}
     </header>
-
-    {showTaskStatus ? <div className="agent-browser-task" role="status" aria-live="polite">
-      <div className="agent-browser-task-summary">
-        <strong>{task.status === "failed" ? "网页任务未完成，请查看对话结果。" : task.status === "starting" ? "正在打开网页…" : task.status === "stopping" ? "正在停止…" : "正在处理网页任务…"}</strong>
-        {taskRunning ? <button type="button" onClick={() => void stopTask()} disabled={task.status === "stopping" || stoppingTaskId === task.id}>{stoppingTaskId === task.id ? "正在请求停止…" : "停止任务"}</button> : null}
-        {task.error && /授权|模型目录|登录|unauthorized|authentication/i.test(task.error) ? <button type="button" onClick={onOpenSettings}>打开设置与登录</button> : null}
-      </div>
-    </div> : null}
 
     <div ref={viewportRef} className="agent-browser-viewport" tabIndex={activePage && !aiBusy ? 0 : -1} aria-busy={activePage?.loading} onKeyDown={handleViewportKey} onWheel={handleViewportWheel}>
       {activePage && !isNewTab ? <img

@@ -22,6 +22,7 @@ interface ManagedPage {
   task?: BrowserTaskState;
   updatedAt: string;
   operationTail: Promise<void>;
+  initialViewportReady?: () => void;
 }
 
 interface WorkspaceBrowser {
@@ -390,8 +391,23 @@ export class BrowserManager {
     const cdp = await workspace.context.newCDPSession(page);
     const { targetInfo } = await cdp.send("Target.getTargetInfo");
     await cdp.detach();
+    // Let the visible container supply its dimensions before navigation and the
+    // first Agent snapshot. After this handshake, execution keeps that viewport.
+    const viewportReady = new Promise<void>((resolve) => { managed.initialViewportReady = resolve; });
     const state = await this.touch(managed);
     this.emit({ type: "browser.opened", page: state, foreground: true });
+    let viewportTimeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      // Hidden/headless callers still work without a mounted BrowserApp.
+      await Promise.race([viewportReady, new Promise<void>((resolve) => {
+        viewportTimeout = setTimeout(resolve, 1500);
+      })]);
+      // Seal under the same queue as resize so no in-flight resize can overlap
+      // the Agent's first navigation, including when the fallback timeout fires.
+      await this.serialize(managed, async () => { managed.initialViewportReady = undefined; });
+    } finally {
+      clearTimeout(viewportTimeout);
+    }
     return { pageId: managed.pageId, cdpUrl: workspace.cdpUrl!, targetId: targetInfo.targetId, page };
   }
 
@@ -434,11 +450,12 @@ export class BrowserManager {
       height: Math.max(240, Math.min(1200, Math.round(height))),
     };
     return this.serialize(managed, async () => {
-      if (managed.controller === "agent") return this.pageState(managed);
+      if (managed.controller === "agent" && !managed.initialViewportReady) return this.pageState(managed);
       const current = managed.page.viewportSize();
       if (!current || current.width !== next.width || current.height !== next.height) {
         await managed.page.setViewportSize(next);
       }
+      managed.initialViewportReady?.();
       return this.touch(managed);
     });
   }
