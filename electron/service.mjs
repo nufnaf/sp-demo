@@ -21,7 +21,9 @@ export function portIsOpen(port = 30141) {
   });
 }
 export class LocalService {
-  constructor({ root, onStatus = () => {}, onFailure = () => {}, origin = APP_ORIGIN, timeout = 120_000, command, env = process.env }) {
+  constructor({ root, onStatus = () => {}, onFailure = () => {}, origin = APP_ORIGIN, timeout = 120_000, command, env = process.env, kind = "workbench", production = false }) {
+    this.kind = kind;
+    this.production = production;
     this.root = realpathSync(root);
     this.identity = checkoutId(root);
     this.origin = origin;
@@ -29,7 +31,9 @@ export class LocalService {
     this.onStatus = onStatus;
     this.onFailure = onFailure;
     this.customCommand = Boolean(command);
-    this.command = command ?? [process.execPath, join(root, 'node_modules/next/dist/bin/next'), 'dev', '-H', '127.0.0.1', '-p', '30141'];
+    this.command = command ?? (kind === 'recruiting'
+      ? [process.execPath, join(root, 'local.mjs')]
+      : [process.execPath, join(root, 'node_modules/next/dist/bin/next'), production ? 'start' : 'dev', '-H', '127.0.0.1', '-p', '30141']);
     this.env = env;
     this.owned = false;
     this.stopped = false;
@@ -42,17 +46,18 @@ export class LocalService {
     const occupied = await portIsOpen(Number(new URL(this.origin).port));
     if (this.stopped) throw new Error('启动已取消。');
     if (!occupied) {
-      if (existsSync(join(this.root, '.next/dev/lock'))) {
+      if (this.kind === 'workbench' && !this.production && existsSync(join(this.root, '.next/dev/lock'))) {
         throw new Error('此 checkout 的 .next/dev/lock 已存在。请检查已有 npm run dev；不要同时启动第二个开发实例。确认没有服务后再按 AGENTS.md 处理遗留锁。');
       }
-      if (!this.customCommand) {
-        try { prepareNativeHost(); }
+      if (!this.customCommand && this.kind === 'workbench') {
+        try { prepareNativeHost(this.root); }
         catch { throw new Error('本机 node-pty 模块不可用。请在当前 Node 下重新安装依赖；不要使用 Electron rebuild。'); }
       }
-      this.onStatus('正在启动本机后台…', '使用本机 Node 运行 Next.js 和 Pi；首次编译可能需要一至两分钟。');
+      this.onStatus(this.kind === 'recruiting' ? '正在准备招聘系统…' : '正在准备工作台…', this.production ? '正在启动内置服务，请稍候。' : '正在启动本机服务，请稍候。');
       const env = { ...this.env };
       delete env.ELECTRON_RUN_AS_NODE;
-      delete env.NODE_ENV;
+      if (this.production) env.NODE_ENV = 'production';
+      else delete env.NODE_ENV;
       // This launcher does not relay raw backend output: SDKs/extensions may log
       // authorization URLs or tool output. Status messages below contain no secrets.
       this.child = spawn(this.command[0], this.command.slice(1), {
@@ -60,10 +65,10 @@ export class LocalService {
       });
       this.owned = true;
       this.child.on('error', () => {
-        this.failure = '本机后台无法启动。请确认 Node 路径有效，并运行 npm ci --legacy-peer-deps 安装依赖。';
+        this.failure = this.production ? '内置服务无法启动，请重新打开或重新安装完整 App。' : '本机后台无法启动。请确认 Node 路径有效，并运行 npm ci --legacy-peer-deps 安装依赖。';
       });
       this.child.on('exit', (code, signal) => {
-        this.failure = `本机后台已停止（${signal || `退出码 ${code}`}）。请在本 checkout 运行 npm run dev 检查错误，修复后重试连接。`;
+        this.failure = `${this.kind === 'recruiting' ? '招聘系统' : '工作台服务'}已停止（${signal || `退出码 ${code}`}）。${this.production ? '请点击重试重新启动。' : '请检查本机服务后重试。'}`;
         if (this.ready && !this.stopped) this.onFailure(this.failure);
         if (!this.stopped) void this.tree?.stop().catch(() => {});
       });
@@ -82,29 +87,30 @@ export class LocalService {
         if (response.status === 401) throw new Error('服务启用了 PI_WEB_PASSWORD。请使用已有网页登录方式；本阶段桌面启动不绕过或转存该密码。');
         if (response.ok) {
           const health = await response.json();
-          if (health.app !== 'syntropic-local' || health.checkoutId !== this.identity) {
-            throw new Error('30141 已被其他项目或 worktree 占用。请在该服务原来的终端停止它，或从对应 checkout 启动桌面；App 不会终止它。');
+          if (health.app !== (this.kind === 'recruiting' ? 'syntropic-recruiting' : 'syntropic-local') || health.checkoutId !== this.identity) {
+            throw new Error(`${new URL(this.origin).port} 已被其他项目或 worktree 占用。请先退出原来的服务再重试；App 不会终止它。`);
           }
           // The lightweight identity route alone doesn't prove the page or Pi API compiles.
-          const checks = await Promise.all(['/', '/api/agent/running'].map((path) => fetch(`${this.origin}${path}`, {
+          const paths = this.kind === 'recruiting' ? ['/'] : ['/', '/api/agent/running'];
+          const checks = await Promise.all(paths.map((path) => fetch(`${this.origin}${path}`, {
             signal: AbortSignal.timeout(Math.max(1, Math.min(10_000, deadline - Date.now()))), redirect: 'manual',
           })));
-          const api = checks[1].ok ? await checks[1].json() : null;
+          const api = checks[1]?.ok ? await checks[1].json() : null;
           await checks[0].arrayBuffer();
-          if (checks.every((r) => r.ok) && Array.isArray(api?.runningSessionIds)) {
+          if (checks.every((r) => r.ok) && (this.kind === 'recruiting' || Array.isArray(api?.runningSessionIds))) {
             this.ready = true;
             return { owned: this.owned };
           }
         }
       } catch (error) {
-        if (error.message.startsWith('30141 ') || error.message.startsWith('服务启用了')) throw error;
+        if (/^\d+ 已被/.test(error.message) || error.message.startsWith('服务启用了')) throw error;
       }
       await delay(350);
     }
     if (this.stopped) throw new Error('启动已取消。');
     throw new Error(occupied
-      ? '30141 上的服务未能通过当前 worktree 的健康检查。请检查是否为其他程序、旧版本服务或编译失败；App 没有停止它。'
-      : '本机服务未能在两分钟内就绪。请检查依赖与编译错误（npm run dev），然后重试。');
+      ? `${new URL(this.origin).port} 上的服务未能通过健康检查。请检查是否为其他程序、旧版本服务或数据加载失败；App 没有停止它。`
+      : '本机服务未能在两分钟内就绪，请重新打开 App 或检查本机服务后重试。');
   }
   async stop() {
     this.stopped = true;

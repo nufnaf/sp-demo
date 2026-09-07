@@ -4,7 +4,6 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { connect, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { createRequire } from "node:module";
 import { setTimeout as delay } from "node:timers/promises";
 
 // The version-pinned agent-browser Rust daemon executes every AI interaction.
@@ -19,7 +18,9 @@ export class AgentBrowserExecutor {
 
   async start(cdpUrl: string, targetId: string, signal: AbortSignal): Promise<void> {
     signal.throwIfAborted();
-    const require = createRequire(join(process.cwd(), "package.json"));
+    // Resolve from the deployed runtime at execution time. Webpack rewrites
+    // imported createRequire calls with dynamic arguments incorrectly.
+    const require = process.getBuiltinModule("module").createRequire(join(process.cwd(), "package.json"));
     const root = dirname(require.resolve("agent-browser/package.json"));
     const executable = join(root, "bin", `agent-browser-${process.platform}-${process.arch}`);
     if (!existsSync(executable)) throw new Error("agent-browser 未安装完整，请运行 npm ci --legacy-peer-deps。");

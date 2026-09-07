@@ -15,6 +15,7 @@ export interface BrowserTaskState {
   turns: number;
   startedAt: string;
   elapsedMs: number;
+  timings?: { phase: "auth" | "browser-start" | "navigate" | "snapshot" | "session" | "model" | "action" | "cleanup"; durationMs: number }[];
   result?: string;
   error?: string;
 }

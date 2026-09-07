@@ -1,7 +1,8 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LocalService } from './service.mjs';
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+import { ServiceGroup } from './service-group.mjs';
+const root = process.env.SYNTROPIC_APP_ROOT || resolve(dirname(fileURLToPath(import.meta.url)), '..');
 let service;
 let starting;
 let stopping = false;
@@ -10,17 +11,22 @@ const status = (title, detail, retry = false) => send({ type: 'status', status: 
 async function start() {
   if (starting || stopping) return;
   starting = (async () => {
-    if (service?.ready && !service.failure) {
-      send({ type: 'ready', owned: service.owned }); return;
-    }
     await service?.stop();
     if (stopping) return;
-    service = new LocalService({
-      root,
+    const production = process.env.SYNTROPIC_PACKAGED === '1';
+    const callbacks = {
       onStatus: (title, detail) => status(title, detail),
-      onFailure: (detail) => status('本机后台已停止', detail, true),
-    });
-    try { const result = await service.start(); send({ type: 'ready', ...result }); }
+      onFailure: (detail) => status('本机服务已停止', detail, true),
+    };
+    service = new ServiceGroup([
+      new LocalService({ root, production, ...callbacks }),
+      new LocalService({
+        root: resolve(root, 'apps/recruiting'), kind: 'recruiting', production,
+        origin: 'http://127.0.0.1:30143', ...callbacks,
+        env: { ...process.env, PORT: '30143', PUBLIC_ORIGIN: 'http://127.0.0.1:30143', DATABASE_URL: '', VERCEL: '' },
+      }),
+    ]);
+    try { const result = await service.start(); if (!stopping) send({ type: 'ready', ...result }); }
     catch (error) {
       await service.stop();
       if (!stopping) status('无法启动工作台', error.message, true);

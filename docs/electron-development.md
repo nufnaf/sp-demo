@@ -1,8 +1,10 @@
 # Syntropic 开发阶段桌面版
 
-当前在第一阶段完整成果上加入了第二阶段 agent-browser 执行器。人工浏览与 AI 专用页面分开演示，浏览器 Agent 固定使用 `openai-codex / gpt-5.6-luna`。启动与演示脚本见[第二阶段说明](browser-phase-two.md)；第一阶段历史结果保留在 [electron-validation.md](electron-validation.md)。
+现在支持双击运行的 macOS Apple Silicon 安装包，构建与使用见 [双击启动版说明](electron-packaging.md)。下面保留开发方式的运行边界。
 
-这是一套运行当前 Next.js + Pi 工作台的 Electron 开发环境。需要本机 Node、源码、依赖以及已安装的 Chrome / Edge / Chromium；不是可独立分发给投资人的安装包。本阶段不构建生产产物，不做签名、公证、自动更新或浏览器随包分发。
+开发入口 `npm run desktop` 现在统一启动／检查工作台和独立招聘网站，不再需要额外运行招聘启动命令。也可以独立运行招聘网站做网页开发。招聘查询、评价保存和重置见 [第三阶段说明](browser-phase-three.md)。
+
+开发模式需要本机 Node、源码、依赖及 Chrome / Edge / Chromium；打包模式内置 Node 和浏览器，并使用生产产物。当前安装包仅本机签名，尚无 Apple 公证或自动更新。
 
 ## 启动与停止
 
@@ -42,6 +44,7 @@ Electron 首次运行需要下载官方运行时，终端会显示下载状态�
 npm run desktop（本机 Node 启动器）
   └─ Electron 主进程 + 隔离的工作台页面
        └─ 本机 Node supervisor（IPC 管理通道）
+            ├─ 招聘 Node 服务（仅端口空闲时启动）
             └─ Next dev（仅端口空闲时启动）
                  ├─ Next API / Pi AgentSession
                  ├─ 独立资料目录的 Chrome / Edge / Chromium
@@ -82,7 +85,7 @@ Electron 拦截现有界面的 `window.open`，在系统默认浏览器中打开
 
 `lib/browser/extension.ts` 注册 `browser_open` 等 Pi 工具。`browser.opened` 事件经过现有事件流交给 `components/AgentDesktop.tsx`，打开并前置工作台内的浏览器窗口；Electron 无需再维护一套事件或浏览器状态。
 
-第二阶段已沿此边界接入：`lib/browser/agent-browser.ts` 管理真实 agent-browser 执行器，`lib/browser/tasks.ts` 管理固定 Luna 模型的 Pi AgentSession、任务状态和停止。任务拥有独立 Chrome 实例、资料目录与固定 CDP target；主 Agent 通过 `browser_task` 整体委派。没有模型选择界面或接管恢复流程。招聘网页仍不在本阶段实现。
+第二阶段已沿此边界接入：`lib/browser/agent-browser.ts` 管理真实 agent-browser 执行器，`lib/browser/tasks.ts` 管理固定 Luna 模型的 Pi AgentSession、任务状态和停止。任务拥有独立 Chrome 实例、资料目录与固定 CDP target；主 Agent 通过 `browser_task` 整体委派。没有模型选择界面或接管恢复流程。第三阶段的 `apps/recruiting` 提供独立招聘网站，`lib/browser/business-sites.ts` 将其入口与业务语义提供给主 Agent，实际操作仍经过上述执行器。
 
 ## 隔离边界
 

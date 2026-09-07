@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Type } from "@earendil-works/pi-ai";
 import {
   createAgentSessionFromServices, createAgentSessionServices, defineTool,
-  ModelRuntime, SessionManager, SettingsManager, type AgentSession,
+  ModelRuntime, SessionManager, SettingsManager, type AgentSession, type CreateAgentSessionFromServicesOptions,
 } from "@earendil-works/pi-coding-agent";
 import { AgentBrowserExecutor, assertTaskUrl, browserCommand, type BrowserStep } from "./agent-browser";
 import { getBrowserManager } from "./manager";
@@ -59,7 +59,7 @@ export function startBrowserTask(input: { cwd: string; parentSessionId: string; 
   const controller = new AbortController();
   const state: BrowserTaskState = {
     id: randomUUID(), ...input, ...BROWSER_MODEL, status: "starting", progress: "正在准备 Luna 和专用浏览器",
-    steps: 0, turns: 0, startedAt: new Date().toISOString(), elapsedMs: 0,
+    steps: 0, turns: 0, startedAt: new Date().toISOString(), elapsedMs: 0, timings: [],
   };
   const run: TaskRun = { state, controller, completion: Promise.resolve(state) };
   runs().set(state.id, run);
@@ -68,6 +68,13 @@ export function startBrowserTask(input: { cwd: string; parentSessionId: string; 
   if (parentSignal?.aborted) cancel();
   run.completion = execute(run, input.url).finally(() => parentSignal?.removeEventListener("abort", cancel));
   return run;
+}
+
+// Use the SDK's normal turn boundary: finishing is not user cancellation.
+export async function createBrowserTaskSession(options: CreateAgentSessionFromServicesOptions, hasResult: () => boolean) {
+  const { session } = await createAgentSessionFromServices(options);
+  session.agent.shouldStopAfterTurn = hasResult;
+  return session;
 }
 
 async function execute(run: TaskRun, url: string): Promise<BrowserTaskState> {
@@ -85,6 +92,15 @@ async function execute(run: TaskRun, url: string): Promise<BrowserTaskState> {
     run.state = { ...run.state, ...patch, elapsedMs: Date.now() - started };
     void manager.taskChanged(run.state);
   };
+  type Phase = NonNullable<BrowserTaskState["timings"]>[number]["phase"];
+  const recordTiming = (phase: Phase, since: number) => {
+    update({ timings: [...(run.state.timings ?? []), { phase, durationMs: Math.round(performance.now() - since) }] });
+  };
+  const timed = async <T>(phase: Phase, operation: () => Promise<T>): Promise<T> => {
+    const since = performance.now();
+    try { return await operation(); } finally { recordTiming(phase, since); }
+  };
+  let modelStarted: number | undefined;
   const assertRunning = () => {
     signal.throwIfAborted();
     if (pageClosed) throw new Error("目标页面已关闭，任务已终止");
@@ -105,11 +121,14 @@ async function execute(run: TaskRun, url: string): Promise<BrowserTaskState> {
   update({});
   try {
     assertRunning();
+    const authStarted = performance.now();
     const runtime = await ModelRuntime.create();
     const model = runtime.getModel(BROWSER_MODEL.provider, BROWSER_MODEL.modelId);
     if (!model) throw new Error("Pi 模型目录中没有 gpt-5.6-luna。请在设置 → Models 检查 ChatGPT Provider；不会自动切换模型。");
     if (!(await runtime.getAuth(model))?.auth.apiKey) throw new Error("Luna 尚未授权。请打开设置 → Models → ChatGPT Plus/Pro → Login，完成现有 Pi 登录后重试。");
     assertRunning();
+    recordTiming("auth", authStarted);
+    const browserStarted = performance.now();
     const target = await manager.openTaskPage(run.state.cwd, run.state.parentSessionId, run.state.id);
     target.page.once("close", () => {
       pageClosed = true;
@@ -119,14 +138,15 @@ async function execute(run: TaskRun, url: string): Promise<BrowserTaskState> {
     assertRunning();
     await executor.start(target.cdpUrl, target.targetId, signal);
     assertRunning();
-    await executor.perform({ action: "navigate", url });
-    const read = async () => {
+    recordTiming("browser-start", browserStarted);
+    await timed("navigate", () => executor.perform({ action: "navigate", url }));
+    const read = () => timed("snapshot", async () => {
       assertRunning();
       const snapshot = await executor.snapshot();
       assertRunning();
       await manager.refreshTaskPage(target.pageId);
       return `URL: ${target.page.url()}\n${snapshot}`;
-    };
+    });
     const firstSnapshot = await read();
     // Screenshot endpoints also refresh continuously in BrowserApp; events are
     // emitted at every action so the workspace and task result stay in sync.
@@ -150,7 +170,7 @@ async function execute(run: TaskRun, url: string): Promise<BrowserTaskState> {
           update({ progress: params.description });
           for (const action of actions) {
             assertRunning();
-            await executor.perform(action);
+            await timed("action", () => executor.perform(action));
             assertRunning();
             update({ steps: run.state.steps + 1 });
           }
@@ -166,10 +186,11 @@ async function execute(run: TaskRun, url: string): Promise<BrowserTaskState> {
         parameters: Type.Object({ completed: Type.Boolean(), result: Type.String({ minLength: 1, maxLength: 6000 }) }),
         execute: async (_id, params) => serialized(async () => {
           reported = params;
-          return textResult("结果已交回主 Agent，请结束回复。");
+          return textResult("结果已交回主 Agent。");
         }),
       }),
     ];
+    const sessionStarted = performance.now();
     const services = await createAgentSessionServices({
       cwd: run.state.cwd, modelRuntime: runtime,
       settingsManager: SettingsManager.inMemory({ retry: { enabled: false }, compaction: { enabled: false } }),
@@ -179,17 +200,22 @@ async function execute(run: TaskRun, url: string): Promise<BrowserTaskState> {
       },
     });
     assertRunning();
-    const created = await createAgentSessionFromServices({
+    inner = await createBrowserTaskSession({
       services, sessionManager: SessionManager.inMemory(run.state.cwd), model,
       thinkingLevel: BROWSER_MODEL.thinkingLevel,
       tools: tools.map((tool) => tool.name), customTools: tools,
-    });
-    inner = created.session;
+    }, () => reported !== undefined);
+    recordTiming("session", sessionStarted);
     assertRunning();
     stopEvents = inner.subscribe((event) => {
       if (event.type === "turn_start") {
+        modelStarted = performance.now();
         update({ turns: run.state.turns + 1 });
         if (run.state.turns > 40) run.controller.abort(new Error("浏览器任务达到模型轮次上限，已停止"));
+      }
+      if (event.type === "message_end" && event.message.role === "assistant" && modelStarted !== undefined) {
+        recordTiming("model", modelStarted);
+        modelStarted = undefined;
       }
       if (event.type === "message_end" && event.message.role === "assistant" && event.message.stopReason === "error") {
         modelError = event.message.errorMessage || "Luna 请求失败，请检查设置 → Models 中的 ChatGPT 登录和账号可用性";
@@ -214,10 +240,10 @@ async function execute(run: TaskRun, url: string): Promise<BrowserTaskState> {
     }
     const final = reported as { completed: boolean; result: string } | undefined;
     if (!final) throw new Error("Luna 已结束，但没有提交可核对的完成结果");
-    await executor.stop();
+    await timed("cleanup", () => executor.stop());
     update({ status: final.completed ? "completed" : "failed", progress: final.completed ? "任务已完成" : "任务未完成", result: final.result, ...(!final.completed ? { error: final.result } : {}) });
   } catch (error) {
-    await executor.stop();
+    await timed("cleanup", () => executor.stop());
     const reason = signal.aborted ? signal.reason : error;
     update({ status: signal.aborted && !pageClosed ? "stopped" : "failed", progress: pageClosed ? "目标页面已关闭" : signal.aborted ? "任务已停止" : "任务失败", error: reason instanceof Error ? reason.message : String(reason) });
   } finally {

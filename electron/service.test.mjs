@@ -113,3 +113,31 @@ test('stopping during startup cancels it and reaps the owned child', async (t) =
   await started;
   assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
 });
+
+test('owns a real recruiting service, checks its data, and preserves saves across restart', async (t) => {
+  const dataRoot = await workspace(t);
+  const root = new URL('../apps/recruiting/', import.meta.url).pathname;
+  const { server, port, origin } = await fixture(t, () => {});
+  await new Promise((resolve) => server.close(resolve));
+  const dataFile = join(dataRoot, 'state.json');
+  const options = { root, origin, kind: 'recruiting', timeout: 8000,
+    env: { ...process.env, PORT: String(port), RECRUITING_DATA_FILE: dataFile, DATABASE_URL: '', VERCEL: '' } };
+  const service = new LocalService(options);
+  t.after(() => service.stop());
+  assert.deepEqual(await service.start(), { owned: true });
+  const { readFile } = await import('node:fs/promises');
+  const state = JSON.parse(await readFile(dataFile, 'utf8'));
+  const response = await fetch(`${origin}/jobs/ai-agent/save`, { method: 'POST', redirect: 'manual',
+    headers: { Origin: origin, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ revision: state.revision, target: '9', owner: '测试负责人', description: '重启持久化测试' }),
+  });
+  assert.equal(response.status, 303);
+  await service.stop();
+  assert.equal(await portIsOpen(port), false);
+  const restarted = new LocalService(options);
+  t.after(() => restarted.stop());
+  await restarted.start();
+  const html = await (await fetch(`${origin}/jobs/ai-agent`)).text();
+  assert.match(html, /测试负责人/);
+  assert.match(html, /重启持久化测试/);
+});

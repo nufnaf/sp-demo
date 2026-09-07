@@ -2,6 +2,7 @@ import { Type } from "@earendil-works/pi-ai";
 import { defineTool, type InlineExtension } from "@earendil-works/pi-coding-agent";
 import { getBrowserManager } from "./manager";
 import { startBrowserTask } from "./tasks";
+import { recruitingBrowserContext } from "./business-sites";
 
 export const BROWSER_EXTENSION_NAME = "pi-web-browser";
 export const BROWSER_READ_TOOL_NAMES = ["browser_open", "browser_tabs", "browser_navigate", "browser_snapshot", "browser_screenshot"] as const;
@@ -31,6 +32,7 @@ export function createBrowserExtension(taskOnly = false): InlineExtension {
         description: "Delegate a COMPLETE website task to the dedicated Luna browser Agent. It opens the visible in-app browser, performs real agent-browser interactions, verifies the result, and returns it. Use for multi-step browsing, filtering, entering details and submitting forms instead of planning each click yourself.",
         promptSnippet: "Delegate complete website workflows to browser_task (dedicated Luna Agent)",
         promptGuidelines: [
+          recruitingBrowserContext(),
           "For a multi-step website task, call browser_task once with the full user goal, starting URL, exact record criteria and form content. Wait for its result and summarize it; do not perform the individual browser clicks yourself.",
           "Do not replace browser tasks with bash, scripts, direct website APIs, or simulated actions. Task pages are isolated from manual browsing and other tasks.",
           "Only report success when browser_task reports completed. If it fails, report its blocker accurately without fabricating a successful save.",

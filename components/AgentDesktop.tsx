@@ -10,6 +10,7 @@ import Image from "next/image";
 import {
   useCallback,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -38,7 +39,8 @@ import { BrowserApp } from "./BrowserApp";
 import { SalesCRMApp } from "./SalesCRMApp";
 import { HRRecruitingApp } from "./HRRecruitingApp";
 import { InvestmentWorkspaceApp } from "./InvestmentWorkspaceApp";
-import type { BrowserSystemEvent } from "@/lib/browser/types";
+import type { BrowserSystemEvent, BrowserTaskState } from "@/lib/browser/types";
+import { captureBrowserOrigin, isBrowserOriginCurrent, browserReturnDestination, type BrowserReturnOrigin } from "@/lib/browser/return-to-origin";
 import type { FileOpenRequest } from "@/lib/files-app/types";
 import {
   isInsightTaskSession,
@@ -1456,24 +1458,63 @@ export function AgentDesktop() {
   const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
   const knownInsightIdsRef = useRef<Set<string> | null>(null);
 
+  const browserReturnOriginRef = useRef<BrowserReturnOrigin | null>(null);
+  const cancelBrowserReturn = useCallback(() => { browserReturnOriginRef.current = null; }, []);
+  useEffect(() => {
+    const origin = browserReturnOriginRef.current;
+    if (origin && !isBrowserOriginCurrent(origin, { cwd: activeCwd, jarvisSessionId, taskSessionId, browserOpen, frontWindow })) {
+      browserReturnOriginRef.current = null;
+    }
+  }, [activeCwd, jarvisSessionId, taskSessionId, browserOpen, frontWindow]);
+
+  const handleBrowserEvent = useEffectEvent((message: BrowserSystemEvent | { type: "browser.ready" }) => {
+    const context = { cwd: activeCwd, jarvisSessionId, taskSessionId, browserOpen, frontWindow };
+    if (message.type === "browser.task") {
+      const origin = browserReturnOriginRef.current;
+      if (!origin || message.task.pageId !== origin.pageId
+          || !["completed", "failed", "stopped"].includes(message.task.status)) return;
+      // Consume once, including cancellation; reconnection must not steal focus later.
+      browserReturnOriginRef.current = null;
+      const destination = browserReturnDestination(origin, message.task, context);
+      if (destination === "jarvis") {
+        followConversationRef.current = true;
+        setJarvisPanelOpen(true);
+      } else if (destination === "tasks") {
+        setJarvisPanelOpen(false);
+        setFrontWindow("tasks");
+      }
+      return;
+    }
+    if (message.type !== "browser.opened" || !message.foreground) return;
+    if (activeCwd && message.page.cwd !== activeCwd) {
+      setNotice(`浏览器已在其他工作台打开：${message.page.title || message.page.url}`);
+      return;
+    }
+    browserReturnOriginRef.current = captureBrowserOrigin(message.page, context);
+    setBrowserPageId(message.page.pageId);
+    setBrowserOpen(true);
+    setFrontWindow("browser");
+    if (message.page.controller === "agent") setJarvisPanelOpen(false);
+  });
+
   useEffect(() => {
     const stream = new EventSource("/api/browser/events");
+    const controller = new AbortController();
     stream.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data) as BrowserSystemEvent | { type: "browser.ready" };
-        if (message.type !== "browser.opened" || !message.foreground) return;
-        if (activeCwd && message.page.cwd !== activeCwd) {
-          setNotice(`浏览器已在其他工作台打开：${message.page.title || message.page.url}`);
-          return;
-        }
-        setBrowserPageId(message.page.pageId);
-        setBrowserOpen(true);
-        setFrontWindow("browser");
-        if (message.page.controller === "agent") setJarvisPanelOpen(false);
-      } catch { /* ignore malformed browser events */ }
+      try { handleBrowserEvent(JSON.parse(event.data) as BrowserSystemEvent | { type: "browser.ready" }); }
+      catch { /* ignore malformed browser events */ }
     };
-    return () => stream.close();
-  }, [activeCwd]);
+    // Recover a completion missed during a short SSE interruption, only for
+    // the task whose browser this UI actually followed into the foreground.
+    stream.onopen = () => {
+      if (!browserReturnOriginRef.current) return;
+      void fetch("/api/browser/state", { cache: "no-store", signal: controller.signal })
+        .then(async (response) => response.ok ? await response.json() as { tasks: BrowserTaskState[] } : null)
+        .then((state) => { if (!controller.signal.aborted) state?.tasks.forEach((task) => handleBrowserEvent({ type: "browser.task", task })); })
+        .catch(() => { /* The stream remains the primary delivery path. */ });
+    };
+    return () => { controller.abort(); stream.close(); };
+  }, []);
 
   useEffect(() => {
     const stream = new EventSource("/api/file-app/events");
@@ -2410,7 +2451,7 @@ export function AgentDesktop() {
           setBrowserOpen(false);
           releaseTemporaryDockItem("system:browser");
         }} titleIcon={<Icon name="browser" size={16}/> }>
-          <BrowserApp key={activeCwd} cwd={activeCwd} initialPageId={browserPageId} onOpenSettings={() => { setSettingsOpen(true); setFrontWindow("settings"); }}/>
+          <BrowserApp key={activeCwd} onUserInteraction={cancelBrowserReturn} cwd={activeCwd} initialPageId={browserPageId} onOpenSettings={() => { setSettingsOpen(true); setFrontWindow("settings"); }}/>
         </DesktopWindow>}
         {filesOpen && activeCwd && <DesktopWindow title="文件" kind="app" front={frontWindow === "files"} onFocus={() => setFrontWindow("files")} onClose={() => {
           if (filesHaveUnsavedChanges && !window.confirm("文件应用中有未保存的修改，确定关闭吗？")) return;

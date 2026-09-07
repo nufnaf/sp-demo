@@ -39,7 +39,10 @@
     "desktop": "node electron/launch.mjs",
     "test:desktop": "node --test electron/*.test.mjs",
     "test:browser": "node --test lib/browser/*.test.mjs scripts/browser-integration.test.mjs",
-    "demo:browser": "node scripts/browser-demo.mjs"
+    "demo:browser": "node scripts/browser-demo.mjs",
+    "demo:recruiting": "npm --prefix apps/recruiting start",
+    "test:recruiting": "npm --prefix apps/recruiting test",
+    "package:desktop": "node scripts/package-desktop.mjs"
   },
   "dependencies": {
     "@codemirror/lang-css": "^6.3.1",

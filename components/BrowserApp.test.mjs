@@ -18,7 +18,7 @@ test("desktop exposes a built-in browser window that follows Agent open events",
 
 test("browser app provides navigation, adaptive screenshots, and shared human-AI control", () => {
   assert.match(component, /type: "navigate", action: "back"/);
-  assert.match(component, /\/screenshot\?revision=/);
+  assert.match(component, /\/screenshot`, \{ cache: "no-store"/);
   assert.doesNotMatch(component, /共同操作|AI 已连接/);
   assert.match(component, /type: "resize", width, height/);
   assert.match(component, /BROWSER_CONTENT_SCALE = 0\.8/);

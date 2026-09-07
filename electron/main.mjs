@@ -1,19 +1,22 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from 'electron';
 import { fork } from 'node:child_process';
+import { cp, mkdir, readFile, rename, rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { APP_ORIGIN, isAppUrl, isExternalUrl } from './policy.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
+const packaged = existsSync(join(process.resourcesPath, 'desktop-runtime.json'));
 const recoveryUrl = pathToFileURL(join(here, 'status.html'));
-app.setName('Syntropic Dev');
+app.setName(packaged ? 'Syntropic' : 'Syntropic Dev');
 // Renderer preferences only. Pi keeps its own existing ~/.pi/agent directory.
-app.setPath('userData', join(app.getPath('appData'), 'Syntropic Dev'));
+app.setPath('userData', join(app.getPath('appData'), packaged ? 'Syntropic' : 'Syntropic Dev'));
 let window = null;
 let supervisor = null;
 let quitting = false;
 let ready = false;
-let status = { title: '正在启动本机后台…', detail: '首次启动需要编译页面，请稍候。后台就绪后将自动打开工作台。' };
+let status = { title: '正在启动本机后台…', detail: '正在准备工作空间，请稍候。服务就绪后将自动打开工作台。' };
 let supervisorStopped = Promise.resolve();
 
 async function showStatus(next) {
@@ -64,22 +67,50 @@ function createWindow() {
   contents.on('did-fail-load', (_event, code, _description, url, isMainFrame) => {
     if (isMainFrame && code !== -3 && isAppUrl(url)) {
       ready = false;
-      void showStatus({ title: '工作台加载失败', detail: '本机页面暂时无法加载。请重试；如果仍然失败，请检查开发服务。', retry: true });
+      void showStatus({ title: '工作台加载失败', detail: '本机页面暂时无法加载。请重试；如果仍然失败，请退出并重新打开应用。', retry: true });
     }
   });
   window.on('closed', () => { window = null; });
   if (ready) void window.loadURL(APP_ORIGIN).catch(() => {});
   else void showStatus(status);
 }
-function startSupervisor() {
-  const node = process.env.SYNTROPIC_NODE;
+async function startSupervisor() {
+  let node = process.env.SYNTROPIC_NODE;
+  let root = join(here, '..');
+  const env = { ...process.env, ELECTRON_RUN_AS_NODE: undefined };
+  if (packaged) {
+    try {
+      const manifest = JSON.parse(await readFile(join(process.resourcesPath, 'desktop-runtime.json'), 'utf8'));
+      root = join(app.getPath('userData'), 'runtimes', manifest.buildId);
+      // Runtime caches are writable and upgrades never replace recruitment/Pi data.
+      if (!existsSync(join(root, 'package.json'))) {
+        const pending = `${root}.pending`;
+        await mkdir(dirname(root), { recursive: true });
+        await rm(pending, { recursive: true, force: true });
+        await cp(join(process.resourcesPath, 'runtime'), pending, { recursive: true, verbatimSymlinks: true });
+        await rename(pending, root);
+      }
+      node = join(process.resourcesPath, 'node/bin/node');
+      Object.assign(env, {
+        SYNTROPIC_PACKAGED: '1',
+        SYNTROPIC_APP_ROOT: root,
+        RECRUITING_DATA_FILE: join(app.getPath('userData'), 'recruiting/state.json'),
+        SYNTROPIC_RECRUITING_URL: 'http://127.0.0.1:30143/',
+        PI_WEB_BROWSER_EXECUTABLE: join(process.resourcesPath, manifest.browserExecutable),
+        PATH: `${join(process.resourcesPath, 'node/bin')}:/usr/bin:/bin:/usr/sbin:/sbin`,
+      });
+    } catch {
+      await showStatus({ title: '应用运行文件准备失败', detail: '请确认磁盘空间充足，或重新复制完整的 Syntropic.app 后启动。', retry: false });
+      return;
+    }
+  }
+  if (quitting) return;
   if (!node) {
     void showStatus({ title: '缺少本机 Node 启动器', detail: '请从项目目录运行 npm run desktop。', retry: false });
     return;
   }
   supervisor = fork(join(here, 'supervisor.mjs'), [], {
-    execPath: node, execArgv: [], cwd: join(here, '..'),
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined },
+    execPath: node, execArgv: [], cwd: root, env,
     stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
   });
   supervisorStopped = new Promise((resolve) => {
@@ -100,7 +131,7 @@ function startSupervisor() {
   const failed = () => {
     if (!quitting) {
       ready = false;
-      void showStatus({ title: '后台管理进程已停止', detail: '请退出 App，再运行 npm run desktop。', retry: false });
+      void showStatus({ title: '后台管理进程已停止', detail: '请退出并重新打开应用。', retry: false });
     }
   };
   supervisor.on('error', failed);
@@ -148,6 +179,6 @@ if (!app.requestSingleInstanceLock()) {
       if (supervisor?.connected) supervisor.send({ type: 'start' });
     });
     createWindow();
-    startSupervisor();
+    void startSupervisor();
   });
 }

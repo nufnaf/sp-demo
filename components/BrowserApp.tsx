@@ -21,6 +21,7 @@ interface BrowserAppProps {
   cwd: string;
   initialPageId?: string | null;
   onOpenSettings?: () => void;
+  onUserInteraction?: () => void;
 }
 
 const BROWSER_CONTENT_SCALE = 0.8;
@@ -51,9 +52,8 @@ function displayTitle(page: BrowserPageState): string {
   return page.title || (page.url === "about:blank" ? "新标签页" : page.url);
 }
 
-export function BrowserApp({ cwd, initialPageId, onOpenSettings }: BrowserAppProps) {
+export function BrowserApp({ cwd, initialPageId, onOpenSettings, onUserInteraction }: BrowserAppProps) {
   const [tasks, setTasks] = useState<BrowserTaskState[]>([]);
-  const [frame, setFrame] = useState(0);
   const [screen, setScreen] = useState<{ pageId: string; url: string } | null>(null);
   const [stoppingTaskId, setStoppingTaskId] = useState<string | null>(null);
   const [pages, setPages] = useState<BrowserPageState[]>([]);
@@ -79,6 +79,7 @@ export function BrowserApp({ cwd, initialPageId, onOpenSettings }: BrowserAppPro
   const task = closedTask ?? tasks.find((item) => item.pageId === activePage?.pageId);
   const aiBusy = activePage?.controller === "agent";
   const taskRunning = task && ["starting", "running", "stopping"].includes(task.status);
+  const showTaskStatus = task && (taskRunning || task.status === "failed");
   const mergeTask = useCallback((task: BrowserTaskState) => {
     if (task.cwd !== cwd) return;
     setTasks((current) => current.some((item) => item.id === task.id)
@@ -229,7 +230,6 @@ export function BrowserApp({ cwd, initialPageId, onOpenSettings }: BrowserAppPro
           const previous = imageUrl;
           imageUrl = URL.createObjectURL(blob);
           setScreen({ pageId, url: imageUrl });
-          setFrame(Date.now());
           if (previous) URL.revokeObjectURL(previous);
         } catch { /* Closure and navigation events reconcile page state. */ }
       }
@@ -366,7 +366,7 @@ export function BrowserApp({ cwd, initialPageId, onOpenSettings }: BrowserAppPro
 
   const isNewTab = activePage?.url === "about:blank";
 
-  return <section className={`agent-browser-app${task ? " has-task" : ""}`}>
+  return <section className={`agent-browser-app${showTaskStatus ? " has-task" : ""}`} onPointerDownCapture={onUserInteraction} onKeyDownCapture={onUserInteraction}>
     <nav className="agent-browser-tabs" aria-label="浏览器标签页">
       <div className="agent-browser-tab-list" role="tablist">
         {pages.map((page) => <div className={`agent-browser-tab${page.pageId === activePage?.pageId ? " is-active" : ""}`} key={page.pageId}>
@@ -393,15 +393,12 @@ export function BrowserApp({ cwd, initialPageId, onOpenSettings }: BrowserAppPro
       </form>
     </header>
 
-    {task ? <div className="agent-browser-task" role="status" aria-live="polite">
+    {showTaskStatus ? <div className="agent-browser-task" role="status" aria-live="polite">
       <div className="agent-browser-task-summary">
-        <strong>{task.progress}</strong>
-        <span>GPT-5.6 Luna · {task.steps} 步 · {Math.round((taskRunning ? Math.max(task.elapsedMs, frame - Date.parse(task.startedAt)) : task.elapsedMs) / 1000)} 秒</span>
+        <strong>{task.status === "failed" ? "网页任务未完成，请查看对话结果。" : task.status === "starting" ? "正在打开网页…" : task.status === "stopping" ? "正在停止…" : "正在处理网页任务…"}</strong>
         {taskRunning ? <button type="button" onClick={() => void stopTask()} disabled={task.status === "stopping" || stoppingTaskId === task.id}>{stoppingTaskId === task.id ? "正在请求停止…" : "停止任务"}</button> : null}
+        {task.error && /授权|模型目录|登录|unauthorized|authentication/i.test(task.error) ? <button type="button" onClick={onOpenSettings}>打开设置与登录</button> : null}
       </div>
-      <div className="agent-browser-task-detail">{task.error || task.result || "正在专用页面执行网页任务，完成后由主 Agent 汇总。"}</div>
-      {aiBusy ? <small>AI 正在操作专用页面。人工浏览请新建标签页。</small> : null}
-      {task.error && /授权|模型目录|登录|unauthorized|authentication/i.test(task.error) ? <button type="button" onClick={onOpenSettings}>打开设置与登录</button> : null}
     </div> : null}
 
     <div ref={viewportRef} className="agent-browser-viewport" tabIndex={activePage && !aiBusy ? 0 : -1} aria-busy={activePage?.loading} onKeyDown={handleViewportKey} onWheel={handleViewportWheel}>
