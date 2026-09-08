@@ -79,3 +79,47 @@ test("HTML forms save then redirect to persisted detail; stale/cross-site forms 
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("publishing a JD persists one job, verifies it on the page, and projects the same result to the desktop", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "recruiting-publish-"));
+  const file = join(dir, "state.json");
+  const store = new FileStore(file);
+  const server = createServer(createHandler(async () => store));
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const post = (fields) => fetch(origin + "/jobs/publish", { method: "POST", redirect: "manual", headers: { Origin: origin, "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(fields) });
+  try {
+    const before = await store.read();
+    const draft = "jd-test-publication-2026";
+    assert.deepEqual((await fetch(origin + "/desktop/published-jobs").then(r => r.json())).jobs, []);
+    assert.match(await fetch(origin + "/jobs/new?draft=" + draft).then(r => r.text()), /name="description"/);
+    const description = "职责与任职要求\n" + "参与智能体平台开发、评测和可靠性建设。\n".repeat(200) + "<script>alert(1)</script>";
+    const fields = { revision: before.revision, draft, title: "高级 AI Agent 工程师", department: "Agent 研发", location: "北京 / 上海", target: "6", owner: "陈晓", description };
+    assert.equal((await post({ ...fields, title: "" })).status, 400);
+    assert.equal((await store.read()).data.jobs.length, before.data.jobs.length);
+    const response = await post(fields);
+    assert.equal(response.status, 303);
+    const detail = await fetch(origin + response.headers.get("location")).then(r => r.text());
+    assert.match(detail, /职位发布成功/);
+    assert.match(detail, /高级 AI Agent 工程师/);
+    assert.match(detail, /&lt;script&gt;alert/);
+    const after = await new FileStore(file).read();
+    assert.equal(after.data.jobs.length, before.data.jobs.length + 1);
+    assert.deepEqual(after.data.applications, before.data.applications, "publishing must preserve all existing recruitment history");
+    assert.equal(after.data.jobs[0].description, description);
+    const projection = await fetch(origin + "/desktop/published-jobs").then(r => r.json());
+    assert.equal(projection.jobs.length, 1);
+    assert.equal(projection.jobs[0].id, after.data.jobs[0].id);
+    assert.equal(projection.jobs[0].candidateCount, 0);
+    assert.equal(projection.jobs[0].headcount, 6);
+    assert.equal((await post(fields)).status, 409, "stale form must not create another job");
+    assert.equal((await post({ ...fields, revision: after.revision })).status, 303);
+    assert.equal((await store.read()).data.jobs.length, after.data.jobs.length, "repeat publication key must not duplicate a job");
+    const reopened = await fetch(origin + "/jobs/new?draft=" + draft).then(r => r.text());
+    assert.match(reopened, /职位发布成功/);
+    assert.doesNotMatch(reopened, /action="\/jobs\/publish"/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(dir, { recursive: true, force: true });
+  }
+});

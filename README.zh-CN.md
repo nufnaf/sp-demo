@@ -1,9 +1,6 @@
-# Pi Web
+# Pi Web 底层技术参考
 
-
-## Syntropic 桌面开发版
-
-在本 checkout 执行 `npm run desktop` 即可同时启动本机后台与 Electron。详见[启动、数据与验证说明](docs/electron-development.md)。当前为开发阶段桌面版本，尚不是独立分发安装包。
+本文件保留上游 Pi Web 的配置和工具说明。Syntropic 的产品定位、分支差异、当前演示能力、本地启动与安装包状态，以 [项目 README](README.md) 为准。下面的上游 npm 包安装方式不会运行本分支的 Syntropic 扩展；默认 Pi 数据说明也不代表进行中的 Electron 专属演示重置行为。
 
 [English](./README.md) | [日本語](./README.ja.md) | [Русский](./README.ru.md)
 

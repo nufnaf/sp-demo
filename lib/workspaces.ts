@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
+import { presentationRoot, presentationStatePath } from "./presentation";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { writePrivateFileAtomicSync } from "./atomic-file";
 
@@ -19,7 +20,7 @@ interface WorkspaceRegistry {
 const MANAGED_DIRECTORY_PATTERN = /^pi-cwd-\d{8}(?:-\d{6}(?:-\d+)?)?$/;
 
 export function getWorkspaceRegistryPath(agentDir = getAgentDir()): string {
-  return join(agentDir, "workspaces.json");
+  return presentationStatePath("workspaces.json") ?? join(agentDir, "workspaces.json");
 }
 
 function defaultName(cwd: string): string {
@@ -51,13 +52,13 @@ function writeRegistry(registry: WorkspaceRegistry, registryPath = getWorkspaceR
   writePrivateFileAtomicSync(registryPath, JSON.stringify(registry, null, 2));
 }
 
-export function isManagedWorkspacePath(cwd: string, home = homedir()): boolean {
+export function isManagedWorkspacePath(cwd: string, home = presentationRoot() ? join(presentationRoot()!, "workspaces") : homedir()): boolean {
   const resolved = resolve(cwd);
   return dirname(resolved) === resolve(home) && MANAGED_DIRECTORY_PATTERN.test(basename(resolved));
 }
 
 export function listManagedWorkspaces(
-  home = homedir(),
+  home = presentationRoot() ? join(presentationRoot()!, "workspaces") : homedir(),
   registryPath = getWorkspaceRegistryPath(),
 ): ManagedWorkspace[] {
   const registry = readRegistry(registryPath);
@@ -85,7 +86,7 @@ export function listManagedWorkspaces(
 
 export function createManagedWorkspace(
   requestedName?: string,
-  home = homedir(),
+  home = presentationRoot() ? join(presentationRoot()!, "workspaces") : homedir(),
   registryPath = getWorkspaceRegistryPath(),
   now = new Date(),
 ): ManagedWorkspace {

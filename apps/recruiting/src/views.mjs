@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   STAGES,
   stage,
@@ -82,7 +83,7 @@ export function jobsPage(state, params) {
   );
   return layout(
     "招聘职位",
-    `${heading("HIRING WORKSPACE", "找到下一位，同行的人。", "从每一份简历到每一次判断，让招聘进展清晰可见。", '<span class="date-chip">2026 秋季招聘</span>')}
+    `${heading("HIRING WORKSPACE", "找到下一位，同行的人。", "从每一份简历到每一次判断，让招聘进展清晰可见。", '<a class="publish-link" href="/jobs/new">发布职位 ↗</a>')}
   <section class="overview"><div><span>正在招聘</span><strong>${data.jobs.length}<small>个职位</small></strong></div><div><span>招聘目标</span><strong>${data.jobs.reduce((s, j) => s + j.target, 0)}<small>人</small></strong></div><div><span>候选人总数</span><strong>${m.applied}<small>人</small></strong></div><a href="/reviews?finished=1&missing=1"><span>面试结束 · 待补评价</span><strong>${m.missing}<small>人 ${chevron}</small></strong></a></section>
   <section class="section"><div class="section-title"><h2>已发布职位 <span>${data.jobs.length}</span></h2><span class="muted">优先关注招聘进展与评价完整度</span></div>
   <form class="filters" method="get"><label class="search"><span>搜索职位</span><input name="q" type="search" value="${e(params.get("q"))}" placeholder="职位、部门或负责人"></label><label><span>部门</span><select name="department">${option("", "全部部门", params.get("department"))}${[...new Set(data.jobs.map((j) => j.department))].map((d) => option(d, d, params.get("department"))).join("")}</select></label><button type="submit">搜索职位</button><a href="/" class="text-link">清除</a></form>
@@ -137,7 +138,9 @@ export function jobPage(state, id, params) {
   return layout(
     j.title,
     `<a class="back" href="/">← 全部职位</a>${heading(j.department.toUpperCase(), j.title, `${j.location} · 全职 · ${j.owner}`, pill("已发布", "passed"))}
-  <div class="role-summary"><p>${e(j.description)}</p><div>${j.skills.map((s) => pill(s)).join(" ")}<span class="target-inline">招聘目标 <b>${j.target} 人</b> · 面试通过 ${count.passed} 人</span></div></div>
+  ${params.has("published") ? '<div role="status" class="notice success">职位发布成功，已加入内部招聘系统。</div>' : ""}
+  ${j.publishedAt ? `<p class="muted">发布时间：${fmt(j.publishedAt)} · 职位编号：${e(j.id)}</p>` : ""}
+  <div class="role-summary"><p class="job-description">${e(j.description)}</p><div>${j.skills.map((s) => pill(s)).join(" ")}<span class="target-inline">招聘目标 <b>${j.target} 人</b> · 面试通过 ${count.passed} 人</span></div></div>
   ${params.has("saved") ? '<div role="status" class="notice success">职位设置已保存。</div>' : ""}${stats(applications)}${metricNote}
   <section class="section"><div class="section-title"><h2>当前状态分布</h2><span class="muted">互斥状态，合计 ${applications.length} 人</span></div><div class="stage-strip">${Object.entries(
     STAGES,
@@ -148,7 +151,7 @@ export function jobPage(state, id, params) {
     )
     .join("")}</div></section>
   <section class="section"><div class="section-title"><h2>候选人 <span>${filtered.length}</span></h2><a class="text-link" href="${jobLink(id)}?finished=1&missing=1">查看面试结束且缺评价的候选人 (${count.missing}) →</a></div>${candidateFilters(data, params, id)}<p class="filter-summary" role="status">筛选结果：${filtered.length} 人${params.has("finished") ? " · 所有已安排面试均已结束" : ""}${params.has("missing") ? " · 至少一轮评价未提交（含草稿）" : ""}</p>${candidateTable(filtered, data)}</section>
-  <details class="panel edit-job"><summary>职位设置 · 修改招聘目标与说明</summary><form method="post" action="/jobs/${e(id)}/save">${hidden(revision)}<div class="form-grid"><label>招聘目标（人）<input type="number" min="1" max="100" required name="target" value="${j.target}"></label><label>招聘负责人<input required maxlength="40" name="owner" value="${e(j.owner)}"></label></div><label>职位说明<textarea name="description" required maxlength="3000" rows="3">${e(j.description)}</textarea></label><button type="submit">保存职位设置</button></form></details>`,
+  <details class="panel edit-job"><summary>职位设置 · 修改招聘目标与说明</summary><form method="post" action="/jobs/${e(id)}/save">${hidden(revision)}<div class="form-grid"><label>招聘目标（人）<input type="number" min="1" max="100" required name="target" value="${j.target}"></label><label>招聘负责人<input required maxlength="40" name="owner" value="${e(j.owner)}"></label></div><label>职位说明<textarea name="description" required maxlength="12000" rows="3">${e(j.description)}</textarea></label><button type="submit">保存职位设置</button></form></details>`,
   );
 }
 
@@ -218,4 +221,20 @@ export function settingsPage(state, params) {
     `${heading("WORKSPACE SETTINGS", "招聘工作空间", "管理团队信息与招聘数据。")}${params.has("reset") ? '<div class="notice success" role="status">招聘数据已恢复初始状态。</div>' : ""}<section class="panel settings-panel"><h2>工作空间</h2><p>所属组织：星流科技 NovaFlow</p><p>当前成员：陈晓 · 招聘负责人</p><p>业务范围：职位管理、候选人跟进与面试评价</p></section><section class="panel settings-panel"><h2>数据管理</h2><h3>恢复初始数据</h3><p>恢复职位、候选人和面试评价的初始记录，并清除后续修改。此操作仅影响当前招聘工作空间。</p><form method="post" action="/reset">${hidden(state.revision)}<label class="checkbox"><input type="checkbox" name="confirm" value="reset" required>我确认恢复初始记录，并清除当前招聘工作空间中的后续修改</label><button type="submit" class="danger">恢复初始数据</button></form></section>`,
     "settings",
   );
+}
+
+export function publishJobPage(state, params) {
+  const requestedDraft = params.get("draft");
+  const draft = requestedDraft && /^[a-zA-Z0-9-]{8,80}$/.test(requestedDraft) ? requestedDraft : randomUUID();
+  const existing = state.data.jobs.find((job) => job.draft === draft);
+  if (existing) return jobPage(state, existing.id, new URLSearchParams("published=1"));
+  return layout("发布职位", `<a class="back" href="/">← 已发布职位</a>
+    ${heading("NEW OPPORTUNITY", "发布新职位", "完善岗位信息，让合适的人找到我们。")}
+    <form class="panel publish-job-form" method="post" action="/jobs/publish">
+      ${hidden(state.revision)}<input type="hidden" name="draft" value="${e(draft)}">
+      <label>岗位名称<input name="title" required maxlength="100" placeholder="例如：高级 AI Agent 研发工程师"></label>
+      <div class="form-grid"><label>所属部门<input name="department" required maxlength="80" value="Agent 研发"></label><label>工作地点<input name="location" required maxlength="100" value="北京 / 上海"></label><label>招聘目标（人）<input name="target" type="number" min="1" max="100" value="6" required></label><label>招聘负责人<input name="owner" required maxlength="40" value="陈晓"></label></div>
+      <label>岗位 JD<textarea name="description" required maxlength="12000" rows="12" placeholder="填写岗位介绍、职责与任职要求"></textarea></label>
+      <footer><span>发布后可在职位详情中查看和维护。</span><button type="submit">发布职位</button></footer>
+    </form>`);
 }

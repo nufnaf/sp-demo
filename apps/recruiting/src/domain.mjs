@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 export class ValidationError extends Error {}
 
 export const STAGES = {
@@ -82,6 +83,22 @@ function required(value, label, max = 3000) {
 export function mutate(data, path, fields, now = new Date().toISOString()) {
   const next = structuredClone(data);
   const parts = path.split("/").filter(Boolean);
+  if (path === "/jobs/publish") {
+    const draft = required(fields.draft, "发布编号", 80);
+    if (!/^[a-zA-Z0-9-]{8,80}$/.test(draft)) throw new ValidationError("发布编号无效");
+    if (next.jobs.some((job) => job.draft === draft)) return next;
+    const target = Number(fields.target);
+    if (!Number.isInteger(target) || target < 1 || target > 100) throw new ValidationError("招聘目标应为 1–100 的整数");
+    next.jobs.unshift({
+      id: `job-${randomUUID()}`, draft, publishedAt: now,
+      title: required(fields.title, "岗位名称", 100),
+      department: required(fields.department, "部门", 80),
+      location: required(fields.location, "工作地点", 100),
+      owner: required(fields.owner, "招聘负责人", 40),
+      target, description: required(fields.description, "岗位 JD", 12000), skills: [],
+    });
+    return next;
+  }
   if (parts[0] === "jobs") {
     const job = next.jobs.find((j) => j.id === parts[1]);
     if (!job || parts[2] !== "save") throw new ValidationError("职位不存在");
@@ -90,7 +107,7 @@ export function mutate(data, path, fields, now = new Date().toISOString()) {
       throw new ValidationError("招聘目标应为 1–100 的整数");
     job.target = target;
     job.owner = required(fields.owner, "负责人", 40);
-    job.description = required(fields.description, "职位说明");
+    job.description = required(fields.description, "职位说明", 12000);
     return next;
   }
   const a = next.applications.find((a) => a.id === parts[1]);

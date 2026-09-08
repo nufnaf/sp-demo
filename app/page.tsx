@@ -1,12 +1,12 @@
 import { Suspense } from "react";
-import { AgentDesktop } from "@/components/AgentDesktop";
+import { PresentationDesktop } from "@/components/PresentationDesktop";
 import { I18nProvider } from "@/hooks/useI18n";
 
 export default function Home() {
   return (
     <Suspense>
       <I18nProvider>
-        <AgentDesktop />
+        <PresentationDesktop />
       </I18nProvider>
     </Suspense>
   );

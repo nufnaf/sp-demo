@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 export function GET() {
   return Response.json({
     app: "syntropic-local",
+    presentationRun: process.env.SYNTROPIC_PRESENTATION_RUN,
     checkoutId: createHash("sha256").update(realpathSync(process.cwd())).digest("hex"),
   }, { headers: { "Cache-Control": "no-store" } });
 }

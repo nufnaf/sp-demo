@@ -1,3 +1,4 @@
+import { presentationStatePath } from "./presentation";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
@@ -12,7 +13,7 @@ interface StoredRegistry {
 }
 
 export function getJarvisRegistryPath(agentDir = getAgentDir()): string {
-  return join(agentDir, "pi-web", "jarvis.json");
+  return presentationStatePath("jarvis.json") ?? join(agentDir, "pi-web", "jarvis.json");
 }
 
 function readRegistry(path: string): StoredRegistry {

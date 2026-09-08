@@ -1,3 +1,4 @@
+import { presentationSessionDirectory } from "./presentation";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { createAgentSessionFromServices, createAgentSessionServices, getAgentDir, initTheme, SessionManager, SettingsManager, Theme } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager as TuiKeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
@@ -2219,7 +2220,7 @@ export async function startRpcSession(
     sessionManager = SessionManager.open(sessionFile, undefined);
   } else {
     if (!cwd) throw new Error("cwd is required for a new session");
-    sessionManager = SessionManager.create(cwd, undefined);
+    sessionManager = SessionManager.create(cwd, presentationSessionDirectory(cwd));
   }
   const sessionCwd = sessionManager.getCwd();
   const subagentResources = sessionFile

@@ -1,3 +1,4 @@
+import { presentationRoot } from "../presentation";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -235,7 +236,7 @@ export class BrowserManager {
     if (!executablePath) {
       throw new Error("No supported Chrome, Edge, or Chromium installation was found. Set PI_WEB_BROWSER_EXECUTABLE to the browser executable path.");
     }
-    const profilePath = join(getAgentDir(), "browser", "profiles", profileName(key));
+    const profilePath = join(presentationRoot() ?? getAgentDir(), "browser", "profiles", profileName(key));
     mkdirSync(profilePath, { recursive: true });
     const context = await chromium.launchPersistentContext(profilePath, {
       executablePath,

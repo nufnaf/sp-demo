@@ -10,6 +10,7 @@ import {
   candidatePage,
   candidatesPage,
   settingsPage,
+  publishJobPage,
 } from "./views.mjs";
 
 export function createHandler(storeProvider = getStore) {
@@ -63,9 +64,9 @@ export function createHandler(storeProvider = getStore) {
         else
           for await (const chunk of req) {
             body += chunk;
-            if (body.length > 20000) throw new ValidationError("提交内容过长");
+            if (body.length > 200000) throw new ValidationError("提交内容过长");
           }
-        if (body.length > 20000) throw new ValidationError("提交内容过长");
+        if (body.length > 200000) throw new ValidationError("提交内容过长");
         const fields = Object.fromEntries(new URLSearchParams(body));
         let destination;
         if (url.pathname === "/reset") {
@@ -73,6 +74,10 @@ export function createHandler(storeProvider = getStore) {
             throw new ValidationError("请先确认重置范围");
           await store.update(fields.revision, () => seedData());
           destination = "/settings?reset=1";
+        } else if (url.pathname === "/jobs/publish") {
+          const next = await store.update(fields.revision, (data) => mutate(data, url.pathname, fields));
+          const job = next.data.jobs.find((item) => item.draft === fields.draft);
+          destination = `/jobs/${job.id}?published=1`;
         } else {
           if (
             !/^\/(jobs\/[^/]+\/save|candidates\/[^/]+\/(decision|review\/[^/]+))$/.test(
@@ -95,9 +100,20 @@ export function createHandler(storeProvider = getStore) {
         return res.end("不支持的请求");
       }
       const state = await store.read();
+      // Read-only projection for Syntropic's result window. Publication still
+      // goes exclusively through the visible HTML form above.
+      if (url.pathname === "/desktop/published-jobs") {
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        return res.end(JSON.stringify({ app: "syntropic-recruiting", jobs: state.data.jobs.filter((job) => job.draft && job.publishedAt).map((job) => ({
+          id: job.id, draft: job.draft, title: job.title, location: job.location,
+          department: job.department, headcount: job.target, owner: job.owner,
+          publishedAt: job.publishedAt, candidateCount: state.data.applications.filter((a) => a.jobId === job.id).length,
+        })) }));
+      }
       const path = url.pathname.split("/").filter(Boolean);
       let page;
       if (!path.length) page = jobsPage(state, url.searchParams);
+      else if (url.pathname === "/jobs/new") page = publishJobPage(state, url.searchParams);
       else if (path[0] === "jobs" && path.length === 2)
         page = jobPage(state, path[1], url.searchParams);
       else if (path[0] === "candidates" && path.length === 2)
@@ -124,8 +140,8 @@ export function createHandler(storeProvider = getStore) {
       const message = safe
         ? error.message
         : "招聘数据暂时无法加载，请稍后重试或联系系统管理员。";
-      const back =
-        /^\/(jobs|candidates)\/[^/]+/.exec(url.pathname)?.[0] || "/settings";
+      const back = url.pathname === "/jobs/publish" ? "/jobs/new"
+        : /^\/(jobs|candidates)\/[^/]+/.exec(url.pathname)?.[0] || "/settings";
       res.end(
         layout(
           "操作未完成",

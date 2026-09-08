@@ -1,172 +1,95 @@
-# Pi Web
+# Syntropic Demo
 
+Syntropic 是面向日常办公的通用 AI 工作台。用户在桌面中查看资料、使用应用、委派任务和接收成果；系统结合工作上下文提出下一步建议，由用户决定是否继续执行。
 
-## Syntropic desktop development
+本仓库以招聘展示这种交互：从业务资料生成 JD，建议发布岗位，通过网页完成内部发布，再查看招聘进展、面试评价和后续协作建议。招聘是产品的演示场景，不是产品的全部定位。
 
-Run `npm run desktop` from the checkout to start the local backend and Electron together. See [desktop development and verification](docs/electron-development.md). This is a development desktop, not a distributable installer.
+## 两条实现线
 
-[中文文档](./README.zh-CN.md) | [日本語](./README.ja.md) | [Русский](./README.ru.md)
-
-Local browser UI for the [pi coding agent](https://github.com/earendil-works/pi). Pi Web uses the same local configuration and session files as pi, so you can browse and resume conversations, run agent turns, configure models and resources, and inspect project files from a browser.
-
-![Pi Web displaying a pi session with structured Markdown, tool calls, and project navigation](https://raw.githubusercontent.com/agegr/pi-web/main/docs/screenshot2.png)
-
-## Features
-
-- **Session workspace**: browse, resume, rename, export, and delete conversations grouped by project, with running state, context usage, cost, and compaction details.
-- **Two ways to branch**: **New session** creates an independent session file from an earlier message; **Edit from here** creates a branch inside the current session.
-- **Project file tools**: browse and upload files, inspect Git diffs, and preview source, Markdown, images, audio, PDFs, and DOCX files with automatic refresh.
-- **Git worktrees**: switch checkouts from the sidebar while keeping sessions from the same repository grouped together.
-- **Web-based configuration**: manage provider login and API keys, models, model tests, plugin packages, and skills without leaving Pi Web.
-- **English, Simplified Chinese, and Traditional Chinese UI**: Pi Web follows the browser language initially and provides a language switcher in the top bar.
-
-## Quick Start
-
-Pi Web requires Node.js 22.19.0 or newer. Check your version with `node --version`, then run:
-
-```bash
-npx @agegr/pi-web@latest
-```
-
-The CLI opens a browser after the server is ready. If it does not, open [http://127.0.0.1:30141](http://127.0.0.1:30141). Pi Web listens only on `127.0.0.1` by default.
-
-If no model provider is configured yet, open the **Models** panel to sign in or add an API key.
-
-To install the `pi-web` command globally:
-
-```bash
-npm install -g @agegr/pi-web@latest
-pi-web
-```
-
-To update, stop the running process with `Ctrl+C` and run the same install command again. To uninstall, run `npm uninstall -g @agegr/pi-web`.
-
-## Configuration
-
-For port and hostname, command-line options override the corresponding environment variables. Either `--no-open` or `PI_WEB_NO_OPEN=1` disables automatic browser opening. Run `pi-web --help` (or `-h`) to print startup options and exit without starting the server. Unknown options exit with an error.
-
-| Option or environment variable | Purpose | Default |
+| 版本 | 用途 | 能力与数据 |
 | --- | --- | --- |
-| `--help`, `-h` | Print startup options and exit | — |
-| `--port <port>`, `-p <port>`, or `PORT` | Server port | `30141` |
-| `--hostname <host>`, `-H <host>`, or `PI_WEB_HOSTNAME` | Bind hostname | `127.0.0.1` |
-| `--no-open` or `PI_WEB_NO_OPEN=1` | Do not open a browser automatically | Browser opens |
-| `PI_WEB_SKIP_VERSION_CHECK=1` | Disable Pi Web update checks | Unset |
-| `PI_WEB_ALLOWED_HOSTS` | Additional exact proxy or custom hostnames, comma-separated | Unset |
-| `PI_WEB_PASSWORD` | Enable HTTP Basic Auth; the username is always `pi` | Authentication disabled |
-| `DOUBAO_SPEECH_APP_ID` | Volcengine Doubao Speech application ID used to mint short-lived browser tokens | Voice input disabled |
-| `DOUBAO_SPEECH_ACCESS_KEY` | Volcengine Doubao Speech access key; kept on the Pi Web server | Voice input disabled |
-| `DOUBAO_ASR_RESOURCE_ID` | Streaming ASR resource ID enabled for the application | `volc.bigasr.sauc.duration` |
-| `DOUBAO_TTS_RESOURCE_ID` | Bidirectional TTS resource ID enabled for the application | `seed-tts-2.0` |
-| `DOUBAO_TTS_SPEAKER` | Doubao TTS speaker/voice ID | `zh_male_m191_uranus_bigtts` |
-| `DOUBAO_TTS_SAMPLE_RATE` | TTS output sample rate | `24000` |
+| `main` | 纯静态交互原型 | 预设场景、资料和模拟执行，不包含 Pi 的真实 Agent 能力 |
+| `dev` | 接入 Pi 的工作台 | 真实任务、文件成果、应用连接与本机持久化；不自带静态原型的完整演示开场状态 |
+| `codex/electron-phase-one` | 当前 Electron 与浏览器执行扩展 | 在 dev 基础上增加桌面启动、独立招聘网站、真实 browser use 和 JD 发布串联 |
 
-Doubao voice credentials can also be configured from **Settings → Voice**. Settings take precedence over the environment variables and are stored locally in `~/.pi/agent/auth.json` with restricted file permissions; the access key is never returned by the settings API.
+当前扩展基于 `7992aeb`，工作目录为 `/Users/xiewannan/code/sp-demo-worktrees/electron-phase-one`。比较改动前后行为，应以这个提交为基准；静态原型用于对齐产品体验，不能当作 dev 原先具备的功能。
 
-For example:
+主仓与 App 曾共用本机 Pi 历史，因此运行旧代码也能看到新测试产生的任务和 JD。旧代码不等于旧数据快照。底部 Dock 的固定应用属于浏览器配置，普通浏览器与 Electron 不会自动共享这些配置。
 
-```bash
-pi-web --help
-pi-web -p 8080 -H 0.0.0.0 --no-open
-```
+## 演示中哪些是真实的
 
-### Remote Access
+- **真实执行**：Pi 主 Agent 接收任务、生成文件成果；专用浏览器 Agent 打开 App 内网页，读取、筛选、填写表单、提交并核对结果。
+- **虚构业务数据、有效操作**：独立招聘网站使用虚构职位、候选人和评价，统计从同一份业务数据计算；页面保存与刷新有效。
+- **场景展示**：识别 JD 后的发布建议可以按预设条件触发，无需实现通用行为预测。BOSS 直聘仅保留展示标签，不执行外部发布。
+- **模型边界**：浏览器执行固定 `openai-codex / gpt-5.6-luna`，主 Agent 保留原配置。不得用业务 API、数据文件写入或预设动画代替约定的浏览器操作。
 
-Binding to a non-loopback address exposes an agent that can execute high-privilege actions. On a trusted LAN, require a long random password:
+已有的发布串联是：查看 JD 成果 → 点击发布建议 → 主 Agent 委派浏览器填写新招聘网站 → 保存核对 → 原“人才招聘”窗口展示已发布岗位卡片。新岗位尚未合入旧窗口的候选人管线；卡片可打开新网站详情。不能把这段串联成功等同于整场招聘演示已经验收。
 
-```bash
-PI_WEB_PASSWORD='a-long-random-password' pi-web --hostname 0.0.0.0
-```
+## 下一阶段：可重复的预设演示
 
-Basic Auth does not encrypt the password in transit. Do not expose Pi Web over plain HTTP to the internet; use HTTPS through a trusted reverse proxy or a trusted VPN. If a reverse proxy sends an external hostname, add that exact name to `PI_WEB_ALLOWED_HOSTS`. This allow-list does not change the address Pi Web binds to.
+目标是保留静态原型的成熟演示体验，并在指定环节嵌入真实 Agent 与 browser use。无需将所有模拟环节改造成真实业务系统。
 
-### HTTP Proxy
+1. 启动 App 即有“招聘工作台”、对应 Dock 应用、业务介绍资料和自洽的招聘预设，不要求演示者每次手动配置。
+2. 保持完整叙事：业务资料 → 生成 JD → 原有风格的发布建议 → 真实网页发布 → 招聘结果 → 招聘管线与面试标准偏差洞察 → 对齐会议。后半段允许沿用模拟展示，但岗位、人数和资料衔接应清楚。
+3. 一次运行内保存有效，刷新不丢失当前进度；**完全退出 App 后，下一次启动恢复预设状态**，不带入上一轮任务、生成成果、洞察和招聘修改。这是新的演示要求，取代安装版原先跨重启保留本轮招聘修改的行为。
+4. 重置只影响专属演示数据。模型配置、授权、原有 Pi 会话、用户文件和其他工作台不属于清理范围。普通 Web 与独立招聘网站仍需有明确、可独立使用的持久化边界。
 
-Server-side model and API requests honor the standard `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables.
+此目标尚未完整验收。worktree 中已有进行中的演示预设与隔离实现，包括 `electron/presentation.mjs`、`lib/presentation.ts`、`components/PresentationDesktop.tsx` 及相关状态读取改动；继续开发前先检查这些在途工作和最新 Git 状态，不要从头覆盖。
 
-On macOS or Linux:
+需要一起核对的已知问题：安装版的运行路径找不到本机飞书 CLI；浏览器任务委派条件过宽，可能影响“飞书资料生成 JD”；新增发布通知与原通用洞察通知没有统一展示；发布后的完整演示衔接尚待验证。飞书运行依赖如何分发仍需确定，不能只以本机开发环境可用作为验收依据。
+
+## 本地运行
+
+开发需要 Node.js 22.19+ 和 npm。在目标 checkout 内安装锁定依赖：
 
 ```bash
-HTTP_PROXY=http://127.0.0.1:7890 \
-HTTPS_PROXY=http://127.0.0.1:7890 \
-NO_PROXY=localhost,127.0.0.1 \
-npx @agegr/pi-web@latest
+npm ci --legacy-peer-deps
 ```
 
-On Windows PowerShell:
-
-```powershell
-$env:HTTP_PROXY = "http://127.0.0.1:7890"
-$env:HTTPS_PROXY = "http://127.0.0.1:7890"
-$env:NO_PROXY = "localhost,127.0.0.1"
-npx @agegr/pi-web@latest
-```
-
-## Notes
-
-- **Agent data**: Pi Web reads pi data from `~/.pi/agent` by default, including session files under `sessions/<encoded-cwd>/<timestamp>_<uuid>.jsonl`. Set `PI_CODING_AGENT_DIR` to use another pi agent directory.
-- **Filesystem access**: Pi Web must be able to read the agent data directory and the working directories recorded by its sessions. Run Pi Web in the same filesystem environment as pi when sharing existing sessions.
-- **Shared configuration**: the Models panel uses pi's model, settings, and credential storage, so changes are visible to both interfaces.
-- **File access boundary**: the file browser is limited to working directories selected in Pi Web and project or session roots it already knows about; it is not a general filesystem browser.
-- **Git worktrees**: see [Worktrees in Pi Web](./docs/worktrees.md) for switcher visibility, worktree creation, and removal behavior.
-
-### Downstream Session Context Menu
-
-Electron wrappers and other downstream integrations can provide a session-row
-context menu without patching `SessionSidebar`. Listen for the cancelable
-`pi-web:session-row-contextmenu` browser event and call `preventDefault()`
-synchronously when the integration will handle it:
-
-```js
-window.addEventListener("pi-web:session-row-contextmenu", (event) => {
-  event.preventDefault();
-  const { id, path, cwd, name, clientX, clientY, refresh } = event.detail;
-
-  void openSessionMenu({ id, path, cwd, name, clientX, clientY }).then((changed) => {
-    if (changed) refresh();
-  });
-});
-```
-
-The detail object contains `id`, `path`, `cwd`, optional `name`, pointer
-coordinates, and a `refresh()` callback for actions that change the session
-list. If no listener cancels the extension event, Pi Web preserves the
-browser's native context menu. This hook is browser-side and independent of
-Pi agent extensions.
-
-## Development
+普通 Web 工作台：
 
 ```bash
-npm install
 npm run dev
 ```
 
-The development server runs at [http://127.0.0.1:30141](http://127.0.0.1:30141). Run the common checks with:
+访问 `http://127.0.0.1:30141`。单独运行招聘网站时，在另一个终端执行：
 
 ```bash
-npm test
+npm run demo:recruiting
+```
+
+招聘网站位于 `http://127.0.0.1:30143`。也可使用 Electron 同时管理两个本机服务：
+
+```bash
+npm run desktop
+```
+
+启动前检查端口，复用健康的同一 checkout 服务；不同 checkout 或安装版占用端口时，先正常退出原服务。不要让两个开发进程争用同一 `.next`，也不要在运行开发服务的根目录执行 `next build`。具体规则见 [AGENTS.md](AGENTS.md)。
+
+## 双击 App 与部署边界
+
+`npm run package:desktop` 在独立构建暂存目录生成 `build/desktop/release/Syntropic.app`。已有安装版随包携带 Node、Electron、Chromium 和工作台运行依赖，基础启动与招聘 browser use 不要求目标电脑预装 Node 或 Chrome。模型执行仍需联网及有效授权，飞书等应用也有自己的运行依赖与授权条件。
+
+当前包覆盖 macOS Apple Silicon，采用本机 ad-hoc 签名，未完成公开分发公证或其他平台验收。不能据此宣称整场演示已经在所有无开发环境电脑上可用。
+
+招聘应用源码独立维护在 [apps/recruiting](apps/recruiting/README.md)，具备单独部署条件。云端持久化需配置相应数据库；本机文件保存不等于 Vercel 上自动持久化。本阶段不发布外网、不修改线上官网、不创建付费资源。
+
+## 验证与资料
+
+```bash
 node_modules/.bin/tsc --noEmit
-npm run lint
+npm run test:desktop
+npm run test:browser
+npm run test:recruiting
 ```
 
-Do not run `next build` or `npm run build` during normal development. It writes to `.next/` and can interfere with the development server; leave builds for release work.
+- [Electron 开发与服务管理](docs/electron-development.md)
+- [安装包构建与既有验收边界](docs/electron-packaging.md)
+- [浏览器执行流程](docs/browser-phase-two.md)
+- [独立招聘网站](docs/browser-phase-three.md)
+- [JD 发布串联与实测记录](docs/jd-publication-demo.md)
+- [下一阶段交接](docs/handoff-presentation-demo.md)
 
-Contributor guides: [Internationalization](./docs/i18n.md) and [Release process](./docs/release.md).
+历史验收记录对应当时的构建，尤其是数据目录、跨重启保存行为和计时，不代表当前进行中的预设重置实现已经通过验收。
 
-## Repository Layout
-
-```text
-app/             Next.js UI and API routes
-components/      React UI components
-hooks/           Client state and interaction hooks
-lib/             Session, agent, model, file, Git, and security logic
-public/          Static assets and PWA files
-bin/             npm CLI entrypoint and launch option parsing
-docs/            Focused user and contributor guides
-```
-
-See [AGENTS.md](./AGENTS.md) for the architecture notes and detailed file map.
-
-## License
-
-[MIT](./LICENSE)
+底层工作台基于 [Pi Web](https://github.com/agegr/pi-web) 和 [Pi](https://github.com/earendil-works/pi)。原 Pi Web 的配置和工具说明保留在 [中文技术参考](README.zh-CN.md) 中；其中上游 npm 包的启动方式不是本 Syntropic 分支的交付方式。

@@ -90,6 +90,9 @@ export class LocalService {
           if (health.app !== (this.kind === 'recruiting' ? 'syntropic-recruiting' : 'syntropic-local') || health.checkoutId !== this.identity) {
             throw new Error(`${new URL(this.origin).port} 已被其他项目或 worktree 占用。请先退出原来的服务再重试；App 不会终止它。`);
           }
+          if (this.env.SYNTROPIC_PRESENTATION_RUN && health.presentationRun !== this.env.SYNTROPIC_PRESENTATION_RUN) {
+            throw new Error(`${new URL(this.origin).port} 已被另一轮演示或普通网页服务占用。请退出原服务再打开 App。`);
+          }
           // The lightweight identity route alone doesn't prove the page or Pi API compiles.
           const paths = this.kind === 'recruiting' ? ['/'] : ['/', '/api/agent/running'];
           const checks = await Promise.all(paths.map((path) => fetch(`${this.origin}${path}`, {

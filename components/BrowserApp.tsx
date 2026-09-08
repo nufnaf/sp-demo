@@ -1,5 +1,7 @@
 "use client";
 
+import { subscribeBrowserEvents } from "@/lib/browser/client-events";
+
 /* eslint-disable @next/next/no-img-element -- raw screenshots need natural pixel dimensions for coordinate mapping */
 
 import {
@@ -165,8 +167,7 @@ export function BrowserApp({ cwd, initialPageId, onOpenSettings, onUserInteracti
   }, [cwd, initialPageId, openPage]);
 
   useEffect(() => {
-    const stream = new EventSource("/api/browser/events");
-    stream.onmessage = (event) => {
+    const unsubscribe = subscribeBrowserEvents({ message: (event) => {
       try {
         const message = JSON.parse(event.data) as BrowserSystemEvent | { type: "browser.ready" };
         if (message.type === "browser.task") mergeTask(message.task);
@@ -180,8 +181,8 @@ export function BrowserApp({ cwd, initialPageId, onOpenSettings, onUserInteracti
           setActivePageId((current) => current === message.pageId ? null : current);
         }
       } catch { /* ignore malformed extension events */ }
-    };
-    return () => stream.close();
+    } });
+    return unsubscribe;
   }, [mergePage, mergeTask, cwd]);
 
   useEffect(() => {

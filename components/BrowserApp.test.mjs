@@ -11,7 +11,7 @@ const commandRoute = await readFile(new URL("../app/api/browser/pages/[pageId]/c
 
 test("desktop exposes a built-in browser window that follows Agent open events", () => {
   assert.match(desktop, /id: "system:browser"/);
-  assert.match(desktop, /new EventSource\("\/api\/browser\/events"\)/);
+  assert.match(desktop, /subscribeBrowserEvents/);
   assert.match(desktop, /message\.type !== "browser\.opened"/);
   assert.match(desktop, /<BrowserApp key=\{activeCwd\}/);
 });

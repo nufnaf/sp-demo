@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import "./HRRecruitingApp.css";
 import { WorkspaceAppIcon } from "./WorkspaceAppIcon";
+import type { PublishedRecruitingJob } from "@/lib/recruiting-publication";
 
 type HRSection = "overview" | "candidates" | "jobs" | "sources";
 type CandidateStage = "全部" | "人才库" | "初筛" | "面试" | "终面" | "Offer";
@@ -113,12 +114,33 @@ const icons = {
   close: <HRIcon size={15}><path d="m7 7 10 10M17 7 7 17"/></HRIcon>,
 };
 
-export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice }: {
+export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice, publishedDraft, onOpenPublishedJob }: {
+  publishedDraft?: string;
+  onOpenPublishedJob?: (url: string) => void;
   cwd: string | null;
   onStartTask: (message: string) => Promise<string | null>;
   onOpenSource: (sourceId: Exclude<RecruitingSourceId, "company-careers">) => void;
   onNotice: (message: string) => void;
 }) {
+  const [internalJobs, setInternalJobs] = useState<PublishedRecruitingJob[]>([]);
+  const [internalError, setInternalError] = useState(false);
+  const [internalConnected, setInternalConnected] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setInternalJobs([]);
+    const refresh = async () => {
+      try {
+        const response = await fetch("/api/apps/internal-recruiting", { cache: "no-store" });
+        const data = await response.json() as { jobs?: PublishedRecruitingJob[] };
+        if (!response.ok || !data.jobs) throw new Error("Unavailable");
+        if (!cancelled) { setInternalJobs(data.jobs); setInternalError(false); setInternalConnected(true); }
+      } catch { if (!cancelled) { setInternalError(true); setInternalConnected(false); } }
+    };
+    void refresh();
+    const timer = setInterval(() => void refresh(), 15000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [cwd, publishedDraft]);
+  useEffect(() => { if (publishedDraft) setSection("jobs"); }, [publishedDraft]);
   const [section, setSection] = useState<HRSection>("overview");
   const [stage, setStage] = useState<CandidateStage>("全部");
   const [query, setQuery] = useState("");
@@ -467,9 +489,10 @@ export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice }: {
       </nav>
       <div className="hr-recruiting-roles">
         <span>在招岗位</span>
-        {jobs.length ? jobs.map((job) => <button type="button" key={job.id} className={activeJobId === job.id ? "selected" : ""} onClick={() => { setActiveJobId(job.id); setSection("overview"); }}><i/><span><strong>{job.title}</strong><small>{job.headcount} 个 HC · {job.source}</small></span></button>) : <p className="hr-sidebar-empty">连接招聘应用或新建岗位</p>}
+        {internalJobs.map((job) => <button type="button" key={job.id} onClick={() => setSection("jobs")}><i/><span><strong>{job.title}</strong><small>{job.headcount} 个 HC · 内部招聘系统</small></span></button>)}
+        {jobs.length ? jobs.map((job) => <button type="button" key={job.id} className={activeJobId === job.id ? "selected" : ""} onClick={() => { setActiveJobId(job.id); setSection("overview"); }}><i/><span><strong>{job.title}</strong><small>{job.headcount} 个 HC · {job.source}</small></span></button>) : internalJobs.length ? null : <p className="hr-sidebar-empty">连接招聘应用或新建岗位</p>}
       </div>
-      <footer><i className={connectedCount ? "connected" : ""}/><span><strong>{connectedCount} 个招聘应用已连接</strong><small>连接状态实时检测</small></span></footer>
+      <footer><i className={connectedCount || internalConnected ? "connected" : ""}/><span><strong>{internalConnected ? "内部招聘系统已连接" : `${connectedCount} 个招聘应用已连接`}</strong><small>连接状态实时检测</small></span></footer>
     </aside>
 
     <main className="hr-recruiting-main">
@@ -487,7 +510,9 @@ export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice }: {
 
       {section === "jobs" ? <>
         <header className="hr-recruiting-page-header"><span><small>岗位管理</small><h1>招聘岗位</h1><p>来自已连接招聘系统和 HR 手动创建的岗位</p></span><button type="button" onClick={() => setCreationMode("job")}>新建岗位</button></header>
-        {jobs.length ? <section className="hr-jobs-grid">{jobs.map((job) => { const jobCandidates = candidates.filter((candidate) => candidate.role === job.title); return <button type="button" key={job.id} onClick={() => { setActiveJobId(job.id); setSection("overview"); }}><header><span>{icons.jobs}</span><em>{job.status}</em></header><strong>{job.title}</strong><small>{job.location} · {job.headcount} 个 HC</small><dl><div><dt>数据来源</dt><dd>{job.source}</dd></div><div><dt>当前进展</dt><dd>{jobCandidates.length} 位候选人</dd></div></dl><footer><span>查看招聘进展</span><b>›</b></footer></button>; })}</section> : <EmptyRecruitingState compact onConnect={() => setSection("sources")} onCreate={() => setCreationMode("job")}/>}
+        {internalJobs.length > 0 && <section className="hr-internal-published"><h2>内部招聘系统 · 已发布 {internalJobs.length} 个职位</h2><div className="hr-jobs-grid">{internalJobs.map((job) => <button type="button" key={job.id} className={job.draft === publishedDraft ? "just-published" : ""} onClick={() => onOpenPublishedJob?.(job.url)}><header><span>{icons.jobs}</span><em>已发布</em></header><strong>{job.title}</strong><small>{job.location} · {job.headcount} 个 HC</small><dl><div><dt>发布渠道</dt><dd>内部招聘系统 · 已发布</dd></div><div><dt>当前进展</dt><dd>{job.candidateCount} 位候选人</dd></div></dl><span className="hr-channel-tags"><i>内部招聘系统 · 已发布</i><i>BOSS 直聘 · 已发布</i></span><footer><span>查看职位详情</span><b>↗</b></footer></button>)}</div></section>}
+        {internalError && <p className="hr-sidebar-empty">内部招聘系统暂时无法读取，请稍后刷新。</p>}
+        {jobs.length ? <section className="hr-jobs-grid">{jobs.map((job) => { const jobCandidates = candidates.filter((candidate) => candidate.role === job.title); return <button type="button" key={job.id} onClick={() => { setActiveJobId(job.id); setSection("overview"); }}><header><span>{icons.jobs}</span><em>{job.status}</em></header><strong>{job.title}</strong><small>{job.location} · {job.headcount} 个 HC</small><dl><div><dt>数据来源</dt><dd>{job.source}</dd></div><div><dt>当前进展</dt><dd>{jobCandidates.length} 位候选人</dd></div></dl><footer><span>查看招聘进展</span><b>›</b></footer></button>; })}</section> : internalJobs.length ? null : <EmptyRecruitingState compact onConnect={() => setSection("sources")} onCreate={() => setCreationMode("job")}/>}
       </> : null}
 
       {section === "sources" ? <>

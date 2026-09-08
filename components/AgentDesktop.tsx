@@ -38,6 +38,8 @@ import { VoiceOrb } from "./VoiceOrb";
 import { BrowserApp } from "./BrowserApp";
 import { SalesCRMApp } from "./SalesCRMApp";
 import { HRRecruitingApp } from "./HRRecruitingApp";
+import { RecruitingPublication } from "./RecruitingPublication";
+import { subscribeBrowserEvents } from "@/lib/browser/client-events";
 import { InvestmentWorkspaceApp } from "./InvestmentWorkspaceApp";
 import type { BrowserSystemEvent, BrowserTaskState } from "@/lib/browser/types";
 import { captureBrowserOrigin, isBrowserOriginCurrent, browserReturnDestination, type BrowserReturnOrigin } from "@/lib/browser/return-to-origin";
@@ -1458,6 +1460,10 @@ export function AgentDesktop() {
   const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
   const knownInsightIdsRef = useRef<Set<string> | null>(null);
 
+  const publicationSessionRef = useRef<string | null>(null);
+  const [publishedDraft, setPublishedDraft] = useState<string | undefined>();
+  useEffect(() => { publicationSessionRef.current = null; setPublishedDraft(undefined); }, [activeCwd]);
+
   const browserReturnOriginRef = useRef<BrowserReturnOrigin | null>(null);
   const cancelBrowserReturn = useCallback(() => { browserReturnOriginRef.current = null; }, []);
   useEffect(() => {
@@ -1470,6 +1476,9 @@ export function AgentDesktop() {
   const handleBrowserEvent = useEffectEvent((message: BrowserSystemEvent | { type: "browser.ready" }) => {
     const context = { cwd: activeCwd, jarvisSessionId, taskSessionId, browserOpen, frontWindow };
     if (message.type === "browser.task") {
+      // The JD action returns to the native recruiting result window after it
+      // has loaded the actual published record. Other tasks keep normal return.
+      if (publicationSessionRef.current === message.task.parentSessionId) return;
       const origin = browserReturnOriginRef.current;
       if (!origin || message.task.pageId !== origin.pageId
           || !["completed", "failed", "stopped"].includes(message.task.status)) return;
@@ -1498,22 +1507,21 @@ export function AgentDesktop() {
   });
 
   useEffect(() => {
-    const stream = new EventSource("/api/browser/events");
     const controller = new AbortController();
-    stream.onmessage = (event) => {
+    const unsubscribe = subscribeBrowserEvents({ message: (event) => {
       try { handleBrowserEvent(JSON.parse(event.data) as BrowserSystemEvent | { type: "browser.ready" }); }
       catch { /* ignore malformed browser events */ }
-    };
+    },
     // Recover a completion missed during a short SSE interruption, only for
     // the task whose browser this UI actually followed into the foreground.
-    stream.onopen = () => {
+    open: () => {
       if (!browserReturnOriginRef.current) return;
       void fetch("/api/browser/state", { cache: "no-store", signal: controller.signal })
         .then(async (response) => response.ok ? await response.json() as { tasks: BrowserTaskState[] } : null)
         .then((state) => { if (!controller.signal.aborted) state?.tasks.forEach((task) => handleBrowserEvent({ type: "browser.task", task })); })
         .catch(() => { /* The stream remains the primary delivery path. */ });
-    };
-    return () => { controller.abort(); stream.close(); };
+    } });
+    return () => { controller.abort(); unsubscribe(); };
   }, []);
 
   useEffect(() => {
@@ -2390,7 +2398,7 @@ export function AgentDesktop() {
               setFrontWindow(nextFront ? `file:${artifactIdentity(nextFront)}` : artifactLibraryOpen ? "library" : "tasks");
             }}
           >
-            <div className="agent-os-file-app"><FileViewer filePath={artifact.filePath} cwd={artifact.cwd} sourceSessionId={artifact.sessionId} initialDisplayMode={isHtmlArtifact(artifact) ? "preview" : undefined} watchEnabled/></div>
+            <div className="agent-os-file-app"><FileViewer filePath={artifact.filePath} cwd={artifact.cwd} sourceSessionId={artifact.sessionId} initialDisplayMode={isHtmlArtifact(artifact) ? "preview" : undefined} watchEnabled={frontWindow === windowId}/></div>
           </DesktopWindow>;
         })}
         {openFeishuDocuments.map((document, index) => {
@@ -2429,6 +2437,13 @@ export function AgentDesktop() {
         }} titleIcon={<span className="agent-os-hr-title-icon"><Icon name="recruiting" size={13}/></span>}>
           <HRRecruitingApp
             cwd={activeCwd}
+            publishedDraft={publishedDraft}
+            onOpenPublishedJob={(url) => {
+              if (!activeCwd) return;
+              void fetch("/api/browser/pages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cwd: activeCwd, url, foreground: true }) })
+                .then(async (response) => { if (!response.ok) throw new Error("无法打开职位网页"); })
+                .catch(() => setNotice("无法打开职位网页，请稍后重试。"));
+            }}
             onStartTask={startTask}
             onOpenSource={(sourceId) => {
               if (sourceId === "feishu") {
@@ -2615,6 +2630,29 @@ export function AgentDesktop() {
         </button>
       </div> : null}
 
+      {activeCwd && <RecruitingPublication
+        key={activeCwd}
+        cwd={activeCwd}
+        viewedArtifact={openArtifacts.find((artifact) => `file:${artifactIdentity(artifact)}` === frontWindow) ?? null}
+        onStartTask={startTask}
+        onTaskStarted={(sessionId) => { publicationSessionRef.current = sessionId; setTaskSessionId(sessionId); }}
+        onPublished={(job, sessionId) => {
+          setPublishedDraft(job.draft);
+          const origin = browserReturnOriginRef.current;
+          if (origin?.sessionId === sessionId && isBrowserOriginCurrent(origin, { cwd: activeCwd, jarvisSessionId, taskSessionId, browserOpen, frontWindow })) {
+            browserReturnOriginRef.current = null;
+            setJarvisPanelOpen(false);
+            setHrRecruitingOpen(true);
+            setFrontWindow("hr");
+          }
+          setNotice(`「${job.title}」已发布到内部招聘系统`);
+        }}
+        onSettled={(sessionId) => {
+          if (publicationSessionRef.current === sessionId) publicationSessionRef.current = null;
+          if (browserReturnOriginRef.current?.sessionId === sessionId) browserReturnOriginRef.current = null;
+        }}
+        onNotice={setNotice}
+      />}
       {notice && <div className="agent-os-toast" role="status"><BrandMark compact/><span>{notice}</span></div>}
       {insightNotification && (
         <button className="agent-os-insight-notification" type="button" title={insightNotification.title} onClick={() => openInsightResult(insightNotification)}>
