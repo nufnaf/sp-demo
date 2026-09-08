@@ -11,6 +11,7 @@ import {
 import { resolveVisibleModels, selectInitialModelScope } from "@/lib/model-scope";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
 import { projectTrustReloadOptions } from "@/lib/project-trust";
+import { presentationModelDefaults } from "@/lib/presentation-runtime";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,9 @@ async function loadModels(cwd: string): Promise<ModelsData> {
 
   const defaultProvider = settings.getDefaultProvider();
   const defaultModelId = settings.getDefaultModel();
+  const appModelDefaults = presentationModelDefaults(cwd);
   const initial = selectInitialModelScope(scope, {
+    ...(appModelDefaults ? { requestedModel: appModelDefaults, thinkingLevel: appModelDefaults.thinkingLevel } : {}),
     ...(defaultProvider && defaultModelId
       ? { defaultModel: { provider: defaultProvider, modelId: defaultModelId } }
       : {}),
@@ -73,6 +76,7 @@ async function loadModels(cwd: string): Promise<ModelsData> {
   if (initial.model) {
     defaultModel = { provider: initial.model.provider, modelId: initial.model.id };
   }
+  if (appModelDefaults) thinkingLevelPins[`${appModelDefaults.provider}/${appModelDefaults.modelId}`] = appModelDefaults.thinkingLevel;
 
   return withModelRuntimeError(
     {

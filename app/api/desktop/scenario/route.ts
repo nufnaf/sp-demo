@@ -11,5 +11,5 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   if (!["insight", "meeting"].includes(body?.action)) return Response.json({}, { status: 400 });
   try { return Response.json(await advancePresentation(body.action)); }
-  catch (e) { return Response.json({ error: e instanceof Error ? e.message : "无法更新演示" }, { status: 409 }); }
+  catch (e) { return Response.json({ error: e instanceof Error ? e.message : "无法更新工作台" }, { status: 409 }); }
 }

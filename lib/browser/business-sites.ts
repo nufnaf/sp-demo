@@ -11,7 +11,7 @@ export function recruitingSiteUrl(): URL {
 export function recruitingBrowserContext(): string {
   const url = recruitingSiteUrl();
   return [
-    `已登记的业务网站：星流科技 NovaFlow 内部招聘系统（虚构演示数据），入口 ${url.href}。`,
+    `已登记的业务网站：星流科技 NovaFlow 内部招聘系统，入口 ${url.href}。`,
     "用途：发布和管理本公司的招聘职位、候选人、面试进展与评价。",
   ].join("\n");
 }

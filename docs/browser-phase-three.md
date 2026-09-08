@@ -1,5 +1,7 @@
 # 第三阶段：独立招聘网站与真实浏览器工作流
 
+2026-09-09 模型配置更新：用户已指定 App 内主 Agent 和普通任务默认使用 `openai-codex/gpt-5.6-luna`（low）；浏览器固定 `openai-codex/gpt-5.6-luna`（low）。使用现有 Pi 授权，但不修改原 Pi 的全局默认模型。下文旧模型记录属于历史验收。
+
 > 2026-09-08 完整演示更新：Electron 现采用独立运行数据、退出后新开场；必须先真实生成并发布本轮岗位，再查询其预设进展。飞书改为专用应用直连。本文原有计时和跨重启行为属于历史验证；当前步骤与结果见 [完整招聘演示](presentation-demo.md)。
 
 实现位置始终是 `/Users/xiewannan/code/sp-demo-worktrees/electron-phase-one`，分支 `codex/electron-phase-one`，从已提交的前两阶段 `8e4cdf0` 继续。招聘应用源码位于 `apps/recruiting`；保持与 Pi / Electron 独立的包、服务、样式、数据和部署入口。
@@ -27,7 +29,7 @@ npm run desktop
 
 新对话会加载当前入口。开发期间如果已有会话载入过旧版本工具，先结束正在运行的任务，再通过界面“新对话”加载新定义；不要修改原会话数据。若 HMR 导致旧对话面板未同步，先刷新窗口再核对历史。
 
-浏览器模型保持 **`openai-codex / gpt-5.6-luna`**，low thinking；主 Agent 模型未修改。缺授权时继续使用第二阶段现有 Pi 登录入口，不复制其他应用的凭据。
+浏览器模型保持 **`openai-codex / gpt-5.6-luna`**，low thinking；App 专属工作台主 Agent 默认 Luna、low，普通 Web 的默认值未修改。缺授权时继续使用第二阶段现有 Pi 登录入口，不复制其他应用的凭据。
 
 ## 首选短场景：单岗位面试收尾进度
 

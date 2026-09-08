@@ -1,4 +1,4 @@
-import { presentationCwd, applicationDataDir } from "./presentation-runtime";
+import { presentationRoot, isPresentationCwd, applicationDataDir } from "./presentation-runtime";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -52,6 +52,7 @@ function writeRegistry(registry: WorkspaceRegistry, registryPath = getWorkspaceR
 }
 
 export function isManagedWorkspacePath(cwd: string, home = homedir()): boolean {
+  if (presentationRoot()) return isPresentationCwd(cwd);
   const resolved = resolve(cwd);
   return dirname(resolved) === resolve(home) && MANAGED_DIRECTORY_PATTERN.test(basename(resolved));
 }
@@ -60,9 +61,8 @@ export function listManagedWorkspaces(
   home = homedir(),
   registryPath = getWorkspaceRegistryPath(),
 ): ManagedWorkspace[] {
-  const demo = presentationCwd();
-  if (demo) return [{ cwd: demo, name: "招聘工作台", managed: true, createdAt: new Date(0).toISOString() }];
   const registry = readRegistry(registryPath);
+  if (presentationRoot()) return registry.workspaces.filter((workspace) => isPresentationCwd(workspace.cwd) && existsSync(workspace.cwd));
   const byCwd = new Map(
     registry.workspaces
       .filter((workspace) => isManagedWorkspacePath(workspace.cwd, home) && existsSync(workspace.cwd))
@@ -91,8 +91,7 @@ export function createManagedWorkspace(
   registryPath = getWorkspaceRegistryPath(),
   now = new Date(),
 ): ManagedWorkspace {
-  const demo = presentationCwd();
-  if (demo) return { cwd: demo, name: "招聘工作台", managed: true, createdAt: new Date(0).toISOString() };
+  if (presentationRoot()) { home = join(presentationRoot()!, "workspaces"); mkdirSync(home, { recursive: true }); }
   const stamp = now.toISOString().replace(/[-:]/g, "").slice(0, 15).replace("T", "-");
   let suffix = 0;
   let cwd = join(home, `pi-cwd-${stamp}`);

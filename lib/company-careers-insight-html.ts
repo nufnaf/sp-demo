@@ -200,7 +200,7 @@ export function renderCompanyCareersInsightHtml(data: CompanyCareersData): strin
   <section class="panel"><header class="panel-head"><span><strong>高级 AI Agent 研发工程师 · ${escapeHtml(insight.proposedStandard.version)}</strong><small>建议评分框架 · 2 项保持，2 项更新</small></span><em>等待 HR 确认</em></header><div class="standards">${standardCards}</div></section>
   <section class="meeting" id="meeting"><div class="meeting-main"><span class="meeting-icon" id="meeting-icon">日</span><div class="meeting-copy"><small id="meeting-status">推荐行动 · 需要 HR 确认</small><strong>${escapeHtml(insight.meetingProposal.title)}</strong><p>${escapeHtml(formatTime(insight.meetingProposal.recommendedSlot.startsAt))} · ${insight.meetingProposal.durationMinutes} 分钟 · ${escapeHtml(insight.meetingProposal.recommendedSlot.reason)}</p><div class="attendees">${attendeeChips}</div></div><button id="schedule" type="button">采用新标准并安排会议</button></div></section>
 
-  <aside class="caveat"><strong>范围与限制</strong><p>这是为产品演示构造的特殊逻辑：偏好指数与洞察结论来自确定性 mock 数据，并非真实招聘算法或对面试官的绩效判断。结论只适用于最近 ${insight.sample.periodDays} 天、该目标岗位与当前 ${insight.sample.evaluations} 份评价；正式使用时应加入更长时间窗口、岗位难度、面试轮次和候选人结构等控制变量。</p></aside>
+  <aside class="caveat"><strong>范围与限制</strong><p>结论只适用于最近 ${insight.sample.periodDays} 天、该目标岗位与当前 ${insight.sample.evaluations} 份评价；后续分析可结合更长时间窗口、岗位难度、面试轮次和候选人结构等控制变量。</p></aside>
   <section class="source-panel"><header><strong>证据与数据来源</strong><small>所有数字均来自已连接的招聘官网快照；未使用外部候选人数据。</small></header><ul>${sourceRows}</ul></section>
 </main>
 <script>

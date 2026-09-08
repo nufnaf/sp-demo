@@ -3,6 +3,7 @@ import { defineTool, type InlineExtension } from "@earendil-works/pi-coding-agen
 import { getBrowserManager } from "./manager";
 import { startBrowserTask } from "./tasks";
 import { recruitingBrowserContext } from "./business-sites";
+import { recruitingPublicationTask } from "./recruiting-publication";
 
 export const BROWSER_EXTENSION_NAME = "pi-web-browser";
 export const BROWSER_READ_TOOL_NAMES = ["browser_open", "browser_tabs", "browser_navigate", "browser_snapshot", "browser_screenshot"] as const;
@@ -34,13 +35,22 @@ export function createBrowserExtension(taskOnly = false): InlineExtension {
         promptGuidelines: [
           recruitingBrowserContext(),
           "For a multi-step website task, call browser_task once with the full user goal, starting URL, exact record criteria and form content. Wait for its result and summarize it; do not perform the individual browser clicks yourself.",
+          "For internal recruitment publication from a JD file, pass jd_file and a short publishing goal. The tool reads the full document for the browser Agent; do not read or copy its body into task. jd_file only supports the registered recruiting publication page and files inside the current workspace.",
           "Do not replace browser tasks with bash, scripts, direct website APIs, or simulated actions. Task pages are isolated from manual browsing and other tasks.",
           "Only report success when browser_task reports completed. If it fails, report its blocker accurately without fabricating a successful save.",
         ],
-        parameters: Type.Object({ url: Type.String(), task: Type.String({ minLength: 1, maxLength: 12000 }) }),
+        parameters: Type.Object({
+          url: Type.String(),
+          task: Type.String({ minLength: 1, maxLength: 12000 }),
+          jd_file: Type.Optional(Type.String({ minLength: 1, description: "JD artifact path in this workspace, only for internal recruitment publication. The tool supplies the complete file content." })),
+        }),
         async execute(_id, params, signal, onUpdate, ctx) {
           try {
-            const run = startBrowserTask({ cwd: ctx.cwd, parentSessionId: ctx.sessionManager.getSessionId(), ...params }, signal);
+            const task = params.jd_file
+              ? await recruitingPublicationTask(ctx.cwd, params.url, params.jd_file)
+              : params.task;
+            signal?.throwIfAborted();
+            const run = startBrowserTask({ cwd: ctx.cwd, parentSessionId: ctx.sessionManager.getSessionId(), url: params.url, task }, signal);
             const unsubscribe = manager.subscribe((event) => {
               if (event.type === "browser.task" && event.task.id === run.state.id) {
                 onUpdate?.(result(`${event.task.progress} · ${event.task.steps} 步 · ${event.task.modelId}`, event.task));

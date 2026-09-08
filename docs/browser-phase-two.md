@@ -1,5 +1,7 @@
 # 第二阶段：可观看的 browser use 演示
 
+2026-09-09 模型配置更新：用户已指定 App 内主 Agent 和普通任务默认使用 `openai-codex/gpt-5.6-luna`（low）；浏览器固定 `openai-codex/gpt-5.6-luna`（low）。使用现有 Pi 授权，但不修改原 Pi 的全局默认模型。下文旧模型记录属于历史验收。
+
 > 2026-09-08 完整演示更新：Electron 现采用独立运行数据、退出后新开场；必须先真实生成并发布本轮岗位，再查询其预设进展。飞书改为专用应用直连。本文原有计时和跨重启行为属于历史验证；当前步骤与结果见 [完整招聘演示](presentation-demo.md)。
 
 实现继续位于 `/Users/xiewannan/code/sp-demo-worktrees/electron-phase-one`，分支仍为 `codex/electron-phase-one`。第一阶段尚未提交的完整成果直接保留在这里；没有基于空缺的 HEAD 另建副本。主 checkout 的 `docs/specs/` 未修改。没有提交、推送、部署或制作安装包。
@@ -45,7 +47,7 @@ AI 操作期间，专用页面禁止人工输入和导航，可以停止任务�
 
 ## 模型与授权
 
-按用户最终决定固定为 `openai-codex / gpt-5.6-luna`，不提供独立模型设置界面，也不会静默降级。已通过现有 Pi ChatGPT 登录发起真实请求并收到 `LUNA_BROWSER_OK`；完整浏览器任务也使用此模型。主 Agent 保留其既有模型配置。
+按用户最终决定固定为 `openai-codex / gpt-5.6-luna`，不提供独立模型设置界面，也不会静默降级。已通过现有 Pi ChatGPT 登录发起真实请求并收到 `LUNA_BROWSER_OK`；完整浏览器任务也使用此模型。App 专属工作台主 Agent 现默认 Luna（low）；普通 Web 保留其既有模型配置。
 
 缺少授权时，任务显示具体错误及“打开设置与登录”入口。沿用“设置 → Models → ChatGPT Plus/Pro → Login”；凭据仅由原有 Pi AuthStorage / ModelRuntime 处理。不要复制 Codex 凭据、令牌或 OAuth 返回地址到聊天/源码/日志。
 
@@ -55,7 +57,7 @@ AI 操作期间，专用页面禁止人工输入和导航，可以停止任务�
 
 | 位置 | 职责 |
 | --- | --- |
-| `lib/browser/extension.ts` | 主 Agent 的 `browser_task({url, task})` 委派入口；任务说明放入业务目标、筛选条件、待填写内容。 |
+| `lib/browser/extension.ts` | 主 Agent 的 `browser_task({url, task, jd_file?})` 委派入口；一般任务传完整目标与筛选条件。内部招聘发布可传当前工作台的 JD 文件引用，由工具读取全文，避免模型重复输出。 |
 | `lib/browser/tasks.ts` | 专用 Pi 会话、固定 Luna 配置、受限工具、进度、结构化结果、取消和预算。 |
 | `lib/browser/agent-browser.ts` | 版本锁定的 agent-browser 协议适配、允许操作列表、进程生命周期。 |
 | `lib/browser/manager.ts` | 人工/AI 页面管理、专用实例和目标身份、同页截图、输入门禁。 |

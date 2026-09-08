@@ -1,0 +1,44 @@
+.workspace-widget { width: clamp(255px, 23vw, 310px); }
+.workspace-widget-goal { left: 36px; top: 72px; }
+.workspace-widget-schedule { left: 36px; top: 314px; }
+.workspace-widget-artifacts { left: 36px; top: 498px; }
+.workspace-widget-tasks { right: 36px; top: 72px; }
+.workspace-widget-insights { right: 36px; top: 330px; }
+.workspace-widget > .agent-os-card { overflow: hidden; background: linear-gradient(140deg,rgba(250,253,252,.78),rgba(242,249,247,.6)); box-shadow: inset 0 1px white,0 14px 40px rgba(68,96,111,.09); }
+.workspace-widget header { height: 43px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(100,130,118,.05); }
+.workspace-widget header span { display: flex; align-items: center; gap: 8px; }
+.workspace-widget header i { font-style: normal; color: #83a092; }
+.workspace-widget header strong { font-size: 11px; color: #496357; }
+.workspace-widget header small,.workspace-widget header button { font-size: 9px; color: #83998d; }
+.workspace-widget button { cursor: pointer; border: 0; color: inherit; background: transparent; text-align: left; }
+.workspace-widget button:focus-visible { outline: 2px solid #688c7b; outline-offset: -3px; }
+.workspace-widget-list { padding: 7px; max-height: 192px; overflow-y: auto; scrollbar-width: thin; }
+.workspace-widget-artifacts .workspace-widget-list { max-height: 115px; }
+.workspace-widget-row { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 9px; }
+.workspace-widget-row:hover { background: #ffffff88; }
+.workspace-widget-row > span { flex: 1; min-width: 0; }
+.workspace-widget-row strong { display: block; color: #3d574b; font-size: 11px; font-weight: 550; line-height: 1.65; overflow-wrap: anywhere; }
+.workspace-widget-row small { display: flex; align-items: center; gap: 6px; margin-top: 5px; color: #7b9385; font-size: 9px; line-height: 1.5; }
+.workspace-widget-row b { color: #8ca397; font-weight: 400; }
+.workspace-widget-row .is-running { color: #338269; }
+.workspace-widget-row small i { width: 5px; height: 5px; border-radius: 50%; background: #48a886; }
+.workspace-widget-empty { min-height: 120px; padding: 35px 20px 22px; display: flex; flex-direction: column; justify-content: flex-end; }
+.workspace-widget-empty p { font-size: 12px; margin: 0 0 8px; color: #50695b; }
+.workspace-widget-empty small { font-size: 9px; line-height: 1.6; color: #91a297; }
+.workspace-widget-artifacts .workspace-widget-empty { min-height: 90px; padding-top: 20px; }
+.workspace-goal { width: 100%; padding: 18px; }
+.workspace-goal > small { display: block; font-size: 9px; color: #8a9e92; line-height: 1.6; }
+.workspace-goal > strong { display: block; margin-top: 7px; color: #344d40; font-size: 17px; line-height: 1.45; font-weight: 600; }
+.workspace-goal p { margin: 9px 0; color: #7b9283; font-size: 10px; }
+.workspace-goal > div { display: flex; gap: 38px; margin: 18px 0 10px; font-size: 9px; color: #899e90; }
+.workspace-goal b { display: block; margin-top: 5px; color: #536c5d; font-size: 11px; }
+.workspace-calendar { min-height: 122px; display: flex; align-items: center; gap: 20px; padding: 20px; }
+.workspace-calendar > strong { min-width: 42px; color: #bf8c75; font-size: 30px; font-weight: 500; }
+.workspace-calendar small { display: block; font-size: 9px; font-weight: 400; color: #90a095; margin-top: 7px; }
+.workspace-calendar > span { font-size: 11px; color: #526c5c; }
+@media (max-height: 820px) and (min-width: 761px) { .workspace-widget-goal,.workspace-widget-tasks { top: 36px; } .workspace-widget-schedule { top: 282px; } .workspace-widget-artifacts { top: 464px; } .workspace-widget-insights { top: 292px; } }
+@media (max-width: 760px) {
+  .agent-os-desktop:has(.workspace-widget) { overflow-y: auto; padding: 12px 12px 200px; }
+  .agent-os-desktop-widget.workspace-widget { display: block; position: relative; top: auto !important; left: auto !important; right: auto !important; transform: none !important; width: 100%; margin: 0 0 12px; }
+}
+@media (prefers-reduced-transparency: reduce) { .workspace-widget > .agent-os-card { background: #f2f7f4; backdrop-filter: none; } }

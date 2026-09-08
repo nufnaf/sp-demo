@@ -12,6 +12,7 @@ interface Props {
   notice: string | null;
   onDismissNotice: () => void;
   insights: InsightResult[];
+  browserTasks: BrowserTaskState[];
   onOpenInsight: (insight: InsightResult) => void;
   cwd: string;
   viewedArtifact: JdArtifact | null;
@@ -54,21 +55,23 @@ export function RecruitingPublication(props: Props) {
   const callbacks = useRef(props);
   useEffect(() => { callbacks.current = props; });
   const path = props.viewedArtifact?.filePath;
-  const artifact = props.viewedArtifact;
+  const artifactTitle = props.viewedArtifact?.taskTitle;
   useEffect(() => {
     if (!loaded || !path || !props.insights.some((item) => item.filePath === path)) return;
     setReadInsights((items) => items.includes(path) ? items : [...items, path]);
   }, [loaded, path, props.insights]);
 
   useEffect(() => {
+    const artifact = callbacks.current.viewedArtifact;
     if (!loaded || !artifact || artifact.cwd !== props.cwd || !isJdDemoArtifact(artifact) || pending || preparing || seen.current.has(artifact.filePath)) return;
     const timer = setTimeout(() => {
       seen.current.add(artifact.filePath);
       setSuggestion(artifact);
     }, 1400);
     return () => clearTimeout(timer);
-  }, [path, artifact, props.cwd, pending, preparing, loaded]);
+  }, [path, artifactTitle, props.cwd, pending, preparing, loaded]);
 
+  const publicationStatus = props.browserTasks.filter((task) => task.parentSessionId === pending?.sessionId).at(-1)?.status;
   useEffect(() => {
     if (!pending) return;
     let cancelled = false;
@@ -108,7 +111,7 @@ export function RecruitingPublication(props: Props) {
     };
     void poll();
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [pending, props.cwd]);
+  }, [pending, props.cwd, publicationStatus]);
 
   const publish = async () => {
     if (!suggestion || pending || preparing) return;
@@ -119,22 +122,18 @@ export function RecruitingPublication(props: Props) {
         readJson<{ baseUrl: string }>("/api/apps/internal-recruiting"),
       ]);
       if (!mounted.current) return;
-      let text = file.content.trim();
+      const text = file.content.trim();
       let title = text.match(/^#\s+(.+)$/m)?.[1] || "AI Agent 工程师";
       if (/\.html?$/i.test(suggestion.filePath)) {
         const document = new DOMParser().parseFromString(text, "text/html");
         title = document.querySelector("h1")?.textContent?.trim() || document.title || title;
-        document.querySelectorAll("script,style,nav,button").forEach((element) => element.remove());
-        document.querySelectorAll("p,li,h1,h2,h3,br,section,div").forEach((element) => element.append(document.createTextNode("\n")));
-        text = (document.body.textContent || "").replace(/[ \t]+/g, " ").replace(/\n\s*\n/g, "\n\n").trim();
       }
-      if (!text || text.length > 9000) throw new Error("JD 正文为空或过长，请先在成果中调整后发布。");
       const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${suggestion.cwd}\n${suggestion.filePath}`));
       const draft = Array.from(new Uint8Array(bytes)).map((byte) => byte.toString(16).padStart(2, "0")).join("").slice(0, 32);
       const url = new URL("/jobs/new", site.baseUrl);
       url.searchParams.set("draft", draft);
       if (!mounted.current) return;
-      const sessionId = await props.onStartTask(publicationPrompt(url.href, title, text));
+      const sessionId = await props.onStartTask(publicationPrompt(url.href, title, suggestion.filePath));
       if (sessionId && mounted.current) {
         props.onTaskStarted(sessionId);
         setPending({ sessionId, draft, startedAt: Date.now() });

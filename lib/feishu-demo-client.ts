@@ -28,7 +28,7 @@ export class FeishuDemoClient {
     if (this.acquiring) return this.acquiring;
     this.acquiring = (async () => {
       const body = await this.json("/auth/v3/tenant_access_token/internal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ app_id: this.config.appId, app_secret: this.config.appSecret }) });
-      if (body.code !== 0 || !body.tenant_access_token || !body.expire || body.expire <= 0) throw new FeishuDemoError("configuration", "专用飞书应用凭据无效，请由配置管理员检查 App ID、App Secret 和应用发布状态。");
+      if (body.code !== 0 || !body.tenant_access_token || !body.expire || body.expire <= 0) throw new FeishuDemoError("configuration", "飞书连接配置已失效，请联系管理员。");
       this.token = { value: body.tenant_access_token, renewAt: this.clock() + Math.max(1, body.expire - Math.min(120, body.expire / 5)) * 1000 };
       return this.token.value;
     })().finally(() => { this.acquiring = undefined; });
@@ -44,9 +44,9 @@ export class FeishuDemoClient {
         continue;
       }
       // Never propagate upstream messages which could echo credential material.
-      throw new FeishuDemoError("authorization", "专用飞书应用无法读取演示资料。请管理员检查只读接口权限、应用发布状态和目标文件夹／文档的阅读授权。");
+      throw new FeishuDemoError("authorization", "无法访问团队资料，请联系管理员检查飞书文档的阅读权限。");
     }
-    throw new FeishuDemoError("authorization", "飞书凭证刷新后仍不可用，请管理员检查应用配置。");
+    throw new FeishuDemoError("authorization", "飞书连接暂时不可用，请联系管理员检查配置。");
   }
   async documents(query = ""): Promise<DemoDocument[]> {
     const items: DemoDocument[] = [];
@@ -63,14 +63,14 @@ export class FeishuDemoClient {
       pageToken = String(data.next_page_token ?? "");
       if (!pageToken) break;
     }
-    throw new FeishuDemoError("configuration", "演示文件夹文件过多或分页异常，请管理员使用专用小型资料文件夹。");
+    throw new FeishuDemoError("configuration", "文档列表加载未完成，请稍后重试或联系管理员。");
   }
   async read(id: string) {
-    if (!this.config.documentIds.includes(id)) throw new FeishuDemoError("authorization", "此文档不在专用演示资料范围内。");
+    if (!this.config.documentIds.includes(id)) throw new FeishuDemoError("authorization", "当前工作台无权访问此文档。");
     const document = (await this.documents()).find((item) => item.id === id);
-    if (!document) throw new FeishuDemoError("authorization", "未在已授权的演示文件夹中找到此文档。");
+    if (!document) throw new FeishuDemoError("authorization", "文档不存在或已停止共享。");
     const data = await this.get(`/docx/v1/documents/${encodeURIComponent(id)}/raw_content`);
-    if (typeof data.content !== "string" || !data.content.trim()) throw new FeishuDemoError("authorization", "飞书文档正文为空，请管理员检查演示文档。");
+    if (typeof data.content !== "string" || !data.content.trim()) throw new FeishuDemoError("authorization", "文档正文为空，请联系文档管理员。");
     return { ...document, content: data.content, fetchedAt: new Date(this.clock()).toISOString() };
   }
 }
@@ -81,7 +81,7 @@ export async function getFeishuDemoClient(): Promise<FeishuDemoClient> {
   try {
     config = JSON.parse(await readFile(process.env.SYNTROPIC_FEISHU_CONFIG || ".env.feishu-demo.json", "utf8")) as Config;
     if (![config.appId, config.appSecret, config.folderToken].every((value) => typeof value === "string" && value.trim()) || !Array.isArray(config.documentIds) || !config.documentIds.length || !config.documentIds.every((id) => typeof id === "string" && /^[a-zA-Z0-9]+$/.test(id))) throw new Error();
-  } catch { throw new FeishuDemoError("configuration", "请管理员先配置专用飞书演示应用与文档授权。演示者无需安装 CLI 或登录飞书。"); }
+  } catch { throw new FeishuDemoError("configuration", "飞书尚未连接，请联系管理员完成配置。"); }
   client = new FeishuDemoClient(config);
   return client;
 }

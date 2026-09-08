@@ -1,5 +1,6 @@
+import { recruitingTaskPrompt } from "./recruiting-jd-contract";
 import { createFeishuDemoExtension } from "./feishu-demo-extension";
-import { presentationSessionDir, presentationRoot } from "./presentation-runtime";
+import { presentationSessionDir, presentationRoot, presentationModelDefaults } from "./presentation-runtime";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { createAgentSessionFromServices, createAgentSessionServices, getAgentDir, initTheme, SessionManager, SettingsManager, Theme } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager as TuiKeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
@@ -55,6 +56,7 @@ import {
   JARVIS_TASK_ORIGIN_TYPE,
   JARVIS_TOOL_NAMES,
   jarvisTaskBatchMessage,
+  jarvisTaskDetails,
   trimTaskSummary,
   type JarvisMetadata,
   type JarvisRuntime,
@@ -485,6 +487,10 @@ export class AgentSessionWrapper {
     this.applyExactSystemPrompt();
   }
 
+  notifyJarvisTask(task: JarvisTaskInfo): void {
+    this.emit({ type: "jarvis_task_update", task: jarvisTaskDetails(task), occurredAt: new Date().toISOString() });
+  }
+
   private emit(event: AgentEvent): void {
     for (const listener of this.listeners) {
       try {
@@ -717,6 +723,8 @@ export class AgentSessionWrapper {
       }
 
       case "abort":
+        // The task-window stop button shares the same outcome as abort_task.
+        if (getJarvisTaskStore().has(this.sessionId)) getJarvisTaskStore().get(this.sessionId)!.abortRequested = true;
         if (this.shouldObserveTaskInsights()) {
           recordTaskInsightEvent({
             source: "task",
@@ -1885,7 +1893,8 @@ function createJarvisTaskRuntime(): JarvisRuntime & {
       store.set(realSessionId, task);
       allowFileRoot(cwd);
       invalidateSessionListCache();
-      await session.send({ type: "prompt", message });
+      await session.send({ type: "prompt", message: recruitingTaskPrompt(cwd, message) });
+      jarvis.notifyJarvisTask(jarvisTaskSnapshot(task));
       return jarvisTaskSnapshot(task);
     },
 
@@ -1894,8 +1903,7 @@ function createJarvisTaskRuntime(): JarvisRuntime & {
       if (!task || task.jarvisSessionId !== jarvisSessionId) return null;
       const wrapper = getRegistry().get(taskId);
       if (task.status === "running" && wrapper && !wrapper.isRunning()) {
-        task.status = task.abortRequested ? "aborted" : "completed";
-        task.completedAt ??= new Date().toISOString();
+        await this.handleTaskSettled(taskId);
       }
       return jarvisTaskSnapshot(task, wrapper);
     },
@@ -1929,10 +1937,16 @@ function createJarvisTaskRuntime(): JarvisRuntime & {
       const task = store.get(sessionId);
       if (!task || task.status !== "running") return;
       const wrapper = getRegistry().get(sessionId);
-      task.status = task.abortRequested ? "aborted" : "completed";
+      const lastAssistant = wrapper?.inner.sessionManager.getBranch().findLast((entry) => entry.type === "message" && entry.message.role === "assistant");
+      const failed = lastAssistant?.type === "message" && lastAssistant.message.role === "assistant" && lastAssistant.message.stopReason === "error";
+      const aborted = lastAssistant?.type === "message" && lastAssistant.message.role === "assistant" && lastAssistant.message.stopReason === "aborted";
+      task.status = task.abortRequested || aborted ? "aborted" : failed ? "failed" : "completed";
       task.completedAt = new Date().toISOString();
       const inbox = getJarvisInbox(task.jarvisSessionId);
-      inbox.pending.push(jarvisTaskSnapshot(task, wrapper));
+      const snapshot = jarvisTaskSnapshot(task, wrapper);
+      // UI state must not wait for the spoken report or its batching window.
+      getRegistry().get(task.jarvisSessionId)?.notifyJarvisTask(snapshot);
+      inbox.pending.push(snapshot);
       // Give sibling tasks finishing together a moment to join the same report.
       scheduleFlush(task.jarvisSessionId, JARVIS_SETTLE_MS);
     },
@@ -2224,6 +2238,7 @@ export async function startRpcSession(
     sessionManager = SessionManager.create(cwd, presentationSessionDir(cwd));
   }
   const sessionCwd = sessionManager.getCwd();
+  const appModelDefaults = presentationModelDefaults(sessionCwd);
   const subagentResources = sessionFile
     ? readSubagentSessionResources(
         sessionManager.getEntries() as unknown as SessionEntry[],
@@ -2349,15 +2364,17 @@ export async function startRpcSession(
       : undefined;
     const defaultProvider = services.settingsManager.getDefaultProvider();
     const defaultModelId = services.settingsManager.getDefaultModel();
+    const requestedInitialModel = effectiveInitialModel ?? appModelDefaults;
+    const requestedThinkingLevel = thinkingLevel ?? appModelDefaults?.thinkingLevel;
     const hasExistingMessages = sessionManager.getBranch().some((entry) => entry.type === "message");
     const initial = hasExistingMessages
       ? { scopedModels: [...scope.scopedModels] }
       : selectInitialModelScope(scope, {
-        ...(effectiveInitialModel ? { requestedModel: effectiveInitialModel } : {}),
+        ...(requestedInitialModel ? { requestedModel: requestedInitialModel } : {}),
         ...(defaultProvider && defaultModelId
           ? { defaultModel: { provider: defaultProvider, modelId: defaultModelId } }
           : {}),
-        ...(thinkingLevel ? { thinkingLevel } : {}),
+        ...(requestedThinkingLevel ? { thinkingLevel: requestedThinkingLevel } : {}),
       });
     const { session: inner } = await createAgentSessionFromServices({
       services,
@@ -2371,7 +2388,7 @@ export async function startRpcSession(
 
     const persistedPreferences = await persistExplicitStartupPreferences(
       services.settingsManager,
-      {
+      appModelDefaults ? {} : {
         ...(effectiveInitialModel ? { model: effectiveInitialModel } : {}),
         ...(thinkingLevel ? { thinkingLevel } : {}),
       },

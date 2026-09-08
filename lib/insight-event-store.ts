@@ -1,3 +1,4 @@
+import { emitFileEvent } from "./files-app/events";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -126,6 +127,7 @@ export function addInsightResult(result: InsightResult): void {
     ...state.results.filter((item) => item.filePath !== result.filePath),
   ].slice(0, MAX_RESULTS);
   saveState();
+  emitFileEvent({ type: "insight.updated", cwd: result.cwd });
 }
 
 export function listInsightResults(cwd: string): InsightResult[] {

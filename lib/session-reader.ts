@@ -142,7 +142,14 @@ export function mergeSessionLists(
 }
 
 async function loadAllSessions(): Promise<SessionInfo[]> {
-  const piSessions: PiSessionInfo[] = await SessionManager.listAll(presentationRoot() ? join(presentationRoot()!, "sessions") : undefined);
+  const root = presentationRoot();
+  // SDK listAll(customDir) reads a flat directory, unlike its default scan.
+  // Presentation sessions are grouped by workspace under sessions/.
+  const piSessions: PiSessionInfo[] = root
+    ? (await Promise.all((await readdir(join(root, "sessions"), { withFileTypes: true }).catch(() => []))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => SessionManager.listAll(join(root, "sessions", entry.name))))).flat()
+    : await SessionManager.listAll();
   const pathToId = new Map<string, string>();
   for (const s of piSessions) pathToId.set(sessionPathKey(s.path), s.id);
 

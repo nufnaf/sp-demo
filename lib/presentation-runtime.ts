@@ -1,4 +1,4 @@
-import { join, resolve } from "node:path";
+import { join, resolve, dirname, basename } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 // Only disposable application data moves. SDK settings and ModelRuntime retain
@@ -11,11 +11,18 @@ export function presentationCwd(): string | undefined {
   return root ? join(root, "workspace") : undefined;
 }
 export function isPresentationCwd(cwd?: string): boolean {
-  return Boolean(cwd && presentationCwd() && resolve(cwd) === resolve(presentationCwd()!));
+  const root = presentationRoot();
+  return Boolean(cwd && root && (resolve(cwd) === join(root, "workspace") || dirname(resolve(cwd)) === join(root, "workspaces")));
+}
+/** App-owned workspaces use Luna; ordinary Web/Pi workspaces keep their defaults. */
+export function presentationModelDefaults(cwd?: string) {
+  return isPresentationCwd(cwd)
+    ? { provider: "openai-codex", modelId: "gpt-5.6-luna", thinkingLevel: "low" as const }
+    : undefined;
 }
 export function applicationDataDir(): string {
   return presentationRoot() ? join(presentationRoot()!, "application") : getAgentDir();
 }
 export function presentationSessionDir(cwd?: string): string | undefined {
-  return isPresentationCwd(cwd) ? join(presentationRoot()!, "sessions", "recruiting") : undefined;
+  return isPresentationCwd(cwd) ? join(presentationRoot()!, "sessions", resolve(cwd!) === presentationCwd() ? "recruiting" : basename(cwd!)) : undefined;
 }

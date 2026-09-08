@@ -16,7 +16,7 @@ export class FileStore {
     try {
       const state = JSON.parse(await readFile(this.file, "utf8"));
       if (state.data?.schemaVersion !== 1 || !state.revision)
-        throw new Error("演示数据格式不兼容；请先备份数据并检查版本");
+        throw new Error("招聘数据格式不兼容；请先备份数据并检查版本");
       return state;
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
@@ -60,7 +60,7 @@ export class NeonStore {
     const rows = await this
       .sql`SELECT revision, data FROM recruiting_demo_state WHERE id = 'demo'`;
     if (!rows.length)
-      throw new Error("云端演示数据未初始化，请运行 npm run db:init");
+      throw new Error("云端招聘数据未初始化，请运行 npm run db:init");
     return rows[0];
   }
   async update(revision, change) {
@@ -85,7 +85,7 @@ export function getStore() {
     }
     if (process.env.VERCEL)
       throw new Error(
-        "云端持久化未配置：请设置 DATABASE_URL 并初始化独立演示数据库。不会回退到临时文件。",
+        "云端持久化未配置：请设置 DATABASE_URL 并初始化招聘数据库。不会回退到临时文件。",
       );
     return new FileStore(
       process.env.RECRUITING_DATA_FILE ||

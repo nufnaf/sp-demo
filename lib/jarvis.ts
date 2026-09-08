@@ -1,3 +1,4 @@
+import { recruitingJdContract } from "./recruiting-jd-contract";
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool, type InlineExtension } from "@earendil-works/pi-coding-agent";
 import type { SessionEntry } from "./types";
@@ -12,7 +13,7 @@ export const JARVIS_EXTENSION_NAME = "pi-web-jarvis";
 export const JARVIS_TOOL_NAMES = ["start_task", "task_status", "steer_task", "abort_task", "list_tasks", "browser_task"] as const;
 export const JARVIS_SESSION_NAME = "Syntropic";
 
-export type JarvisTaskStatus = "running" | "completed" | "aborted";
+export type JarvisTaskStatus = "running" | "completed" | "aborted" | "failed";
 
 export interface JarvisTaskInfo {
   sessionId: string;
@@ -104,6 +105,7 @@ const STATUS_TEXT: Record<JarvisTaskStatus, string> = {
   running: "还在进行中",
   completed: "已经完成",
   aborted: "已被停止",
+  failed: "未完成，请查看详情",
 };
 
 export function jarvisTaskStatusText(task: JarvisTaskInfo): string {
@@ -159,6 +161,7 @@ export function buildJarvisSystemPrompt(cwd: string): string {
     "- 细节、文件路径、代码等不要念，告诉用户可以在任务卡片里查看即可。",
     "",
     "未知事实交给任务查证，不要臆测；能通过搜索解决的不确定性，不要提前转成用户的补材料工作。",
+    recruitingJdContract(cwd),
     `当前工作目录：${cwd}`,
   ].join("\n");
 }
