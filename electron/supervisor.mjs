@@ -1,3 +1,4 @@
+import { cleanPresentationRun } from './presentation.mjs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LocalService } from './service.mjs';
@@ -37,8 +38,11 @@ async function start() {
 async function stop() {
   if (stopping) return;
   stopping = true;
-  await service?.stop();
-  process.exit(0);
+  try {
+    await service?.stop();
+    if (process.env.SYNTROPIC_PRESENTATION_ROOT) await cleanPresentationRun({ root: process.env.SYNTROPIC_PRESENTATION_ROOT });
+    process.exit(0);
+  } catch { process.exit(1); }
 }
 process.on('message', (message) => {
   if (message.type === 'start') void start();

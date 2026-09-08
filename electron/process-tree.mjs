@@ -54,5 +54,10 @@ export class OwnedProcessTree {
     await signal('SIGTERM');
     await delay(1500);
     await signal('SIGKILL');
+    for (let attempt = 0; attempt < 20; attempt++) {
+      if (!(await this.capture()).length) return;
+      await delay(150);
+    }
+    throw new Error('仍有本 App 的子进程未结束，保留演示目录以避免后台写入与清理冲突。');
   }
 }

@@ -4,6 +4,7 @@ import { cp, mkdir, readFile, rename, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createPresentationRun } from './presentation.mjs';
 import { APP_ORIGIN, isAppUrl, isExternalUrl } from './policy.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -14,6 +15,7 @@ app.setName(packaged ? 'Syntropic' : 'Syntropic Dev');
 app.setPath('userData', join(app.getPath('appData'), packaged ? 'Syntropic' : 'Syntropic Dev'));
 let window = null;
 let supervisor = null;
+let presentation = null;
 let quitting = false;
 let ready = false;
 let status = { title: '正在启动本机后台…', detail: '正在准备工作空间，请稍候。服务就绪后将自动打开工作台。' };
@@ -43,6 +45,7 @@ function createWindow() {
     title: 'Syntropic', width: 1440, height: 960, minWidth: 960, minHeight: 640,
     backgroundColor: '#151719',
     webPreferences: {
+      partition: presentation ? `syntropic-presentation-${presentation.id}` : undefined,
       preload: join(here, 'preload.cjs'), nodeIntegration: false,
       contextIsolation: true, sandbox: true, webSecurity: true, webviewTag: false,
     },
@@ -94,7 +97,7 @@ async function startSupervisor() {
       Object.assign(env, {
         SYNTROPIC_PACKAGED: '1',
         SYNTROPIC_APP_ROOT: root,
-        RECRUITING_DATA_FILE: join(app.getPath('userData'), 'recruiting/state.json'),
+        SYNTROPIC_FEISHU_CONFIG: join(process.resourcesPath, 'feishu-demo.json'),
         SYNTROPIC_RECRUITING_URL: 'http://127.0.0.1:30143/',
         PI_WEB_BROWSER_EXECUTABLE: join(process.resourcesPath, manifest.browserExecutable),
         PATH: `${join(process.resourcesPath, 'node/bin')}:/usr/bin:/bin:/usr/sbin:/sbin`,
@@ -104,6 +107,7 @@ async function startSupervisor() {
       return;
     }
   }
+  if (presentation) Object.assign(env, { SYNTROPIC_PRESENTATION_ROOT: presentation.root, SYNTROPIC_PRESENTATION_ID: presentation.id, RECRUITING_PRESENTATION: '1', RECRUITING_DATA_FILE: join(presentation.root, 'recruiting/state.json'), SYNTROPIC_FEISHU_CONFIG: packaged ? join(process.resourcesPath, 'feishu-demo.json') : join(root, '.env.feishu-demo.json') });
   if (quitting) return;
   if (!node) {
     void showStatus({ title: '缺少本机 Node 启动器', detail: '请从项目目录运行 npm run desktop。', retry: false });
@@ -111,6 +115,9 @@ async function startSupervisor() {
   }
   supervisor = fork(join(here, 'supervisor.mjs'), [], {
     execPath: node, execArgv: [], cwd: root, env,
+    // Keep the cleanup supervisor alive when the Electron process group dies.
+    // IPC disconnect still requests shutdown of only this run's services.
+    detached: true,
     stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
   });
   supervisorStopped = new Promise((resolve) => {
@@ -156,20 +163,23 @@ if (!app.requestSingleInstanceLock()) {
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => app.quit());
   // npm launcher died: don't leave a hidden desktop and backend running.
   process.on('disconnect', () => app.quit());
-  void app.whenReady().then(() => {
+  void app.whenReady().then(async () => {
+    presentation = await createPresentationRun(app.getPath('userData'));
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       ...(process.platform === 'darwin' ? [{ label: 'Syntropic', submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] }] : []),
       { role: 'fileMenu' }, { role: 'editMenu' }, { role: 'viewMenu' }, { role: 'windowMenu' },
     ]));
-    session.defaultSession.setPermissionRequestHandler(async (contents, permission, callback, details) => {
+    session.fromPartition(`syntropic-presentation-${presentation.id}`).setPermissionRequestHandler(async (contents, permission, callback, details) => {
+      // Recruiting suggestions and insights live inside the workbench only.
+      if (permission === 'notifications') { callback(false); return; }
       if (!contents || !isAppUrl(contents.getURL()) || !isAppUrl(details.requestingUrl)
-          || !['media', 'notifications', 'clipboard-sanitized-write', 'fullscreen'].includes(permission)) {
+          || !['media', 'clipboard-sanitized-write', 'fullscreen'].includes(permission)) {
         callback(false); return;
       }
       if (['clipboard-sanitized-write', 'fullscreen'].includes(permission)) { callback(true); return; }
       const result = await dialog.showMessageBox({
         type: 'question', buttons: ['不允许', '允许'], defaultId: 0, cancelId: 0,
-        message: permission === 'media' ? '允许 Syntropic 使用麦克风或摄像头？' : '允许 Syntropic 显示通知？',
+        message: '允许 Syntropic 使用麦克风或摄像头？',
       });
       callback(result.response === 1);
     });

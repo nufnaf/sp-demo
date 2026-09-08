@@ -13,9 +13,9 @@ export async function GET() {
       cache: "no-store", signal: AbortSignal.timeout(5000), redirect: "error",
     });
     if (!response.ok) throw new Error("内部招聘系统暂时不可用");
-    const data = await response.json() as { app?: string; jobs?: Omit<PublishedRecruitingJob, "url">[] };
+    const data = await response.json() as { app?: string; scene?: unknown; jobs?: Omit<PublishedRecruitingJob, "url">[] };
     if (data.app !== "syntropic-recruiting" || !Array.isArray(data.jobs)) throw new Error("内部招聘系统版本不支持发布结果展示");
-    return NextResponse.json({ baseUrl: base.href, jobs: data.jobs.map((job) => ({ ...job, url: new URL(`/jobs/${encodeURIComponent(job.id)}`, base).href })) });
+    return NextResponse.json({ baseUrl: base.href, scene: data.scene ?? null, jobs: data.jobs.map((job) => ({ ...job, url: new URL(`/jobs/${encodeURIComponent(job.id)}`, base).href })) });
   } catch {
     return NextResponse.json({ error: "暂时无法读取内部招聘系统，请确认网站已启动。" }, { status: 502 });
   }

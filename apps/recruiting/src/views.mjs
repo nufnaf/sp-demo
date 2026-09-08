@@ -40,11 +40,11 @@ const jobLink = (id) => `/jobs/${encodeURIComponent(id)}`;
 const candidateLink = (a) => `/candidates/${encodeURIComponent(a.id)}`;
 
 export function layout(title, body, active = "jobs") {
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>${e(title)} · NovaFlow 人才招聘</title><link rel="stylesheet" href="/style.css"></head><body>
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>${e(title)} · 星流科技人才招聘</title><link rel="stylesheet" href="/style.css"></head><body>
   <aside class="sidebar"><a class="brand" href="/"><span class="brand-mark">✦</span><span><b>星流科技</b><small>NOVAFLOW</small></span></a><div class="workspace-label">人才与组织 <span>内部工作台</span></div>
   <nav aria-label="主导航"><a href="/" class="${active === "jobs" ? "active" : ""}"><span aria-hidden="true">▦</span> 招聘职位</a><a href="/candidates" class="${active === "candidates" ? "active" : ""}"><span aria-hidden="true">◎</span> 候选人</a><a href="/reviews" class="${active === "reviews" ? "active" : ""}"><span aria-hidden="true">☷</span> 面试评价</a></nav>
   <div class="side-note"><span>BUILD THE FUTURE OF WORK</span><p>让智能真正<br>进入工作流。</p><i>✦</i></div><a href="/settings" class="settings-link">系统设置 <span>↗</span></a><div class="identity"><span class="avatar">陈</span><div><b>陈晓</b><small>招聘负责人</small></div></div></aside>
-  <div class="workspace"><header class="topbar"><span>人才招聘 <span class="slash">/</span> ${e(title)}</span><span class="environment"><i></i> 人才与组织 <span class="separator">|</span> NovaFlow 团队</span></header><main>${body}</main><footer>© 2026 NovaFlow Technology <span>NovaFlow · 内部招聘系统</span></footer></div></body></html>`;
+  <div class="workspace"><header class="topbar"><span>人才招聘 <span class="slash">/</span> ${e(title)}</span><span class="environment"><i></i> 人才与组织 <span class="separator">|</span> 星流科技团队</span></header><main>${body}</main><footer>© 2026 星流科技 <span>星流科技 · 内部招聘系统</span></footer></div></body></html>`;
 }
 
 function heading(kicker, title, description, action = "") {
@@ -232,8 +232,8 @@ export function publishJobPage(state, params) {
     ${heading("NEW OPPORTUNITY", "发布新职位", "完善岗位信息，让合适的人找到我们。")}
     <form class="panel publish-job-form" method="post" action="/jobs/publish">
       ${hidden(state.revision)}<input type="hidden" name="draft" value="${e(draft)}">
-      <label>岗位名称<input name="title" required maxlength="100" placeholder="例如：高级 AI Agent 研发工程师"></label>
-      <div class="form-grid"><label>所属部门<input name="department" required maxlength="80" value="Agent 研发"></label><label>工作地点<input name="location" required maxlength="100" value="北京 / 上海"></label><label>招聘目标（人）<input name="target" type="number" min="1" max="100" value="6" required></label><label>招聘负责人<input name="owner" required maxlength="40" value="陈晓"></label></div>
+      <label>岗位名称<input name="title" required maxlength="100" placeholder="例如：AI Agent 工程师"></label>
+      <div class="form-grid"><label>所属部门<input name="department" required maxlength="80" value="Agent 研发"></label><label>工作地点<input name="location" required maxlength="100" value="杭州 / 上海"></label><label>招聘目标（人）<input name="target" type="number" min="1" max="100" value="6" required></label><label>招聘负责人<input name="owner" required maxlength="40" value="陈晓"></label></div>
       <label>岗位 JD<textarea name="description" required maxlength="12000" rows="12" placeholder="填写岗位介绍、职责与任职要求"></textarea></label>
       <footer><span>发布后可在职位详情中查看和维护。</span><button type="submit">发布职位</button></footer>
     </form>`);

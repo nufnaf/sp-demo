@@ -23,6 +23,7 @@ import "./FilesApp.css";
 
 interface FilesAppProps {
   cwd: string;
+  watchEnabled?: boolean;
   openRequest?: FileOpenRequest | null;
   onDirtyChange?: (dirty: boolean) => void;
 }
@@ -190,7 +191,7 @@ function CodeEditor({
   return <div className="agent-code-editor" ref={hostRef}/>;
 }
 
-export function FilesApp({ cwd, openRequest, onDirtyChange }: FilesAppProps) {
+export function FilesApp({ cwd, openRequest, onDirtyChange, watchEnabled = true }: FilesAppProps) {
   const [tabs, setTabs] = useState<CodeTab[]>([]);
   const tabsRef = useRef(tabs);
   const [activePath, setActivePath] = useState<string | null>(null);
@@ -269,7 +270,7 @@ export function FilesApp({ cwd, openRequest, onDirtyChange }: FilesAppProps) {
   }, [cwd, openFile, openRequest]);
 
   useEffect(() => {
-    if (!activePath || isPreviewOnly(activePath)) return;
+    if (!watchEnabled || !activePath || isPreviewOnly(activePath)) return;
     const source = new EventSource(fileUrl(activePath, "watch"));
     const handleChange = () => {
       const tab = tabsRef.current.find((item) => item.filePath === activePath);
@@ -279,8 +280,14 @@ export function FilesApp({ cwd, openRequest, onDirtyChange }: FilesAppProps) {
       setRefreshKey((value) => value + 1);
     };
     source.addEventListener("change", handleChange);
+    source.addEventListener("connected", () => {
+      // Catch up after a background window resumes without discarding edits.
+      // Dirty tabs keep their saved revision for the existing save conflict check.
+      const tab = tabsRef.current.find((item) => item.filePath === activePath);
+      if (tab && !tab.dirty && !tab.saving) void reloadFile(activePath);
+    });
     return () => source.close();
-  }, [activePath, reloadFile, updateTab]);
+  }, [activePath, reloadFile, updateTab, watchEnabled]);
 
   const activeTab = useMemo(() => tabs.find((tab) => tab.filePath === activePath) ?? null, [activePath, tabs]);
 
@@ -371,7 +378,7 @@ export function FilesApp({ cwd, openRequest, onDirtyChange }: FilesAppProps) {
                   filePath={activeTab.filePath}
                   cwd={cwd}
                   initialDisplayMode="preview"
-                  watchEnabled
+                  watchEnabled={watchEnabled}
                   gitRefreshKey={refreshKey}
                   onOpenFile={(filePath) => openFile(filePath)}
                 />

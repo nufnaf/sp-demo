@@ -87,7 +87,8 @@ const reviews = [
   "对关键问题的回答缺少可验证的项目证据，系统边界与故障处理方案不够完整，建议本轮不通过。",
 ];
 
-export function seedData() {
+export function seedData(presentation = process.env.RECRUITING_PRESENTATION === "1") {
+  presentation = presentation === true;
   const jobs = [
     {
       id: "ai-agent",
@@ -274,13 +275,22 @@ export function seedData() {
       };
     }),
   );
+  if (presentation) {
+    // Deliberate scenario evidence, shared by the website, native pipeline and
+    // insight. Missing reviews remain missing; disagreement uses submitted pairs.
+    for (const application of applications.filter((a) => ["NF-1004", "NF-1005", "NF-1006"].includes(a.id))) {
+      application.interviews[0].review = { ...application.interviews[0].review, score: 2, conclusion: "no", opinion: "更看重院校背景与通用算法经历；虽然提供了 Agent 上线证据，仍建议不推进。" };
+      application.interviews[1].review = { ...application.interviews[1].review, score: 4, conclusion: "yes", opinion: "更看重生产交付；候选人展示了工具编排、评测集和故障恢复证据，建议推进。" };
+    }
+  }
   return {
+    ...(presentation ? { presentation: { jobId: null, pendingCandidates: applications.filter((a) => a.jobId === "ai-agent") } } : {}),
     schemaVersion: 1,
-    jobs: jobs.map((job) => {
+    jobs: jobs.filter((job) => !presentation || job.id !== "ai-agent").map((job) => {
       const result = { ...job };
       delete result.count;
       return result;
     }),
-    applications,
+    applications: applications.filter((a) => !presentation || a.jobId !== "ai-agent"),
   };
 }

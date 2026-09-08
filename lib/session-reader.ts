@@ -1,3 +1,4 @@
+import { presentationRoot } from "./presentation-runtime";
 import {
   SessionManager,
   buildContextEntries as piBuildContextEntries,
@@ -141,7 +142,7 @@ export function mergeSessionLists(
 }
 
 async function loadAllSessions(): Promise<SessionInfo[]> {
-  const piSessions: PiSessionInfo[] = await SessionManager.listAll();
+  const piSessions: PiSessionInfo[] = await SessionManager.listAll(presentationRoot() ? join(presentationRoot()!, "sessions") : undefined);
   const pathToId = new Map<string, string>();
   for (const s of piSessions) pathToId.set(sessionPathKey(s.path), s.id);
 
@@ -229,7 +230,7 @@ const SESSION_LIST_CACHE_TTL_MS = 30_000;
 const SESSION_ID_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/;
 
 function defaultSessionsDir(): string {
-  return join(getAgentDir(), "sessions");
+  return join(presentationRoot() ?? getAgentDir(), "sessions");
 }
 
 function resolvePathWithinDefaultSessions(

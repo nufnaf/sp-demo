@@ -1,3 +1,5 @@
+import { getFeishuDemoClient } from "@/lib/feishu-demo-client";
+import { presentationRoot } from "@/lib/presentation-runtime";
 import { NextResponse } from "next/server";
 import { FeishuDocumentsError, getFeishuDocuments } from "@/lib/feishu-cli";
 import { isApiRequestAllowed } from "@/lib/request-security";
@@ -9,6 +11,7 @@ export async function GET(request: Request) {
   const query = new URL(request.url).searchParams.get("q")?.trim() ?? "";
   if ([...query].length > 30) return NextResponse.json({ error: "搜索关键词最多 30 个字符。" }, { status: 400 });
   try {
+    if (presentationRoot()) return NextResponse.json({ items: await (await getFeishuDemoClient()).documents(query), mode: query ? "search" : "recent", hasMore: false });
     return NextResponse.json(await getFeishuDocuments(query));
   } catch (error) {
     if (error instanceof FeishuDocumentsError) {

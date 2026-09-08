@@ -7,6 +7,9 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new Error('此安装包构建目前仅支持 macOS Apple Silicon。');
+const feishuConfig = await readFile(join(root, '.env.feishu-demo.json'));
+const configCheck = JSON.parse(feishuConfig.toString('utf8'));
+if (!configCheck.appId || !configCheck.appSecret || !configCheck.folderToken || !configCheck.documentIds?.length) throw new Error('请先完成 docs/feishu-demo-setup.md 中的专用飞书配置；未配置的包不能作为完整演示交付。');
 const build = join(root, 'build/desktop');
 const cache = join(build, 'cache');
 const source = join(build, 'source');
@@ -52,6 +55,7 @@ await mkdir(release, { recursive: true });
 await cp(join(root, 'node_modules/electron/dist/Electron.app'), app, { recursive: true, verbatimSymlinks: true });
 await rm(join(resources, 'default_app.asar'), { force: true });
 await mkdir(join(resources, 'app'), { recursive: true });
+await writeFile(join(resources, 'feishu-demo.json'), feishuConfig, { mode: 0o600 });
 await cp(join(root, 'electron'), join(resources, 'app/electron'), { recursive: true });
 await writeFile(join(resources, 'app/package.json'), JSON.stringify({ name: 'syntropic-desktop', productName: 'Syntropic', version: '0.8.11', main: 'electron/main.mjs' }, null, 2));
 const runtime = join(resources, 'runtime');
@@ -76,5 +80,5 @@ for (const [key, value] of Object.entries({ CFBundleExecutable: 'Syntropic', CFB
 // Preserve framework symlinks and perform the final ad-hoc signature after all copies.
 await run('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', app]);
 await run('/usr/bin/codesign', ['--verify', '--deep', '--strict', app]);
-await writeFile(join(release, '使用说明.txt'), '双击 Syntropic.app 即可启动工作台和招聘系统。首次启动会准备本地运行文件。\n需要联网及 Pi 中有效的 ChatGPT 授权才能执行 Agent 任务。\n招聘数据保存于 ~/Library/Application Support/Syntropic/recruiting/state.json。\n⌘Q 退出并停止本 App 启动的服务。\n此包为本机签名的 macOS Apple Silicon 内部演示版本，未做 Apple 公证。\n');
+await writeFile(join(release, '使用说明.txt'), '双击 Syntropic.app 即可启动工作台和招聘系统。首次启动会准备本地运行文件。\n需要联网及 Pi 中有效的 ChatGPT 授权才能执行 Agent 任务。\n本轮演示数据保存于 App 专属运行目录；刷新保留，完全退出后下次恢复预设。飞书演示资料通过随包专用应用配置读取。\n⌘Q 退出并停止本 App 启动的服务。\n此包为本机签名的 macOS Apple Silicon 内部演示版本，未做 Apple 公证。\n');
 console.log(`完成：${app}`);

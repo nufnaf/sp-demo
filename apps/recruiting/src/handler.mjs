@@ -1,3 +1,4 @@
+import { presentationProjection } from "./presentation.mjs";
 import { readFile } from "node:fs/promises";
 import { getStore, Conflict } from "./store.mjs";
 import { seedData } from "./seed.mjs";
@@ -104,7 +105,7 @@ export function createHandler(storeProvider = getStore) {
       // goes exclusively through the visible HTML form above.
       if (url.pathname === "/desktop/published-jobs") {
         res.setHeader("Content-Type", "application/json; charset=utf-8");
-        return res.end(JSON.stringify({ app: "syntropic-recruiting", jobs: state.data.jobs.filter((job) => job.draft && job.publishedAt).map((job) => ({
+        return res.end(JSON.stringify({ app: "syntropic-recruiting", scene: presentationProjection(state.data), jobs: state.data.jobs.filter((job) => job.draft && job.publishedAt).map((job) => ({
           id: job.id, draft: job.draft, title: job.title, location: job.location,
           department: job.department, headcount: job.target, owner: job.owner,
           publishedAt: job.publishedAt, candidateCount: state.data.applications.filter((a) => a.jobId === job.id).length,

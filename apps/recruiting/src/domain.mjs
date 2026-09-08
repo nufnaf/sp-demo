@@ -97,6 +97,12 @@ export function mutate(data, path, fields, now = new Date().toISOString()) {
       owner: required(fields.owner, "招聘负责人", 40),
       target, description: required(fields.description, "岗位 JD", 12000), skills: [],
     });
+    if (next.presentation && !next.presentation.jobId) {
+      const job = next.jobs[0];
+      next.presentation.jobId = job.id;
+      next.applications.push(...next.presentation.pendingCandidates.map((candidate) => ({ ...candidate, jobId: job.id })));
+      next.presentation.pendingCandidates = [];
+    }
     return next;
   }
   if (parts[0] === "jobs") {

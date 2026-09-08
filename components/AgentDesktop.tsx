@@ -1,4 +1,6 @@
 "use client";
+import { FeishuDemoApp, FeishuDemoDocument } from "./FeishuDemoApp";
+import { PresentationSchedule } from "./RecruitingPipeline";
 
 import { SyntropicMark } from "./SyntropicMark";
 import { DesktopStartStage } from "./DesktopStartStage";
@@ -39,6 +41,7 @@ import { BrowserApp } from "./BrowserApp";
 import { SalesCRMApp } from "./SalesCRMApp";
 import { HRRecruitingApp } from "./HRRecruitingApp";
 import { RecruitingPublication } from "./RecruitingPublication";
+import { DesktopNotification } from "./DesktopNotification";
 import { subscribeBrowserEvents } from "@/lib/browser/client-events";
 import { InvestmentWorkspaceApp } from "./InvestmentWorkspaceApp";
 import type { BrowserSystemEvent, BrowserTaskState } from "@/lib/browser/types";
@@ -80,7 +83,7 @@ type IconName =
   | "eye" | "file" | "folder" | "grid" | "insight" | "list" | "maximize" | "mic" | "minimize" | "waveform"
   | "sales" | "files" | "investment" | "plus" | "recruiting" | "search" | "settings" | "tasks" | "terminal" | "tiles";
 
-type SystemDockAppId = "system:crm" | "system:tasks" | "system:library" | "system:hr" | "system:investment" | "system:browser" | "system:files" | "system:terminal" | "system:store" | "system:settings";
+type SystemDockAppId = "system:calendar" | "system:crm" | "system:tasks" | "system:library" | "system:hr" | "system:investment" | "system:browser" | "system:files" | "system:terminal" | "system:store" | "system:settings";
 
 interface SystemDockApp {
   kind: "system";
@@ -680,6 +683,7 @@ interface CollaborationAuthFlow {
 }
 
 interface FeishuDocument {
+  source?: "feishu-demo";
   id: string;
   title: string;
   type: string;
@@ -723,6 +727,7 @@ function readPinnedDockApps(): DockItem[] {
   if (stored !== null) return parseDockItems(stored).flatMap<DockItem>((item): DockItem[] => {
     if (item.kind !== "system") return [item];
     const storedId = (item as { id: string }).id === "system:code" ? "system:files" : item.id;
+    if (storedId === "system:calendar") return [item];
     const currentSystemApp = SYSTEM_DOCK_APPS.find((systemApp) => systemApp.id === storedId);
     return currentSystemApp ? [currentSystemApp] : [];
   });
@@ -1385,11 +1390,11 @@ function DesktopWindow({
   );
 }
 
-export function AgentDesktop() {
+export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } = {}) {
   const now = useClock();
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [runningIds, setRunningIds] = useState<Set<string>>(() => new Set());
-  const [activeCwd, setActiveCwd] = useState<string | null>(null);
+  const [activeCwd, setActiveCwd] = useState<string | null>(presentationCwd ?? null);
   const [engagedWorkspaces, setEngagedWorkspaces] = useState<Set<string>>(() => new Set());
   const markWorkspaceEngaged = useCallback((cwd: string | null) => {
     if (!cwd) return;
@@ -1416,9 +1421,9 @@ export function AgentDesktop() {
     setStartMode(null);
     setGuideOpen(false);
     setReminderCount(0);
-    try { setGuideDismissed(localStorage.getItem(`pi-web:desktop-start:${activeCwd ?? "default"}`) === "dismissed"); }
+    try { setGuideDismissed(Boolean(presentationCwd) || localStorage.getItem(`pi-web:desktop-start:${activeCwd ?? "default"}`) === "dismissed"); }
     catch { setGuideDismissed(false); }
-  }, [activeCwd]);
+  }, [activeCwd, presentationCwd]);
   const handleReminderHistory = useCallback((items: { completed: boolean }[]) => setReminderCount(items.length), []);
   const dismissGuide = () => {
     setGuideOpen(false);
@@ -1431,6 +1436,7 @@ export function AgentDesktop() {
   const [jarvisSessionId, setJarvisSessionId] = useState<string | null>(null);
   const [openArtifacts, setOpenArtifacts] = useState<Artifact[]>([]);
   const [openFeishuDocuments, setOpenFeishuDocuments] = useState<FeishuDocument[]>([]);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [artifactLibraryOpen, setArtifactLibraryOpen] = useState(false);
   const [selectedLibraryArtifactId, setSelectedLibraryArtifactId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1676,11 +1682,15 @@ export function AgentDesktop() {
   }, []);
 
   useEffect(() => {
-    const pinnedApps = readPinnedDockApps();
+    const preferredIds = new Set(["system:tasks", "system:library", "system:hr", "system:browser", "system:files", "system:settings"]);
+    const pinnedApps: DockItem[] = presentationCwd && localStorage.getItem(PINNED_DOCK_APPS_KEY) === null
+      ? [...SYSTEM_DOCK_APPS.filter((app) => preferredIds.has(app.id)), { kind: "system", id: "system:calendar", name: "演示日程", description: "查看本轮模拟会议", category: "团队协作", icon: "clock", rank: 6 }]
+      : readPinnedDockApps();
+    if (presentationCwd && !pinnedApps.some((app) => app.id === "builtin:feishu")) pinnedApps.push(BUILTIN_LAUNCHPAD_APPS.find((app) => app.id === "builtin:feishu")!);
     setDockApps(pinnedApps);
     setPinnedDockAppIds(new Set(pinnedApps.map((app) => app.id)));
     setDockPinsLoaded(true);
-  }, []);
+  }, [presentationCwd]);
 
   useEffect(() => {
     if (!dockPinsLoaded) return;
@@ -1725,12 +1735,6 @@ export function AgentDesktop() {
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [workspaceOpen]);
-
-  useEffect(() => {
-    if (!notice) return;
-    const timer = window.setTimeout(() => setNotice(null), 3_200);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
 
   const workspaces = useMemo(() => {
     const map = new Map<string, WorkspaceOption>();
@@ -1960,7 +1964,10 @@ export function AgentDesktop() {
     setLaunchpadOpen(false);
     setDockContextMenu(null);
     rememberDockItem(item);
-    if (item.id === "system:tasks") {
+    if (item.id === "system:calendar") {
+      setScheduleOpen(true);
+      setFrontWindow("schedule");
+    } else if (item.id === "system:tasks") {
       if (sessions[0]) openTask(sessions[0].id);
     } else if (item.id === "system:library") {
       openArtifactLibrary();
@@ -1993,6 +2000,7 @@ export function AgentDesktop() {
 
   const isDockItemOpen = useCallback((item: DockItem) => {
     if (item.kind !== "system") return openApps.some((openApp) => openApp.id === item.id);
+    if (item.id === "system:calendar") return scheduleOpen;
     if (item.id === "system:tasks") return Boolean(taskSessionId) && frontWindow === "tasks";
     if (item.id === "system:library") return artifactLibraryOpen;
     if (item.id === "system:crm") return salesCrmOpen;
@@ -2003,7 +2011,7 @@ export function AgentDesktop() {
     if (item.id === "system:terminal") return terminalOpen;
     if (item.id === "system:store") return appStoreOpen;
     return settingsOpen;
-  }, [appStoreOpen, artifactLibraryOpen, browserOpen, filesOpen, frontWindow, hrRecruitingOpen, salesCrmOpen, investmentWorkspaceOpen, openApps, settingsOpen, taskSessionId, terminalOpen]);
+  }, [appStoreOpen, artifactLibraryOpen, browserOpen, filesOpen, frontWindow, hrRecruitingOpen, salesCrmOpen, investmentWorkspaceOpen, openApps, settingsOpen, taskSessionId, terminalOpen, scheduleOpen]);
 
   const toggleDockAppPin = useCallback((app: DockItem) => {
     setPinnedDockAppIds((current) => {
@@ -2241,7 +2249,7 @@ export function AgentDesktop() {
   const formatDate = new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", weekday: "short" }).format(now);
   const formatTime = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
   const runningCount = workspaceSessions.filter((session) => runningIds.has(session.id) && !isInsightTaskSession(session)).length;
-  const hasOpenWindow = Boolean(taskSessionId || artifactLibraryOpen || settingsOpen || appStoreOpen || salesCrmOpen || hrRecruitingOpen || investmentWorkspaceOpen || browserOpen || filesOpen || terminalOpen || launchpadOpen || openApps.length || openArtifacts.length || openFeishuDocuments.length);
+  const hasOpenWindow = Boolean(scheduleOpen || taskSessionId || artifactLibraryOpen || settingsOpen || appStoreOpen || salesCrmOpen || hrRecruitingOpen || investmentWorkspaceOpen || browserOpen || filesOpen || terminalOpen || launchpadOpen || openApps.length || openArtifacts.length || openFeishuDocuments.length);
   const hasStartedWork = Boolean(activeCwd && engagedWorkspaces.has(activeCwd)) || visibleTasks.length > 0 || artifacts.length > 0;
   useEffect(() => {
     if (visibleTasks.length > 0 || artifacts.length > 0 || jarvis.running) markWorkspaceEngaged(activeCwd);
@@ -2349,7 +2357,7 @@ export function AgentDesktop() {
           />
         </DraggableDesktopWidget>
 
-        {hasStartedWork && <DraggableDesktopWidget className="collaboration-shelf" widgetId="collaboration-shelf-v1" defaultPosition={{ left: "24px", top: "32px" }}>
+        {(presentationCwd || hasStartedWork) && <DraggableDesktopWidget className="collaboration-shelf" widgetId="collaboration-shelf-v1" defaultPosition={{ left: "24px", top: "32px" }}>
           <DesktopCollaboration
             working={runningCount > 0 || jarvis.running}
             analyzing={insightRunning}
@@ -2401,6 +2409,7 @@ export function AgentDesktop() {
             <div className="agent-os-file-app"><FileViewer filePath={artifact.filePath} cwd={artifact.cwd} sourceSessionId={artifact.sessionId} initialDisplayMode={isHtmlArtifact(artifact) ? "preview" : undefined} watchEnabled={frontWindow === windowId}/></div>
           </DesktopWindow>;
         })}
+        {scheduleOpen && <DesktopWindow kind="app" title="团队日程" front={frontWindow === "schedule"} onFocus={() => setFrontWindow("schedule")} onClose={() => setScheduleOpen(false)}><PresentationSchedule/></DesktopWindow>}
         {openFeishuDocuments.map((document, index) => {
           const windowId = `feishu-document:${document.id}`;
           return <DesktopWindow
@@ -2415,9 +2424,9 @@ export function AgentDesktop() {
               const remaining = openFeishuDocuments.filter((item) => item.id !== document.id);
               const nextDocument = remaining.at(-1);
               setOpenFeishuDocuments(remaining);
-              setFrontWindow(nextDocument ? `feishu-document:${nextDocument.id}` : openApps.some((app) => app.id === "feishu") ? "app:feishu" : "tasks");
+              setFrontWindow(nextDocument ? `feishu-document:${nextDocument.id}` : openApps.some((app) => app.id === "builtin:feishu") ? "app:builtin:feishu" : "tasks");
             }}
-          ><FeishuDocumentEditor document={document}/></DesktopWindow>;
+          ><>{document.source === "feishu-demo" ? <FeishuDemoDocument id={document.id}/> : <FeishuDocumentEditor document={document}/>}</></DesktopWindow>;
         })}
         {settingsOpen && <DesktopWindow title="设置" kind="settings" front={frontWindow === "settings"} onFocus={() => setFrontWindow("settings")} onClose={closeSettings}>
           <AgentSettingsApp cwd={activeCwd} sessionId={taskSessionId} onClose={closeSettings} onSessionReloaded={() => void refreshSessions()}/>
@@ -2436,6 +2445,8 @@ export function AgentDesktop() {
           releaseTemporaryDockItem("system:hr");
         }} titleIcon={<span className="agent-os-hr-title-icon"><Icon name="recruiting" size={13}/></span>}>
           <HRRecruitingApp
+              presentation={Boolean(presentationCwd)}
+              onOpenInsight={openInsightResult}
             cwd={activeCwd}
             publishedDraft={publishedDraft}
             onOpenPublishedJob={(url) => {
@@ -2474,7 +2485,7 @@ export function AgentDesktop() {
           setFilesHaveUnsavedChanges(false);
           releaseTemporaryDockItem("system:files");
         }} titleIcon={<Icon name="folder" size={16}/> }>
-          <FilesApp key={activeCwd} cwd={activeCwd} openRequest={fileOpenRequest} onDirtyChange={setFilesHaveUnsavedChanges}/>
+          <FilesApp key={activeCwd} cwd={activeCwd} openRequest={fileOpenRequest} onDirtyChange={setFilesHaveUnsavedChanges} watchEnabled={frontWindow === "files"}/>
         </DesktopWindow>}
         {terminalOpen && activeCwd && <DesktopWindow className="agent-os-window-terminal" title="终端" kind="app" front={frontWindow === "terminal"} onFocus={() => setFrontWindow("terminal")} onClose={() => {
           setTerminalOpen(false);
@@ -2492,7 +2503,7 @@ export function AgentDesktop() {
             setFrontWindow(nextApp ? `app:${nextApp.id}` : "tasks");
           }}>
             {app.kind === "builtin" ? (
-              <FeishuAppView app={app} onNotice={setNotice} onOpenDocument={openFeishuDocument}/>
+              <>{presentationCwd ? <FeishuDemoApp onOpen={openFeishuDocument}/> : <FeishuAppView app={app} onNotice={setNotice} onOpenDocument={openFeishuDocument}/>}</>
             ) : (
               <ConnectedAppView app={app} onNotice={setNotice}/>
             )}
@@ -2632,6 +2643,10 @@ export function AgentDesktop() {
 
       {activeCwd && <RecruitingPublication
         key={activeCwd}
+        notice={notice}
+        onDismissNotice={() => setNotice(null)}
+        insights={insightResults}
+        onOpenInsight={openInsightResult}
         cwd={activeCwd}
         viewedArtifact={openArtifacts.find((artifact) => `file:${artifactIdentity(artifact)}` === frontWindow) ?? null}
         onStartTask={startTask}
@@ -2653,14 +2668,11 @@ export function AgentDesktop() {
         }}
         onNotice={setNotice}
       />}
-      {notice && <div className="agent-os-toast" role="status"><BrandMark compact/><span>{notice}</span></div>}
-      {insightNotification && (
-        <button className="agent-os-insight-notification" type="button" title={insightNotification.title} onClick={() => openInsightResult(insightNotification)}>
-          <span><Icon name="insight" size={17}/></span>
-          <span><small className="label">AI 洞察已生成</small><strong>{insightNotification.title}</strong></span>
-          <em>查看</em>
-        </button>
-      )}
+      {!activeCwd && notice && <DesktopNotification
+        ariaLabel="工作台通知" label="工作台动态" title={notice} autoDismiss
+        dismissLabel="关闭通知" onDismiss={() => setNotice(null)}
+      />}
+
     </main>
   );
 }

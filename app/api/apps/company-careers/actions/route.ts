@@ -1,3 +1,5 @@
+import { presentationRoot } from "@/lib/presentation-runtime";
+import { advancePresentation } from "@/lib/presentation-progress";
 import { NextResponse } from "next/server";
 import { scheduleCompanyCareersAlignmentMeeting } from "@/lib/company-careers";
 import { createLocalCalendarEvent } from "@/lib/local-calendar";
@@ -11,6 +13,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json() as { action?: unknown };
     if (body.action !== "schedule_alignment_meeting") return NextResponse.json({ error: "未知操作" }, { status: 400 });
+    if (presentationRoot()) return NextResponse.json(await advancePresentation("meeting"));
     const meeting = await scheduleCompanyCareersAlignmentMeeting();
     const localCalendar = await createLocalCalendarEvent({
       id: meeting.id,

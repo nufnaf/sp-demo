@@ -1,3 +1,4 @@
+import { presentationRoot } from "./presentation-runtime";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -390,6 +391,7 @@ function scheduleAnalysis(): void {
 }
 
 export function ensureInsightEngine(cwd: string): void {
+  if (presentationRoot()) return;
   setActiveInsightCwd(cwd);
   const state = runtime();
   globalThis.__piInsightEventListener = scheduleAnalysis;

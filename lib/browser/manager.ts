@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, type BrowserContext, type Page } from "playwright-core";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { applicationDataDir } from "../presentation-runtime";
 import type { BrowserAction, BrowserPageState, BrowserSystemEvent, BrowserTaskState, BrowserController } from "./types";
 
 const DEFAULT_URL = "about:blank";
@@ -235,7 +235,7 @@ export class BrowserManager {
     if (!executablePath) {
       throw new Error("No supported Chrome, Edge, or Chromium installation was found. Set PI_WEB_BROWSER_EXECUTABLE to the browser executable path.");
     }
-    const profilePath = join(getAgentDir(), "browser", "profiles", profileName(key));
+    const profilePath = join(applicationDataDir(), "browser", "profiles", profileName(key));
     mkdirSync(profilePath, { recursive: true });
     const context = await chromium.launchPersistentContext(profilePath, {
       executablePath,

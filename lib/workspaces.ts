@@ -1,7 +1,7 @@
+import { presentationCwd, applicationDataDir } from "./presentation-runtime";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { writePrivateFileAtomicSync } from "./atomic-file";
 
 export interface ManagedWorkspace {
@@ -18,7 +18,7 @@ interface WorkspaceRegistry {
 
 const MANAGED_DIRECTORY_PATTERN = /^pi-cwd-\d{8}(?:-\d{6}(?:-\d+)?)?$/;
 
-export function getWorkspaceRegistryPath(agentDir = getAgentDir()): string {
+export function getWorkspaceRegistryPath(agentDir = applicationDataDir()): string {
   return join(agentDir, "workspaces.json");
 }
 
@@ -60,6 +60,8 @@ export function listManagedWorkspaces(
   home = homedir(),
   registryPath = getWorkspaceRegistryPath(),
 ): ManagedWorkspace[] {
+  const demo = presentationCwd();
+  if (demo) return [{ cwd: demo, name: "招聘工作台", managed: true, createdAt: new Date(0).toISOString() }];
   const registry = readRegistry(registryPath);
   const byCwd = new Map(
     registry.workspaces
@@ -89,6 +91,8 @@ export function createManagedWorkspace(
   registryPath = getWorkspaceRegistryPath(),
   now = new Date(),
 ): ManagedWorkspace {
+  const demo = presentationCwd();
+  if (demo) return { cwd: demo, name: "招聘工作台", managed: true, createdAt: new Date(0).toISOString() };
   const stamp = now.toISOString().replace(/[-:]/g, "").slice(0, 15).replace("T", "-");
   let suffix = 0;
   let cwd = join(home, `pi-cwd-${stamp}`);

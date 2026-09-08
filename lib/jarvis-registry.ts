@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { applicationDataDir } from "./presentation-runtime";
 import { writePrivateFileAtomicSync } from "./atomic-file";
 
 interface StoredRegistry {
@@ -11,7 +11,7 @@ interface StoredRegistry {
   known: string[];
 }
 
-export function getJarvisRegistryPath(agentDir = getAgentDir()): string {
+export function getJarvisRegistryPath(agentDir = applicationDataDir()): string {
   return join(agentDir, "pi-web", "jarvis.json");
 }
 

@@ -1,5 +1,7 @@
 # 第三阶段：独立招聘网站与真实浏览器工作流
 
+> 2026-09-08 完整演示更新：Electron 现采用独立运行数据、退出后新开场；必须先真实生成并发布本轮岗位，再查询其预设进展。飞书改为专用应用直连。本文原有计时和跨重启行为属于历史验证；当前步骤与结果见 [完整招聘演示](presentation-demo.md)。
+
 实现位置始终是 `/Users/xiewannan/code/sp-demo-worktrees/electron-phase-one`，分支 `codex/electron-phase-one`，从已提交的前两阶段 `8e4cdf0` 继续。招聘应用源码位于 `apps/recruiting`；保持与 Pi / Electron 独立的包、服务、样式、数据和部署入口。
 
 ## 启动

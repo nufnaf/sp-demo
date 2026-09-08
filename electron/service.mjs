@@ -77,6 +77,7 @@ export class LocalService {
         await this.tree.capture();
       }
     } else {
+      if (this.env.SYNTROPIC_PRESENTATION_ROOT) throw new Error(`${new URL(this.origin).port} 已有服务占用。演示需要独立运行，请先退出原服务；App 不会停止它。`);
       this.onStatus('正在检查已有服务…', '将核对端口上的服务是否属于当前 worktree；复用的服务始终由原启动者管理。');
     }
     const deadline = Date.now() + this.timeout;

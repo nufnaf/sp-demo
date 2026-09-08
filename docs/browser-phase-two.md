@@ -1,5 +1,7 @@
 # 第二阶段：可观看的 browser use 演示
 
+> 2026-09-08 完整演示更新：Electron 现采用独立运行数据、退出后新开场；必须先真实生成并发布本轮岗位，再查询其预设进展。飞书改为专用应用直连。本文原有计时和跨重启行为属于历史验证；当前步骤与结果见 [完整招聘演示](presentation-demo.md)。
+
 实现继续位于 `/Users/xiewannan/code/sp-demo-worktrees/electron-phase-one`，分支仍为 `codex/electron-phase-one`。第一阶段尚未提交的完整成果直接保留在这里；没有基于空缺的 HEAD 另建副本。主 checkout 的 `docs/specs/` 未修改。没有提交、推送、部署或制作安装包。
 
 ## 启动和演示

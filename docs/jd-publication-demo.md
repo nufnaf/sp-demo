@@ -1,5 +1,7 @@
 # JD 发布演示
 
+> 2026-09-08 完整演示更新：Electron 现采用独立运行数据、退出后新开场；必须先真实生成并发布本轮岗位，再查询其预设进展。飞书改为专用应用直连。本文原有计时和跨重启行为属于历史验证；当前步骤与结果见 [完整招聘演示](presentation-demo.md)。
+
 日期：2026-09-08。工作位置：`/Users/xiewannan/code/sp-demo-worktrees/electron-phase-one`，分支 `codex/electron-phase-one`。在原有 Electron 和招聘网站基础上扩展，没有新建或切换 worktree。
 
 ## 演示流程

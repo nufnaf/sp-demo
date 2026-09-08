@@ -1,3 +1,5 @@
+import { createFeishuDemoExtension } from "./feishu-demo-extension";
+import { presentationSessionDir, presentationRoot } from "./presentation-runtime";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { createAgentSessionFromServices, createAgentSessionServices, getAgentDir, initTheme, SessionManager, SettingsManager, Theme } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager as TuiKeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
@@ -2200,7 +2202,7 @@ export async function startRpcSession(
   cwd: string | undefined,
   options: RpcSessionStartOptions = {},
 ): Promise<{ session: AgentSessionWrapper; realSessionId: string }> {
-  await hydrateAppConnectionEnvironment();
+  if (!presentationRoot()) await hydrateAppConnectionEnvironment();
   const { initialModel, allowInitialModelFallback, thinkingLevel } = options;
   const requestedToolNames = options.toolNames === undefined
     ? undefined
@@ -2219,7 +2221,7 @@ export async function startRpcSession(
     sessionManager = SessionManager.open(sessionFile, undefined);
   } else {
     if (!cwd) throw new Error("cwd is required for a new session");
-    sessionManager = SessionManager.create(cwd, undefined);
+    sessionManager = SessionManager.create(cwd, presentationSessionDir(cwd));
   }
   const sessionCwd = sessionManager.getCwd();
   const subagentResources = sessionFile
@@ -2314,11 +2316,13 @@ export async function startRpcSession(
         : chatOnly
           ? CHAT_ONLY_RESOURCE_LOADER_OPTIONS
         : {
+            ...(presentationRoot() ? { noExtensions: true, noSkills: true, noPromptTemplates: true } : {}),
             appendSystemPromptOverride: appendHtmlArtifactPrompt,
             extensionFactories: [
               createBrowserExtension(),
+              createFeishuDemoExtension(),
               createFilesAppExtension(),
-              createAppConnectorExtension(),
+              ...(presentationRoot() ? [] : [createAppConnectorExtension()]),
               createProjectCommandBashExtension({
                 cwd: sessionCwd,
                 settings: settingsManager,
@@ -2403,7 +2407,7 @@ export async function startRpcSession(
           console.error("[pi-web] failed to send completion push:", error instanceof Error ? error.message : error);
         });
       },
-      suppressCompletionNotifications: Boolean(subagentResources) || jarvis || options.role === "insight",
+      suppressCompletionNotifications: Boolean(presentationRoot()) || Boolean(subagentResources) || jarvis || options.role === "insight",
       ...(options.role ? { role: options.role } : jarvis ? { role: "jarvis" as const } : {}),
     });
     const realSessionId = inner.sessionId as string;

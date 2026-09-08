@@ -1,12 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { SyntropicMark } from "./SyntropicMark";
+import { DesktopNotification } from "./DesktopNotification";
 import { encodeFilePathForApi } from "@/lib/file-paths";
 import { isJdDemoArtifact, publicationPrompt, type JdArtifact, type PublishedRecruitingJob } from "@/lib/recruiting-publication";
 import type { BrowserTaskState } from "@/lib/browser/types";
 
+import type { InsightResult } from "@/lib/insight-automation";
+
 interface Props {
+  notice: string | null;
+  onDismissNotice: () => void;
+  insights: InsightResult[];
+  onOpenInsight: (insight: InsightResult) => void;
   cwd: string;
   viewedArtifact: JdArtifact | null;
   onStartTask: (message: string) => Promise<string | null>;
@@ -28,21 +34,40 @@ export function RecruitingPublication(props: Props) {
   const [preparing, setPreparing] = useState(false);
   const [pending, setPending] = useState<{ sessionId: string; draft: string; startedAt: number } | null>(null);
   const seen = useRef(new Set<string>());
+  const [loaded, setLoaded] = useState(false);
+  const [readInsights, setReadInsights] = useState<string[]>([]);
+  const storageKey = `syntropic:notifications:${props.cwd}`;
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) ?? "{}");
+      setSuggestion(saved.suggestion ?? null); setPending(saved.pending ?? null);
+      seen.current = new Set(saved.seen ?? []); setReadInsights(saved.readInsights ?? []);
+    } catch { /* Invalid optional UI state does not affect saved work. */ }
+    setLoaded(true);
+  }, [storageKey]);
+  useEffect(() => {
+    if (!loaded) return;
+    localStorage.setItem(storageKey, JSON.stringify({ suggestion, pending, seen: [...seen.current], readInsights }));
+  }, [storageKey, loaded, suggestion, pending, readInsights]);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const callbacks = useRef(props);
   useEffect(() => { callbacks.current = props; });
   const path = props.viewedArtifact?.filePath;
   const artifact = props.viewedArtifact;
+  useEffect(() => {
+    if (!loaded || !path || !props.insights.some((item) => item.filePath === path)) return;
+    setReadInsights((items) => items.includes(path) ? items : [...items, path]);
+  }, [loaded, path, props.insights]);
 
   useEffect(() => {
-    if (!artifact || artifact.cwd !== props.cwd || !isJdDemoArtifact(artifact) || pending || preparing || seen.current.has(artifact.filePath)) return;
+    if (!loaded || !artifact || artifact.cwd !== props.cwd || !isJdDemoArtifact(artifact) || pending || preparing || seen.current.has(artifact.filePath)) return;
     const timer = setTimeout(() => {
       seen.current.add(artifact.filePath);
       setSuggestion(artifact);
     }, 1400);
     return () => clearTimeout(timer);
-  }, [path, artifact, props.cwd, pending, preparing]);
+  }, [path, artifact, props.cwd, pending, preparing, loaded]);
 
   useEffect(() => {
     if (!pending) return;
@@ -95,7 +120,7 @@ export function RecruitingPublication(props: Props) {
       ]);
       if (!mounted.current) return;
       let text = file.content.trim();
-      let title = text.match(/^#\s+(.+)$/m)?.[1] || "高级 AI Agent 研发工程师";
+      let title = text.match(/^#\s+(.+)$/m)?.[1] || "AI Agent 工程师";
       if (/\.html?$/i.test(suggestion.filePath)) {
         const document = new DOMParser().parseFromString(text, "text/html");
         title = document.querySelector("h1")?.textContent?.trim() || document.title || title;
@@ -123,11 +148,28 @@ export function RecruitingPublication(props: Props) {
     } finally { setPreparing(false); }
   };
 
-  if (!suggestion || pending) return null;
-  return <aside className="agent-os-insight-notification agent-os-jd-notification" aria-label="岗位发布建议">
-    <span><SyntropicMark size={25}/></span>
-    <span><small className="label">需要确认</small><strong>AI 主动洞察：已识别新创建的 JD</strong><small>岗位 JD 已准备好，可以发布到内部招聘系统。</small></span>
-    <button type="button" onClick={() => void publish()} disabled={preparing}>{preparing ? "正在准备…" : "发布岗位"}<span aria-hidden="true"> ›</span></button>
-    <button type="button" className="jd-dismiss" aria-label="稍后发布" onClick={() => setSuggestion(null)}>×</button>
-  </aside>;
+  const nextInsight = props.insights.find((item) => !readInsights.includes(item.filePath));
+  const consumeInsight = () => {
+    if (!nextInsight) return;
+    setReadInsights((items) => [...items, nextInsight.filePath]);
+    props.onOpenInsight(nextInsight);
+  };
+  if (!loaded) return null;
+  // Publication stays actionable. Short status notices then insights share its
+  // exact surface; no second toast can overlap it or create another outlet.
+  if (suggestion && !pending) return <DesktopNotification
+    ariaLabel="岗位发布建议" label="需要确认" title="AI 主动洞察：已识别新创建的 JD"
+    description={props.notice || "岗位 JD 已准备好，可以发布到内部招聘系统。"}
+    action={{ label: preparing ? "正在准备…" : "发布岗位 ›", onClick: () => void publish(), disabled: preparing }}
+    dismissLabel="稍后发布" onDismiss={() => setSuggestion(null)}
+  />;
+  if (props.notice) return <DesktopNotification
+    ariaLabel="工作台通知" label="工作台动态" title={props.notice} autoDismiss
+    dismissLabel="关闭通知" onDismiss={props.onDismissNotice}
+  />;
+  return nextInsight ? <DesktopNotification
+    ariaLabel="洞察通知" label="AI 洞察已生成" title={nextInsight.title}
+    action={{ label: "查看洞察", onClick: consumeInsight }}
+    dismissLabel="稍后查看洞察" onDismiss={() => setReadInsights((items) => [...items, nextInsight.filePath])}
+  /> : null;
 }
