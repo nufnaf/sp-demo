@@ -1,4 +1,3 @@
-import { presentationStatePath } from "./presentation";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -38,7 +37,7 @@ interface StoredInsightState {
 const MAX_PENDING_EVENTS = 100;
 const MAX_PROCESSED_IDS = 1_000;
 const MAX_RESULTS = 50;
-const STATE_PATH = presentationStatePath("insights.json") ?? join(getAgentDir(), "pi-web", "insights.json");
+const STATE_PATH = join(getAgentDir(), "pi-web", "insights.json");
 
 declare global {
   var __piInsightState: StoredInsightState | undefined;

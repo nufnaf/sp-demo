@@ -1,4 +1,3 @@
-import { presentationSessionDirectory } from "./presentation";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import {
   createAgentSessionFromServices,
@@ -207,7 +206,7 @@ export function createSubagentController(
         settingsManager.getDefaultTools(),
       );
 
-      const sessionManager = SessionManager.create(parent.cwd, presentationSessionDirectory(parent.cwd), { parentSession: parent.sessionFile });
+      const sessionManager = SessionManager.create(parent.cwd, undefined, { parentSession: parent.sessionFile });
       const createdAt = new Date().toISOString();
       const metadata: SubagentMetadata = {
         version: 1,

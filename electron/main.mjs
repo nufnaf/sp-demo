@@ -5,7 +5,6 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { APP_ORIGIN, isAppUrl, isExternalUrl } from './policy.mjs';
-import { preparePresentation, clearPresentation } from './presentation.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const packaged = existsSync(join(process.resourcesPath, 'desktop-runtime.json'));
@@ -19,7 +18,6 @@ let quitting = false;
 let ready = false;
 let status = { title: '正在启动本机后台…', detail: '正在准备工作空间，请稍候。服务就绪后将自动打开工作台。' };
 let supervisorStopped = Promise.resolve();
-let presentation;
 
 async function showStatus(next) {
   status = next;
@@ -111,17 +109,6 @@ async function startSupervisor() {
     void showStatus({ title: '缺少本机 Node 启动器', detail: '请从项目目录运行 npm run desktop。', retry: false });
     return;
   }
-  try {
-    presentation ??= await preparePresentation(app.getPath('userData'));
-    Object.assign(env, {
-      SYNTROPIC_PRESENTATION_ROOT: presentation.root,
-      SYNTROPIC_PRESENTATION_RUN: presentation.runId,
-      RECRUITING_DATA_FILE: join(presentation.root, 'recruiting.json'),
-    });
-  } catch {
-    await showStatus({ title: '无法准备招聘工作台', detail: '演示目录无法安全恢复，现有数据未被覆盖。', retry: false });
-    return;
-  }
   supervisor = fork(join(here, 'supervisor.mjs'), [], {
     execPath: node, execArgv: [], cwd: root, env,
     stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
@@ -164,9 +151,7 @@ if (!app.requestSingleInstanceLock()) {
     quitting = true;
     if (supervisor?.connected) supervisor.send({ type: 'stop' });
     // The Node supervisor survives an Electron crash and cleans up on IPC disconnect.
-    void supervisorStopped.then(async () => {
-      if (presentation) await clearPresentation(app.getPath('userData'));
-    }).catch(() => { /* A failed cleanup is retried before the next startup. */ }).finally(() => app.quit());
+    void supervisorStopped.finally(() => app.quit());
   });
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => app.quit());
   // npm launcher died: don't leave a hidden desktop and backend running.

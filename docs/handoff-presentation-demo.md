@@ -4,15 +4,13 @@
 
 必须继续使用 `/Users/xiewannan/code/sp-demo-worktrees/electron-phase-one`，分支 `codex/electron-phase-one`。不要新建或切换 worktree，不要切换到 main 实施。
 
-开始时读取 AGENTS.md、README.md、git status 和全部 diff。当前存在其他 session 的未提交工作，可以在理解后继续修改；不要将其他 session 的代码视为不可修改，也不要未经检查覆盖。比较基准为 `7992aeb`，不是视频对应的静态版本。
+开始时读取 AGENTS.md、README.md、git status 和全部 diff。以最新实际状态为准，可以在理解后继续修改已有工作；不要将其他 session 的代码视为不可修改，也不要未经检查覆盖。比较基准为 `7992aeb`，不是视频对应的静态版本。
 
-交接整理时，HEAD 为 `d0853f7`，此前扩展提交为 `8e4cdf0`、`9e5ada5`、`d0853f7`。用户随后要求将当前全部改动提交保存，因此新 session 应以最新 Git 状态为准；提交保存不表示 JD 发布和演示预设已经完成整体验收。尤其先核查以下正在进行的实现：
+此前扩展提交为 `8e4cdf0`、`9e5ada5`、`d0853f7`；`fb61a9b` 保存了 JD 发布和文档，也混入了提前实施的演示预设代码。用户明确要求将后者撤回，先交接需求，由新 session 确定方案后再实施。
 
-- `electron/presentation.mjs`、`lib/presentation.ts`、`components/PresentationDesktop.tsx`、`app/api/desktop/presentation/`。
-- `electron/main.mjs`、`electron/service.mjs`、`app/page.tsx`、健康检查，以及 sessions/workspaces/Jarvis/insight/subagent/browser 的演示数据目录改动。
-- `components/RecruitingPublication.tsx`、`lib/recruiting-publication.ts`、`app/api/apps/internal-recruiting/` 和招聘网站发布表单。
+目前保留的是 `components/RecruitingPublication.tsx`、`lib/recruiting-publication.ts`、`app/api/apps/internal-recruiting/`、招聘网站发布表单，以及真实 browser use 与旧招聘窗口结果展示。
 
-这些文件出现不代表实现已通过验收。重新检查最新状态，防止沿用旧审查结论。
+`electron/presentation.mjs`、`lib/presentation.ts`、`components/PresentationDesktop.tsx`、`app/api/desktop/presentation/` 及其数据目录重定向、启动预设与退出清理接线已撤回。不要照搬旧交接 prompt 中“继续已有隔离实现”的说法，也不要直接恢复被撤回代码。预设数据、隔离与退出恢复当前只有需求，必须先对齐方案。
 
 主仓 `/Users/xiewannan/code/sp-demo` 停留在基准版本，上一轮为用户手测启动了该目录的开发服务，占用 30141。先核查当前端口归属；不要误把它当成本 worktree 的服务，也不要随意终止用户的测试。安装版位于 `~/Applications/Syntropic.app`，源码变更不会自动进入已安装 App。
 
@@ -44,7 +42,7 @@ BOSS 保持现有展示标签，不访问、不发送。新旧招聘窗口关系
 
 ## 验收与实施方式
 
-先检查在途代码和 main 场景，给用户简洁说明预设内容、状态边界及飞书依赖方案，完成尚未对齐的选择再实施。不要重复询问已明确同意的 mock/模型/旧窗口/重置范围。
+先检查现有发布代码和 main 场景，给用户简洁说明预设内容、状态边界及飞书依赖方案，确定方案后再实施。不要重复询问已明确同意的 mock/模型/旧窗口/重置范围。
 
 - 至少两轮从冷启动到退出再启动的完整演示，核对工作台名称、Dock、资料、通知、表单发布、返回结果和后续场景。
 - 本轮刷新保留进度；下轮恢复预设且模型授权仍可用；普通 Pi 历史与用户文件未受影响。
