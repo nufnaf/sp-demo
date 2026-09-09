@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { notifyCalendarChanged } from "@/hooks/useFeishuCalendar";
 import { recruitingReportStyle } from "@/lib/recruiting-insight-report";
 
 const LEGACY_FETCH_BRIDGE = String.raw`<script>
@@ -10,7 +11,7 @@ const LEGACY_FETCH_BRIDGE = String.raw`<script>
     if(input!=='/api/apps/company-careers/actions')return nativeFetch.call(window,input,init);
     return new Promise(function(resolve,reject){
       var requestId='calendar-legacy-'+Date.now()+'-'+Math.random().toString(36).slice(2);
-      var timer=setTimeout(function(){cleanup();reject(new Error('本地日历响应超时，请重试'));},120000);
+      var timer=setTimeout(function(){cleanup();reject(new Error('飞书日程响应超时，请重试'));},120000);
       function cleanup(){clearTimeout(timer);window.removeEventListener('message',receive);}
       function receive(event){var data=event.data;if(event.source!==window.parent||!data||data.type!=='recruiting-calendar-result'||data.requestId!==requestId)return;cleanup();resolve({ok:Boolean(data.ok),json:function(){return Promise.resolve(data);}});}
       window.addEventListener('message',receive);
@@ -48,6 +49,7 @@ export function RecruitingInsightPreview({ content }: { content: string }) {
           body: JSON.stringify({ action: "schedule_alignment_meeting" }),
         });
         const result = await response.json();
+        if (response.ok) notifyCalendarChanged();
         if (!live) return;
         frame.current?.contentWindow?.postMessage({
           type: "recruiting-calendar-result",
@@ -60,7 +62,7 @@ export function RecruitingInsightPreview({ content }: { content: string }) {
           type: "recruiting-calendar-result",
           requestId: data.requestId,
           ok: false,
-          error: "本地日历服务暂时不可用，请确认 Syntropic 正在运行后重试",
+          error: "日程服务暂时不可用，请确认网络和 Syntropic 服务后重试",
         }, "*");
       }
     };

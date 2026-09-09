@@ -18,7 +18,7 @@ const demoKey = demoAuth === 'openrouter'
   : undefined;
 const feishuConfig = await readFile(join(root, '.env.feishu-demo.json'));
 const configCheck = JSON.parse(feishuConfig.toString('utf8'));
-if (!configCheck.appId || !configCheck.appSecret || !configCheck.folderToken || !configCheck.documentIds?.length) throw new Error('请先完成 docs/feishu-demo-setup.md 中的专用飞书配置；未配置的包不能作为完整演示交付。');
+if (!configCheck.appId || !configCheck.appSecret || !configCheck.folderToken || !configCheck.documentIds?.length || !configCheck.calendarId || configCheck.calendarId === "primary") throw new Error('请先完成 docs/feishu-demo-setup.md 中的专用飞书配置；未配置的包不能作为完整演示交付。');
 const build = join(root, 'build/desktop');
 const cache = join(build, 'cache');
 const source = join(build, 'source');

@@ -3,8 +3,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { DraggableDesktopWidget } from "./DraggableDesktopWidget";
 import { DesktopDesignIcon } from "./DesktopDesignIcon";
-import { recruitingHomeSchedule } from "@/lib/desktop-home";
-import type { DemoMeeting, RecruitingScene } from "@/lib/recruiting-scene";
+import { useFeishuCalendar } from "@/hooks/useFeishuCalendar";
+import { calendarDuration, calendarTimeLabel } from "@/lib/calendar-view";
+import type { RecruitingScene } from "@/lib/recruiting-scene";
 import "./DesktopWorkspaceWidgets.css";
 
 export interface WorkspaceWidgetItem { id: string; title: string; detail: string; running?: boolean; actionLabel?: string; disabled?: boolean; onOpen: () => void }
@@ -19,7 +20,7 @@ export function DesktopWorkspaceWidgets({ cwd, recruiting, tasks, artifacts, ins
   cwd: string; recruiting: boolean; tasks: WorkspaceWidgetItem[]; artifacts: WorkspaceWidgetItem[]; insights: WorkspaceWidgetItem[]; working: boolean;
   onOpenLibrary: () => void; onOpenRecruiting: () => void; onOpenSchedule: () => void; onOpenPreset: (file: string) => void;
 }) {
-  const [meeting, setMeeting] = useState<DemoMeeting | null>(null);
+  const calendar = useFeishuCalendar(recruiting);
   const [scene, setScene] = useState<RecruitingScene | null>(null);
   const [now, setNow] = useState<Date | null>(null);
   const profile = profiles[cwd.split("/").at(-1) ?? ""];
@@ -36,8 +37,8 @@ export function DesktopWorkspaceWidgets({ cwd, recruiting, tasks, artifacts, ins
         const response = await fetch("/api/desktop/scenario", { cache: "no-store" });
         if (!response.ok) return;
         const data = await response.json();
-        if (live) { setMeeting(data.meeting ?? null); setScene(data.recruiting?.scene ?? null); }
-      } catch { /* Keep the last local result if the local service is unavailable. */ }
+        if (live) { setScene(data.recruiting?.scene ?? null); }
+      } catch { /* Keep the last recruiting snapshot if the local service is unavailable. */ }
     };
     void refresh();
     window.addEventListener("agent-os:presentation-changed", refresh);
@@ -46,7 +47,7 @@ export function DesktopWorkspaceWidgets({ cwd, recruiting, tasks, artifacts, ins
   const openProfile = () => { if (profile) onOpenPreset(profile.file); };
   const fileItems = [...artifacts, ...(profile && !artifacts.some(item => item.title === profile.file) ? [{ id: "reference", title: profile.file, detail: "工作台资料", onOpen: openProfile }] : [])];
   const insightItems: WorkspaceWidgetItem[] = [...insights, ...(profile ? [{ id: "observation", title: profile.insight, detail: "来自工作台资料", onOpen: openProfile }] : [])];
-  const schedule = recruiting && now ? recruitingHomeSchedule(now, meeting) : [];
+  const schedule = recruiting ? calendar.events : [];
   const hasGoal = recruiting || Boolean(profile);
   const empty = !hasGoal && !tasks.length && !insightItems.length && !fileItems.length;
   const target = scene?.job?.target ?? 6;
@@ -75,14 +76,13 @@ export function DesktopWorkspaceWidgets({ cwd, recruiting, tasks, artifacts, ins
     {card("schedule", "日程", <span className="workspace-sr-only">日程</span>,
       <div className="workspace-calendar">
         <div className="workspace-schedule-list">
+          {recruiting && calendar.error && <p className="workspace-schedule-error" role="alert">{calendar.error}{schedule.length ? "（显示上次读取结果）" : ""}<button onClick={() => void calendar.refresh()}>重试</button></p>}
           {schedule.length ? schedule.map((event, index) => {
-            const start = new Date(event.startsAt);
-            const sameDay = now && start.toDateString() === now.toDateString();
             return <button type="button" className={`workspace-schedule-event tone-${index % 3}`} key={event.id} onClick={onOpenSchedule} title={event.title}>
-              <time dateTime={event.startsAt}>{!sameDay && `${start.getMonth() + 1}/${start.getDate()} `}{start.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false })}</time>
-              <strong>{event.title}</strong><small>已排期 · 30 分钟</small>
+              <time dateTime={event.startsAt}>{calendarTimeLabel(event)}</time>
+              <strong>{event.title}</strong><small>已排期 · {calendarDuration(event)}</small>
             </button>;
-          }) : emptyState("今天没有工作日程", "新的协作与会议安排会出现在这里")}
+          }) : calendar.error ? null : emptyState(recruiting && calendar.loading ? "正在读取飞书日程…" : "当前范围没有工作日程", calendar.date ? `${calendar.date} 起 7 天 · 北京时间` : "新的协作与会议安排会出现在这里")}
         </div>
         <div className="workspace-calendar-date" aria-label={now?.toLocaleDateString("zh-CN")}>
           <span>{now?.toLocaleDateString("zh-CN", { weekday: "short" })}</span><span>{now && `${now.getMonth() + 1}月`}</span><strong>{now?.getDate() ?? "—"}</strong>

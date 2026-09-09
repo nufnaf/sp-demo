@@ -7,4 +7,4 @@ export interface RecruitingScene {
   metrics: { applied: number; screened: number; interviewing: number; finished: number; passed: number; failed: number; missing: number; current: Record<string, number> };
   insight: { title: string; pairedCount: number; disagreementCount: number; interviewers: string[]; candidates: Pick<SceneCandidate, "id" | "name" | "interviews">[] } | null;
 }
-export interface DemoMeeting { id: string; title: string; startsAt: string; endsAt: string; attendees: string[]; agenda: string[]; simulated: true }
+export type DemoMeeting = import("./feishu-calendar").FeishuCalendarEvent;

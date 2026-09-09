@@ -89,7 +89,9 @@ export function FeishuDemoApp({ onOpen, recruiting = true }: { recruiting?: bool
             const ResourceIcon = resource.icon;
             const readable = doc.type === "docx" && doc.readable !== false;
             return <div className="feishu-doc-row" key={doc.id}>
-            {readable && <button type="button" className="feishu-doc-open" aria-label={`打开${doc.title}`} onClick={() => onOpen(doc)}/>}
+            {readable ? <button type="button" className="feishu-doc-open" aria-label={`打开${doc.title}`} onClick={() => onOpen(doc)}/>
+              : doc.url ? <a className="feishu-doc-open" href={doc.url} target="_blank" rel="noopener noreferrer" aria-label={`在飞书中打开${doc.title}`}/>
+                : <button type="button" className="feishu-doc-open" aria-label={`无法打开${doc.title}`} disabled/>}
             <span className={`feishu-doc-icon is-${resource.tone}`} aria-label={resource.label}>{ResourceIcon ? <ResourceIcon size={16} strokeWidth={1.6} aria-hidden="true"/> : <Glyph name="document"/>}</span>
             <div className="feishu-doc-copy">
               <div className="feishu-doc-title"><strong title={doc.title}>{doc.title}</strong><button type="button" className="feishu-star" aria-label={`${favorites.includes(doc.id) ? "取消收藏" : "收藏"}${doc.title}`} aria-pressed={favorites.includes(doc.id)} onClick={() => toggleFavorite(doc.id)}><Glyph name="收藏"/></button></div>

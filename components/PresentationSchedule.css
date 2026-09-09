@@ -1,0 +1,14 @@
+.presentation-schedule { padding: 28px; color: #274335; overflow: auto; height: 100%; background: #f9fbf7; }
+.presentation-schedule > small { display: block; color: #748378; font-size: 12px; }
+.presentation-schedule h1 { font-size: 26px; font-weight: 600; margin: 8px 0 20px; }
+.presentation-schedule h2 { font-size: 18px; font-weight: 600; margin: 8px 0 12px; }
+.presentation-schedule h3 { font-size: 14px; font-weight: 600; margin: 16px 0 8px; }
+.presentation-schedule p { margin: 8px 0; font-size: 14px; line-height: 1.7; }
+.presentation-schedule .calendar-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.presentation-schedule .calendar-controls button { border: 1px solid #d5e3d9; border-radius: 10px; background: #fff; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+.presentation-schedule .calendar-controls button:disabled { opacity: .5; cursor: default; }
+.presentation-schedule .calendar-controls button:focus-visible, .presentation-schedule a:focus-visible { outline: 2px solid #168c6c; outline-offset: 3px; }
+.presentation-schedule > article { padding: 22px; margin: 18px 0; border: 1px solid #e0e8e0; background: #fff; border-radius: 16px; }
+.presentation-schedule article em { color: #2b7752; font-size: 12px; font-style: normal; }
+.presentation-schedule a { color: #087457; display: inline-block; margin-top: 12px; font-size: 13px; }
+.presentation-schedule [role="alert"] { color: #9c472d; padding: 12px 14px; background: #fff5ee; border-radius: 10px; }

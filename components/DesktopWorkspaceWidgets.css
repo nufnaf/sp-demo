@@ -166,3 +166,6 @@
 
 .workspace-insight-summary { color: #52645d; font-size: 12px; line-height: 1.6; }
 .workspace-insight:disabled { cursor: default; opacity: .7; }
+
+.workspace-schedule-error { color: #93422c; font-size: 12px; line-height: 1.6; }
+.workspace-schedule-error button { display: block; color: #087457; text-decoration: underline; margin-top: 6px; }

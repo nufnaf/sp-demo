@@ -1,19 +1,24 @@
 import { readFile, mkdir, writeFile, rename } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { presentationRoot } from "./presentation-runtime";
 import { emitFileEvent } from "./files-app/events";
 import { verifiedRecruitingSnapshot, type RecruitingSnapshot } from "./recruiting-snapshot";
 import { addInsightResult } from "./insight-event-store";
 import { renderRecruitingInsightReport, recruitingInsightSummary } from "./recruiting-insight-report";
+import { scheduleFeishuAlignmentMeeting } from "./feishu-meeting";
 import type { DemoMeeting } from "./recruiting-scene";
 interface Progress { recruiting?: RecruitingSnapshot; insight?: { filePath: string; title: string; modified: string; summary?: string }; meeting?: DemoMeeting }
 declare global { var __syntropicProgressTail: Promise<unknown> | undefined; }
 export async function readProgress(root = presentationRoot()): Promise<Progress> {
   if (!root) return {};
-  try { return JSON.parse(await readFile(join(root, "progress.json"), "utf8")); } catch (error) {
+  try {
+    const progress = JSON.parse(await readFile(join(root, "progress.json"), "utf8"));
+    if (progress.meeting?.source !== "feishu") delete progress.meeting;
+    return progress;
+  } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
-    throw error;
+    throw new Error("工作台记录无法读取，请联系管理员检查。");
   }
 }
 
@@ -59,12 +64,10 @@ export function advancePresentation(action: "insight" | "meeting"): Promise<Prog
   return updateProgress(async (progress, cwd) => {
     const data = progress.recruiting?.scene;
     if (!data?.job || !data.insight) throw new Error("请先通过网页发布岗位并查看招聘进展");
-    const insight = data.insight!; const job = data.job!;
     if (action === "insight") await ensureRecruitingInsight(progress, cwd);
-    if (action === "meeting" && !progress.meeting) {
+    if (action === "meeting") {
       if (!progress.insight) throw new Error("请先查看招聘洞察");
-      const startsAt = new Date(); startsAt.setDate(startsAt.getDate() + 1); startsAt.setHours(14, 0, 0, 0);
-      progress.meeting = { id: `alignment-${job.id}`, title: `星流科技 · ${job.title}面试标准对齐`, startsAt: startsAt.toISOString(), endsAt: new Date(startsAt.getTime() + 30 * 60000).toISOString(), attendees: [...insight.interviewers, job.owner], agenda: ["对齐生产级 Agent 工程能力的证据标准", `讨论 ${insight.candidates.map((c) => c.name).join("、")} 的评价分歧`, "确定共同评分表和候选人复核分工"], simulated: true };
+      progress.meeting = await scheduleFeishuAlignmentMeeting(dirname(cwd), data);
     }
   });
 }

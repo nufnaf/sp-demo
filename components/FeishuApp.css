@@ -110,7 +110,7 @@
 .feishu-document>header p { margin:8px 0 0; color:#91a0aa; font-size:9px; }
 .feishu-document-content h2 { margin:30px 0 12px; font-size:15px; color:#35424c; }
 .feishu-document-content p { margin:12px 0; color:#626f7a; font-size:12px; line-height:1.9; white-space:pre-wrap; overflow-wrap:anywhere; }
-.feishu-workspace button:focus-visible, .feishu-preview button:focus-visible { outline: 2px solid #5485e8; outline-offset: -2px; }
+.feishu-workspace a:focus-visible, .feishu-workspace button:focus-visible, .feishu-preview button:focus-visible { outline: 2px solid #5485e8; outline-offset: -2px; }
 .feishu-search:focus-within { outline: 2px solid #5485e8; outline-offset: 1px; }
 @container feishu (max-width: 900px) {
   .feishu-sidebar { padding: 22px 12px 18px; }
@@ -145,3 +145,5 @@
   .feishu-doc-copy small { font-size: 10px; }
 }
 @media (prefers-reduced-motion: reduce) { .feishu-workspace * { transition: none; } }
+
+a.feishu-doc-open { color: inherit; text-decoration: none; }

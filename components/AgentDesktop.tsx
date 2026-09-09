@@ -2660,7 +2660,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
             onOpenFile={() => openArtifact({ ...selectedInsight, taskTitle: "AI 洞察" })}
           />
         </DesktopWindow>}
-        {scheduleOpen && <DesktopWindow kind="app" title="团队日程" desktopHidden={hiddenWindowIds.has("schedule")} front={frontWindow === "schedule"} onFocus={() => setFrontWindow("schedule")} onClose={() => setScheduleOpen(false)}><PresentationSchedule recruiting={!presentationCwd || activeCwd === presentationCwd} demoAppointments={!!presentationCwd && activeCwd === presentationCwd}/></DesktopWindow>}
+        {scheduleOpen && <DesktopWindow kind="app" title="团队日程" desktopHidden={hiddenWindowIds.has("schedule")} front={frontWindow === "schedule"} onFocus={() => setFrontWindow("schedule")} onClose={() => setScheduleOpen(false)}><PresentationSchedule recruiting={!presentationCwd || activeCwd === presentationCwd}/></DesktopWindow>}
         {openFeishuDocuments.map((document, index) => {
           const windowId = `feishu-document:${document.id}`;
           return <DesktopWindow
