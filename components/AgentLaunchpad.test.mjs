@@ -22,7 +22,7 @@ test("Feishu opens as a built-in CLI app instead of a Pi plugin", () => {
   assert.match(desktopSource, /fetch\("\/api\/apps\/feishu"/);
   assert.match(desktopSource, /app\.kind === "builtin" \? \(\s*<FeishuAppView/);
   assert.match(desktopSource, /className="agent-os-native-onboarding"/);
-  assert.match(desktopSource, /href="\/icons\/feishu-logo\.svg"/);
+  assert.match(desktopSource, /src="\/icons\/feishu-logo\.svg"/);
   assert.match(desktopSource, /使用飞书官方授权，凭据保存在本机/);
   assert.match(desktopSource, /let cachedFeishuStatus: FeishuCliStatus \| null = null/);
   assert.match(desktopSource, /useState<FeishuCliStatus \| null>\(\(\) => cachedFeishuStatus\)/);
