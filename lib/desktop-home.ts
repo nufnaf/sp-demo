@@ -8,7 +8,7 @@ export function recruitingHomeSchedule(now: Date, meeting: DemoMeeting | null): 
     return { id: `home-${id}`, title, startsAt: start.toISOString(), endsAt: new Date(start.getTime() + 30 * 60_000).toISOString(), attendees: ["招聘负责人", "Agent 研发负责人"], agenda, simulated: true };
   };
   return [
-    appointment("requirements", "AI Agent 工程师 · 招聘需求沟通", 10, 0, ["确认 6 位工程师的招聘目标与优先级", "核对岗位职责、工作地点和团队协作方式"]),
+    appointment("requirements", "高级 AI Agent 研发工程师 · 招聘需求沟通", 10, 0, ["确认 6 位工程师的招聘目标与优先级", "核对岗位职责、工作地点和团队协作方式"]),
     appointment("materials", "招聘渠道与 JD 材料评审", 16, 30, ["审阅业务介绍和岗位材料", "确认招聘渠道及待补充信息"]),
     ...(meeting ? [meeting] : []),
   ].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
