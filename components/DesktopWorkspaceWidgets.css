@@ -61,6 +61,8 @@
 .workspace-widget-empty { min-height: 0; display: flex; flex: 1; flex-direction: column; justify-content: center; padding: 16px 14px; border-radius: 16px; background: rgba(247,250,249,.3); }
 .workspace-widget-empty strong { font-size: 14px; font-weight: 500; line-height: 1.6; }
 .workspace-widget-empty p { margin: 4px 0 0; color: #687773; font-size: 12px; line-height: 1.65; }
+.workspace-widget-goal > .agent-os-card { overflow-y: auto; scrollbar-width: thin; }
+.workspace-goal, .workspace-goal-progress { flex-shrink: 0; }
 .workspace-goal { padding: 0; width: 100%; border-radius: 8px; }
 .workspace-goal > strong { display: block; font-size: clamp(22px, 1.95vw, 28px); font-weight: 600; line-height: 1.5; letter-spacing: -.5px; }
 .workspace-goal em { font-style: normal; color: #00a67d; margin-right: 2px; }
@@ -72,7 +74,6 @@
 .workspace-progress-track { display: flex; gap: 8px; height: 6px; margin: 9px 0 12px; }
 .workspace-progress-track i { flex: 1; background: rgba(247,250,249,.65); border-radius: 3px; }
 .workspace-deadline { display: flex; justify-content: space-between; border-radius: 8px; padding: 10px 11px; color: #593800; background: rgba(255,162,0,.19); font-size: 13px; }
-.workspace-goal-progress > small { display: block; margin-top: 7px; color: #687773; font-size: 11px; }
 .workspace-widget-goal .workspace-widget-empty { background: transparent; padding: 0; }
 .workspace-widget-goal .workspace-widget-empty > strong { font-size: 24px; }
 .workspace-widget-schedule .agent-os-card > header { position: absolute; inset: 0 0 auto; height: 48px; padding: 0 16px; margin: 0; }
@@ -119,8 +120,6 @@
 /* Compact the contents along with the rows, preserving the desktop's open space. */
 @media (max-height: 903px) {
   .workspace-widget > .agent-os-card { padding: 12px; }
-  .workspace-widget-goal > .agent-os-card { overflow-y: auto; scrollbar-width: thin; }
-  .workspace-goal, .workspace-goal-progress { flex-shrink: 0; }
   .workspace-widget .agent-os-card > header { margin-bottom: 8px; }
   .workspace-widget .agent-os-card > header strong { font-size: 14px; }
   .workspace-widget .agent-os-card > header small, .workspace-widget .agent-os-card > header button { font-size: 12px; }

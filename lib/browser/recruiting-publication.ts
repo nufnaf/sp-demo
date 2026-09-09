@@ -50,7 +50,7 @@ export function extractRecruitingJd(content: string, filePath: string): { title:
 export async function recruitingPublicationTask(cwd: string, url: string, filePath: string): Promise<string> {
   const target = new URL(url);
   const site = recruitingSiteUrl();
-  if (target.origin !== site.origin || target.pathname !== "/jobs/new" || target.username || target.password) {
+  if (target.origin !== site.origin || target.pathname !== new URL("jobs/new", site).pathname || target.username || target.password) {
     throw new Error("JD 文件引用仅可用于已登记的内部招聘发布页面。");
   }
   const absolute = path.resolve(cwd, filePath);

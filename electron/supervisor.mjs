@@ -19,17 +19,21 @@ async function start() {
       onStatus: (title, detail) => status(title, detail),
       onFailure: (detail) => status('本机服务已停止', detail, true),
     };
-    service = new ServiceGroup([
-      new LocalService({ root, production, ...callbacks }),
-      new LocalService({
-        root: resolve(root, 'apps/recruiting'), kind: 'recruiting', production,
-        origin: 'http://127.0.0.1:30143', ...callbacks,
-        env: { ...process.env, PORT: '30143', PUBLIC_ORIGIN: 'http://127.0.0.1:30143', DATABASE_URL: '', VERCEL: '' },
-      }),
-    ]);
-    try { const result = await service.start(); if (!stopping) send({ type: 'ready', ...result }); }
+    try {
+      const recruitingOrigin = new URL(process.env.SYNTROPIC_RECRUITING_URL?.trim() || 'http://127.0.0.1:30143').origin;
+      service = new ServiceGroup([
+        new LocalService({ root, production, ...callbacks }),
+        ...(recruitingOrigin === 'http://127.0.0.1:30143' ? [new LocalService({
+          root: resolve(root, 'apps/recruiting'), kind: 'recruiting', production,
+          origin: 'http://127.0.0.1:30143', ...callbacks,
+          env: { ...process.env, PORT: '30143', PUBLIC_ORIGIN: 'http://127.0.0.1:30143', DATABASE_URL: '', VERCEL: '' },
+        })] : []),
+      ]);
+      const result = await service.start();
+      if (!stopping) send({ type: 'ready', ...result });
+    }
     catch (error) {
-      await service.stop();
+      await service?.stop();
       if (!stopping) status('无法启动工作台', error.message, true);
     }
   })().finally(() => { starting = undefined; });

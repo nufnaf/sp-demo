@@ -35,6 +35,7 @@ async function readJson<T>(url: string): Promise<T> {
 
 export function RecruitingPublication(props: Props) {
   const [suggestion, setSuggestion] = useState<JdArtifact | null>(null);
+  const [completedJob, setCompletedJob] = useState<PublishedRecruitingJob | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [preparing, setPreparing] = useState(false);
   const [pending, setPending] = useState<{ sessionId: string; draft: string; startedAt: number } | null>(null);
@@ -46,15 +47,15 @@ export function RecruitingPublication(props: Props) {
     if (!props.cwd) return;
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) ?? "{}");
-      setDismissed(saved.dismissed === true); setSuggestion(saved.suggestion ?? null); setPending(saved.pending ?? null);
+      setCompletedJob(saved.completedJob ?? null); setDismissed(saved.dismissed === true); setSuggestion(saved.suggestion ?? null); setPending(saved.pending ?? null);
       seen.current = new Set(saved.seen ?? []); setReadInsights(saved.readInsights ?? []);
     } catch { /* Invalid optional UI state does not affect saved work. */ }
     setLoaded(true);
   }, [storageKey, props.cwd]);
   useEffect(() => {
     if (!loaded || !props.cwd) return;
-    localStorage.setItem(storageKey, JSON.stringify({ suggestion, dismissed, pending, seen: [...seen.current], readInsights }));
-  }, [storageKey, props.cwd, loaded, suggestion, dismissed, pending, readInsights]);
+    localStorage.setItem(storageKey, JSON.stringify({ suggestion, completedJob, dismissed, pending, seen: [...seen.current], readInsights }));
+  }, [storageKey, props.cwd, loaded, suggestion, completedJob, dismissed, pending, readInsights]);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const callbacks = useRef(props);
@@ -72,6 +73,7 @@ export function RecruitingPublication(props: Props) {
     const timer = setTimeout(() => {
       seen.current.add(artifact.filePath);
       setSuggestion(artifact);
+      setCompletedJob(null);
       setDismissed(false);
     }, 1400);
     return () => clearTimeout(timer);
@@ -85,11 +87,12 @@ export function RecruitingPublication(props: Props) {
         const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${suggestion.cwd}\n${suggestion.filePath}`));
         const draft = Array.from(new Uint8Array(bytes)).map(byte => byte.toString(16).padStart(2, "0")).join("").slice(0, 32);
         const data = await readJson<{ jobs: PublishedRecruitingJob[] }>("/api/apps/internal-recruiting");
-        if (!cancelled && data.jobs.some(job => job.draft === draft)) setSuggestion(null);
+        if (!cancelled) setCompletedJob(data.jobs.find(job => job.draft === draft) ?? null);
       } catch { /* Keep the actionable suggestion when the site is unavailable. */ }
     };
-    void reconcile(); const timer = setInterval(() => void reconcile(), 2500);
-    return () => { cancelled = true; clearInterval(timer); };
+    void reconcile();
+    window.addEventListener("agent-os:presentation-changed", reconcile);
+    return () => { cancelled = true; window.removeEventListener("agent-os:presentation-changed", reconcile); };
   }, [loaded, suggestion, pending, preparing]);
 
   const publicationStatus = props.browserTasks.filter((task) => task.parentSessionId === pending?.sessionId).at(-1)?.status;
@@ -101,20 +104,30 @@ export function RecruitingPublication(props: Props) {
       if (cancelled) return;
       setPending(null);
       callbacks.current.onSettled(pending.sessionId);
-      if (message) callbacks.current.onNotice(message);
+      if (message) { setDismissed(true); callbacks.current.onNotice(message); }
     };
     const poll = async () => {
       if (Date.now() - pending.startedAt > 210000) return settled("发布结果暂时无法确认，请查看任务和招聘网页。");
       try {
         const state = await readJson<{ tasks: BrowserTaskState[] }>(`/api/browser/state?cwd=${encodeURIComponent(props.cwd ?? "")}`);
         if (cancelled) return;
+        // Browser completion precedes the parent task's final website verification
+        // and local save. Wait for that boundary before deciding success/failure.
+        if (callbacks.current.presentation) {
+          const running = await readJson<{ runningSessionIds: string[] }>("/api/agent/running");
+          if (cancelled) return;
+          if (running.runningSessionIds.includes(pending.sessionId)) {
+            timer = setTimeout(() => void poll(), 750);
+            return;
+          }
+        }
         const task = state.tasks.filter((item) => item.parentSessionId === pending.sessionId).at(-1);
         if (task?.status === "completed") {
           const data = await readJson<{ jobs: PublishedRecruitingJob[] }>("/api/apps/internal-recruiting");
           if (cancelled) return;
           const job = data.jobs.find((item) => item.draft === pending.draft);
           if (!job) return settled("浏览器任务已结束，但没有找到对应的已发布岗位，请核对网页。");
-          setSuggestion(null);
+          setCompletedJob(job);
           callbacks.current.onPublished(job, pending.sessionId);
           settled();
           return;
@@ -127,7 +140,7 @@ export function RecruitingPublication(props: Props) {
             const published = await readJson<{ jobs: PublishedRecruitingJob[] }>("/api/apps/internal-recruiting");
             const job = published.jobs.find(item => item.draft === pending.draft);
             if (cancelled) return;
-            if (job) { setSuggestion(null); callbacks.current.onPublished(job, pending.sessionId); return settled(); }
+            if (job) { setCompletedJob(job); callbacks.current.onPublished(job, pending.sessionId); return settled(); }
             return settled("发布未完成，请查看任务状态后重试。");
           }
         }
@@ -141,7 +154,7 @@ export function RecruitingPublication(props: Props) {
   }, [pending, props.cwd, publicationStatus]);
 
   const publish = async () => {
-    if (!suggestion || pending || preparing) return;
+    if (!suggestion || completedJob || pending || preparing) return;
     setPreparing(true);
     try {
       const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${suggestion.cwd}\n${suggestion.filePath}`));
@@ -178,17 +191,17 @@ export function RecruitingPublication(props: Props) {
   };
   const publicationInsight: WorkspaceWidgetItem | null = loaded && suggestion ? {
     id: `publication:${suggestion.filePath}`,
-    title: "已识别新创建的 JD",
-    detail: pending ? "正在通过招聘网页发布岗位，完成后将同步招聘进展。" : "岗位 JD 已准备好，可以发布到内部招聘系统。",
-    actionLabel: pending ? "正在发布…" : preparing ? "正在准备…" : "发布岗位",
-    disabled: Boolean(pending) || preparing,
+    title: completedJob ? "岗位发布建议 · 已完成" : "已识别新创建的 JD",
+    detail: completedJob ? `「${completedJob.title}」已发布到内部招聘系统。` : pending ? "正在通过招聘网页发布岗位，完成后将同步招聘进展。" : "岗位 JD 已准备好，可以发布到内部招聘系统。",
+    actionLabel: completedJob ? "已发布" : pending ? "正在发布…" : preparing ? "正在准备…" : "发布岗位",
+    disabled: Boolean(completedJob || pending) || preparing,
     onOpen: () => void publish(),
   } : null;
   let notification: ReactNode = null;
   // Both surfaces use this same suggestion and action. Dismissing the toast
   // leaves the suggestion actionable in the desktop widget.
   if (loaded) {
-    if (publicationInsight && !pending && !dismissed) notification = <DesktopNotification
+    if (publicationInsight && !completedJob && !pending && !dismissed) notification = <DesktopNotification
       ariaLabel="岗位发布建议" label="需要确认" title={`AI 主动洞察：${publicationInsight.title}`}
       description={props.notice || publicationInsight.detail}
       action={{ label: `${publicationInsight.actionLabel} ›`, onClick: publicationInsight.onOpen, disabled: publicationInsight.disabled }}
@@ -209,7 +222,7 @@ export function RecruitingPublication(props: Props) {
     onOpen: () => props.onOpenInsight(result),
   }));
   if (publicationInsight) {
-    if (!dismissed) widgetInsights.unshift(publicationInsight);
+    if (!dismissed && !completedJob) widgetInsights.unshift(publicationInsight);
     else widgetInsights.push(publicationInsight);
   }
   return props.children({ notification, widgetInsights });

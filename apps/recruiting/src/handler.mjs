@@ -24,7 +24,13 @@ export function createHandler(storeProvider = getStore) {
     );
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     const url = new URL(req.url, `http://${req.headers.host || "127.0.0.1"}`);
+    const scoped = /^\/demo\/([a-f0-9]{32})(\/.*|$)/.exec(url.pathname);
+    const prefix = scoped ? `/demo/${scoped[1]}` : "";
+    if (scoped) url.pathname = scoped[2] || "/";
+    // Every form/link and redirect stays in the same run, including a copied URL.
+    const html = page => prefix ? page.replace(/((?:href|action)=")\/(?!\/)/g, `$1${prefix}/`) : page;
     try {
+      if (!scoped && url.pathname.startsWith("/demo/")) { res.statusCode = 404; return res.end("演示地址无效"); }
       if (url.pathname === "/style.css" && req.method === "GET") {
         res.setHeader("Content-Type", "text/css; charset=utf-8");
         return res.end(
@@ -35,7 +41,7 @@ export function createHandler(storeProvider = getStore) {
         res.statusCode = 204;
         return res.end();
       }
-      const store = await storeProvider();
+      const store = await storeProvider(scoped?.[1]);
       if (req.method === "POST") {
         // Plain HTML forms. Reject cross-origin submissions, including local
         // websites trying to reset this demo from another browser tab.
@@ -73,7 +79,7 @@ export function createHandler(storeProvider = getStore) {
         if (url.pathname === "/reset") {
           if (fields.confirm !== "reset")
             throw new ValidationError("请先确认重置范围");
-          await store.update(fields.revision, () => seedData());
+          await store.update(fields.revision, () => seedData(scoped ? true : undefined));
           destination = "/settings?reset=1";
         } else if (url.pathname === "/jobs/publish") {
           const next = await store.update(fields.revision, (data) => mutate(data, url.pathname, fields));
@@ -93,7 +99,7 @@ export function createHandler(storeProvider = getStore) {
           );
           destination = `${url.pathname.split("/").slice(0, 3).join("/")}?saved=1`;
         }
-        res.writeHead(303, { Location: destination });
+        res.writeHead(303, { Location: prefix + destination });
         return res.end();
       }
       if (req.method !== "GET") {
@@ -130,7 +136,7 @@ export function createHandler(storeProvider = getStore) {
           '<h1>没有找到这条记录</h1><a href="/">返回招聘职位</a>',
         );
       }
-      res.end(page);
+      res.end(html(page));
     } catch (error) {
       res.statusCode =
         error instanceof Conflict ? 409 : error instanceof ValidationError ? 400 : 503;
@@ -144,10 +150,10 @@ export function createHandler(storeProvider = getStore) {
       const back = url.pathname === "/jobs/publish" ? "/jobs/new"
         : /^\/(jobs|candidates)\/[^/]+/.exec(url.pathname)?.[0] || "/settings";
       res.end(
-        layout(
+        html(layout(
           "操作未完成",
           `<section class="panel"><h1>操作未完成</h1><p role="alert">${escape(message)}</p><a class="button" href="${escape(back)}">返回并读取最新数据</a></section>`,
-        ),
+        )),
       );
     }
   };

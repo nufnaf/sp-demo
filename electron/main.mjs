@@ -108,7 +108,7 @@ async function startSupervisor() {
         SYNTROPIC_PACKAGED: '1',
         SYNTROPIC_APP_ROOT: root,
         SYNTROPIC_FEISHU_CONFIG: join(process.resourcesPath, 'feishu-demo.json'),
-        SYNTROPIC_RECRUITING_URL: 'http://127.0.0.1:30143/',
+        SYNTROPIC_RECRUITING_URL: env.SYNTROPIC_RECRUITING_URL?.trim() || manifest.recruitingUrl || 'http://127.0.0.1:30143/',
         PI_WEB_BROWSER_EXECUTABLE: join(process.resourcesPath, manifest.browserExecutable),
         PI_WEB_BROWSER_HEADLESS: 'true',
         PATH: `${join(process.resourcesPath, 'node/bin')}:/usr/bin:/bin:/usr/sbin:/sbin`,

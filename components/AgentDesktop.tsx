@@ -1592,7 +1592,10 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     const stream = new EventSource("/api/file-app/events");
     stream.onmessage = (event) => {
       try {
-        const message = JSON.parse(event.data) as FileOpenRequest | { type: "file.ready" } | { type: "insight.updated"; cwd: string };
+        const message = JSON.parse(event.data) as FileOpenRequest | { type: "file.ready" } | { type: "insight.updated" | "presentation.updated"; cwd: string };
+        if (message.type === "file.ready" || (message.type === "presentation.updated" && message.cwd === activeCwd)) {
+          window.dispatchEvent(new Event("agent-os:presentation-changed"));
+        }
         if (message.type === "insight.updated" && message.cwd === activeCwd) refreshInsightsRef.current();
         if (message.type !== "file.open") return;
         if (activeCwd && message.cwd !== activeCwd) {
@@ -2431,8 +2434,10 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
 
   const widgetTasks: WorkspaceWidgetItem[] = visibleTasks.map((session) => {
     const browserTask = browserTasks.filter((task) => task.parentSessionId === session.id).at(-1);
-    const running = browserTask ? ["starting", "running", "stopping"].includes(browserTask.status) : runningIds.has(session.id);
-    const status = browserTask ? ({ completed: "已完成", failed: "执行失败", stopped: "已停止", starting: "正在准备", running: "进行中", stopping: "正在停止" })[browserTask.status] : running ? "进行中" : jarvis.tasks.find((task) => task.sessionId === session.id)?.status === "aborted" ? "已停止" : taskOutcomes[session.id] ?? "查看任务进展";
+    const parentTask = jarvis.tasks.find((task) => task.sessionId === session.id);
+    const running = parentTask ? parentTask.status === "running" : runningIds.has(session.id) || Boolean(browserTask && ["starting", "running", "stopping"].includes(browserTask.status));
+    const status = parentTask ? ({ running: "进行中", completed: "已完成", failed: "执行失败", aborted: "已停止" })[parentTask.status]
+      : running ? "进行中" : taskOutcomes[session.id] ?? (browserTask ? ({ completed: "已完成", failed: "执行失败", stopped: "已停止", starting: "正在准备", running: "进行中", stopping: "正在停止" })[browserTask.status] : "查看任务进展");
     return { id: session.id, title: taskTitle(session), detail: status, running, onOpen: () => openTask(session.id) };
   });
   for (const task of browserTasks.filter((task) => task.cwd === activeCwd && !workspaceSessions.some((session) => session.id === task.parentSessionId))) {

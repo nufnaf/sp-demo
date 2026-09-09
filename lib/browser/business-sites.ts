@@ -1,9 +1,19 @@
+import { createHash } from "node:crypto";
+import { presentationRoot } from "../presentation-runtime";
+
 /** Entry-point metadata only. Business records must be read through the UI. */
 export function recruitingSiteUrl(): URL {
   const configured = process.env.SYNTROPIC_RECRUITING_URL?.trim() || "http://127.0.0.1:30143";
   const url = new URL(configured);
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) {
     throw new Error("SYNTROPIC_RECRUITING_URL 必须是不含凭据的 HTTP/HTTPS 网页地址");
+  }
+  const root = presentationRoot();
+  if (root) {
+    const scope = createHash("sha256").update(root).digest("hex").slice(0, 32);
+    url.pathname = `/demo/${scope}/`;
+    url.search = "";
+    url.hash = "";
   }
   return url;
 }
