@@ -28,6 +28,6 @@ export function recruitingProfile(kind: RecruitingTaskKind) {
       ? `${common}\n目标岗位：AI Agent 工程师；Agent 研发；杭州 / 上海；招聘 6 人。\n${RECRUITING_JD_CONTRACT}`
       : `${common}\n用户从岗位成果点击发布。按请求中的 url、jd_file 和短目标立即调用 browser_task；不读取或复述 JD，不规划网页点击。等待已核对结果后简短汇总，失败如实报告；不重复创建岗位，不访问 BOSS，不通过 API 或数据文件代替网页发布。`,
     },
-    tools: kind === "jd" ? ["feishu_demo_documents", "feishu_demo_read", "save_recruiting_jd"] : ["browser_task"],
+    tools: kind === "jd" ? ["feishu_demo_find_read", "save_recruiting_jd"] : ["browser_task"],
   };
 }

@@ -69,7 +69,21 @@ export class FeishuDemoClient {
     if (!this.config.documentIds.includes(id)) throw new FeishuDemoError("authorization", "当前工作台无权访问此文档。");
     const document = (await this.documents()).find((item) => item.id === id);
     if (!document) throw new FeishuDemoError("authorization", "文档不存在或已停止共享。");
-    const data = await this.get(`/docx/v1/documents/${encodeURIComponent(id)}/raw_content`);
+    return this.readDocument(document);
+  }
+  async findAndRead(title: string) {
+    const exactTitle = title.trim();
+    if (!exactTitle) throw new FeishuDemoError("configuration", "请提供完整的飞书文档标题。");
+    // Resolve against a fresh, fully paginated allow-listed folder response.
+    // Reuse that result rather than fetching the same list again in read(id).
+    const matches = (await this.documents(exactTitle)).filter(item => item.title === exactTitle);
+    if (!matches.length) throw new FeishuDemoError("authorization", "未找到标题完全匹配且已授权的文档，请确认文档标题或联系管理员检查共享权限。");
+    if (matches.length !== 1) throw new FeishuDemoError("configuration", "发现多份同名资料，尚未读取正文。请联系资料管理员区分文档标题后重试。");
+    return this.readDocument(matches[0]);
+  }
+  private async readDocument(document: DemoDocument) {
+    // Feishu independently checks live document permissions on this request.
+    const data = await this.get(`/docx/v1/documents/${encodeURIComponent(document.id)}/raw_content`);
     if (typeof data.content !== "string" || !data.content.trim()) throw new FeishuDemoError("authorization", "文档正文为空，请联系文档管理员。");
     return { ...document, content: data.content, fetchedAt: new Date(this.clock()).toISOString() };
   }
