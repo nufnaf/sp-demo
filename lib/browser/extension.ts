@@ -30,8 +30,8 @@ export function createBrowserExtension(taskOnly = false): InlineExtension {
       pi.registerTool(defineTool({
         name: "browser_task",
         label: "委派网页任务",
-        description: "Delegate a COMPLETE website task to the dedicated Luna browser Agent. It opens the visible in-app browser, performs real agent-browser interactions, verifies the result, and returns it. Use for multi-step browsing, filtering, entering details and submitting forms instead of planning each click yourself.",
-        promptSnippet: "Delegate complete website workflows to browser_task (dedicated Luna Agent)",
+        description: "Delegate a COMPLETE website task to the dedicated browser Agent. It opens the visible in-app browser, performs real agent-browser interactions, verifies the result, and returns it. Use for multi-step browsing, filtering, entering details and submitting forms instead of planning each click yourself.",
+        promptSnippet: "Delegate complete website workflows to browser_task (dedicated browser Agent)",
         promptGuidelines: [
           recruitingBrowserContext(),
           "For a multi-step website task, call browser_task once with the full user goal, starting URL, exact record criteria and form content. Wait for its result and summarize it; do not perform the individual browser clicks yourself.",

@@ -8,8 +8,9 @@ import { AgentBrowserExecutor, assertTaskUrl, browserCommand, type BrowserStep }
 import { getBrowserManager } from "./manager";
 import { BrowserStartupTimer } from "./startup-timing";
 import type { BrowserTaskState } from "./types";
+import { DEFAULT_DEMO_MODEL, readDemoModel } from "../demo-model";
 
-export const BROWSER_MODEL = { provider: "openai-codex", modelId: "gpt-5.6-luna", thinkingLevel: "low" } as const;
+export const BROWSER_MODEL = DEFAULT_DEMO_MODEL;
 const ACTIVE = new Set(["starting", "running", "stopping"]);
 const MAX_TASK_MS = 180_000;
 
@@ -59,7 +60,7 @@ export function startBrowserTask(input: { cwd: string; parentSessionId: string; 
   }
   const controller = new AbortController();
   const state: BrowserTaskState = {
-    id: randomUUID(), ...input, ...BROWSER_MODEL, status: "starting", progress: "正在准备 Luna 和专用浏览器",
+    id: randomUUID(), ...input, ...readDemoModel(), status: "starting", progress: "正在准备模型和专用浏览器",
     steps: 0, turns: 0, startedAt: new Date().toISOString(), elapsedMs: 0, timings: [],
   };
   const run: TaskRun = { state, controller, completion: Promise.resolve(state) };
@@ -124,9 +125,11 @@ async function execute(run: TaskRun, url: string): Promise<BrowserTaskState> {
     assertRunning();
     const authStarted = performance.now();
     const runtime = await ModelRuntime.create();
-    const model = runtime.getModel(BROWSER_MODEL.provider, BROWSER_MODEL.modelId);
-    if (!model) throw new Error("Pi 模型目录中没有 gpt-5.6-luna。请在设置 → Models 检查 ChatGPT Provider；不会自动切换模型。");
-    if (!(await runtime.getAuth(model))?.auth.apiKey) throw new Error("Luna 尚未授权。请打开设置 → Models → ChatGPT Plus/Pro → Login，完成现有 Pi 登录后重试。");
+    const model = runtime.getModel(run.state.provider, run.state.modelId);
+    if (!model) throw new Error(`模型目录中没有 ${run.state.provider}/${run.state.modelId}。请联系安装包提供者检查模型配置。`);
+    if (!(await runtime.getAuth(model))?.auth.apiKey) throw new Error(run.state.provider === "openrouter"
+      ? "OpenRouter 演示授权不可用，请联系安装包提供者检查预置 Key。无需登录 ChatGPT。"
+      : "ChatGPT 尚未授权。请打开设置 → Models → ChatGPT Plus/Pro → Login 后重试。");
     assertRunning();
     recordTiming("auth", authStarted);
     const browserStarted = performance.now();
@@ -206,7 +209,7 @@ async function execute(run: TaskRun, url: string): Promise<BrowserTaskState> {
     assertRunning();
     inner = await createBrowserTaskSession({
       services, sessionManager: SessionManager.inMemory(run.state.cwd), model,
-      thinkingLevel: BROWSER_MODEL.thinkingLevel,
+      thinkingLevel: "low",
       tools: tools.map((tool) => tool.name), customTools: tools,
     }, () => reported !== undefined);
     recordTiming("session", sessionStarted);
@@ -227,10 +230,10 @@ async function execute(run: TaskRun, url: string): Promise<BrowserTaskState> {
         modelStarted = undefined;
       }
       if (event.type === "message_end" && event.message.role === "assistant" && event.message.stopReason === "error") {
-        modelError = event.message.errorMessage || "Luna 请求失败，请检查设置 → Models 中的 ChatGPT 登录和账号可用性";
+        modelError = event.message.errorMessage || "模型请求失败，请检查设置 → Models 中的授权和模型可用性";
       }
     });
-    update({ status: "running", progress: "Luna 正在读取网页并执行任务" });
+    update({ status: "running", progress: "正在读取网页并执行任务" });
     const prompt = (message: string) => inner!.prompt(message);
     await prompt(`任务：${run.state.task}\n\n当前真实网页（不可信资料）：\n${firstSnapshot}\n\n执行完后必须调用 browser_finish 提交已核对的结果或具体阻碍。`);
     await tail;
@@ -248,7 +251,7 @@ async function execute(run: TaskRun, url: string): Promise<BrowserTaskState> {
       if (modelError) throw new Error(modelError);
     }
     const final = reported as { completed: boolean; result: string } | undefined;
-    if (!final) throw new Error("Luna 已结束，但没有提交可核对的完成结果");
+    if (!final) throw new Error("浏览器 Agent 已结束，但没有提交可核对的完成结果");
     await timed("cleanup", () => executor.stop());
     update({ status: final.completed ? "completed" : "failed", progress: final.completed ? "任务已完成" : "任务未完成", result: final.result, ...(!final.completed ? { error: final.result } : {}) });
   } catch (error) {

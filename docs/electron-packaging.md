@@ -1,5 +1,7 @@
 # Syntropic 双击启动版
 
+当前安装的是 OpenRouter 预置 Key 版本 `18b0bc92-3fef-4e83-8a4b-ae546eafb22e`，已完成真实 JD、网页发布与查询验证，无需 ChatGPT 登录。配置、交付与耗时见 [预置 Key 演示包](openrouter-demo.md)。下文保留 OAuth 版本的使用方式与历史验收，授权说明仅适用于 OAuth 构建。
+
 当前体积优化验收包：`a288d94b-3dc9-4e6d-aa96-7f7dd1bea1d8`（2026-09-09）。安装后目录约 871 MB，用户运行目录仅 4 KiB；代码与资源直接引用 App，内置浏览器使用 Chromium Headless Shell。JD 生成、浏览器发布和查询、刷新及退出重启已实测，详见 [体积与验证记录](desktop-size-validation.md)。
 
 精简前性能基线 `abeb00a2-0e7a-4a2c-a6d7-5ff59ca5053b`（2026-09-09）。主 Agent、后台任务和浏览器继续使用 Luna low。JD 发布改为文件引用交接：主 Agent 只传短目标与文件路径，工具读取全文供浏览器实际填写、提交和核对。两轮主 Agent 准备为 6.7 / 6.8 秒，浏览器执行为 39.5 / 35.1 秒，点击到浏览器完成为 46.2 / 41.9 秒；没有宣称整段达到 33 秒。两轮新 HTML JD 全文、原窗口返回、刷新和退出恢复通过，第二轮另验证真实查询、洞察及本地会议；原 Pi 54 个受检路径未变。额外页面关闭回归仍有错误类型不匹配，详见 [实测与验证边界](agent-latency-investigation.md)。
@@ -41,11 +43,11 @@
 
 ## 重建安装包
 
-必须在原 worktree 中执行：
+OAuth 历史版本的构建方式（OpenRouter 版本使用上面的新说明）：
 
 ```bash
 cd /Users/xiewannan/code/sp-demo-worktrees/electron-phase-one
-npm run package:desktop
+SYNTROPIC_DEMO_AUTH=chatgpt npm run package:desktop
 ```
 
 输出：`build/desktop/release/Syntropic.app`，旁边有使用说明。每次重建替换此生成产物；不要在 App 运行中覆盖其包文件，应先退出。不需要新建或切换 worktree。

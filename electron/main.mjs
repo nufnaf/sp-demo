@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createPresentationRun } from './presentation.mjs';
+import { prepareDemoModelEnvironment } from './demo-model.mjs';
 import { preparePackagedRuntime, removeOldPackagedRuntimes } from './packaged-runtime.mjs';
 import { APP_ORIGIN, isAppUrl, isExternalUrl } from './policy.mjs';
 
@@ -12,7 +13,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const packaged = existsSync(join(process.resourcesPath, 'desktop-runtime.json'));
 const recoveryUrl = pathToFileURL(join(here, 'status.html'));
 app.setName(packaged ? 'Syntropic' : 'Syntropic Dev');
-// Renderer preferences only. Pi keeps its own existing ~/.pi/agent directory.
+// Renderer preferences. Preconfigured packages give Pi a separate per-run directory.
 app.setPath('userData', join(app.getPath('appData'), packaged ? 'Syntropic' : 'Syntropic Dev'));
 let window = null;
 let supervisor = null;
@@ -83,9 +84,23 @@ async function startSupervisor() {
   let node = process.env.SYNTROPIC_NODE;
   let root = join(here, '..');
   const env = { ...process.env, ELECTRON_RUN_AS_NODE: undefined };
+  delete env.SYNTROPIC_DEMO_OPENROUTER;
   if (packaged) {
     try {
       const manifest = JSON.parse(await readFile(join(process.resourcesPath, 'desktop-runtime.json'), 'utf8'));
+      if (manifest.demoAuth === 'openrouter') {
+        try {
+          Object.assign(env, await prepareDemoModelEnvironment({
+            configPath: join(process.resourcesPath, 'openrouter-demo.json'),
+            presentationRoot: presentation.root,
+          }));
+          // The bundled credential is authoritative; ignore inherited provider credentials.
+          delete env.OPENROUTER_API_KEY;
+        } catch {
+          await showStatus({ title: '演示模型配置不可用', detail: '安装包缺少有效的 OpenRouter 配置，请联系提供者重新打包。无需登录 ChatGPT。', retry: false });
+          return;
+        }
+      }
       packagedBuildId = manifest.buildId;
       root = await preparePackagedRuntime(process.resourcesPath, app.getPath('userData'), manifest.buildId);
       node = join(process.resourcesPath, 'node/bin/node');

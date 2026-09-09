@@ -5,9 +5,15 @@ import { existsSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pruneUnsupportedPackages } from './desktop-package-files.mjs';
+import { readDemoApiKey } from '../electron/demo-model.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new Error('此安装包构建目前仅支持 macOS Apple Silicon。');
+const demoAuth = process.env.SYNTROPIC_DEMO_AUTH || 'openrouter';
+if (!['openrouter', 'chatgpt'].includes(demoAuth)) throw new Error('SYNTROPIC_DEMO_AUTH 必须为 openrouter 或 chatgpt。');
+const demoKey = demoAuth === 'openrouter'
+  ? await readDemoApiKey(process.env.SYNTROPIC_OPENROUTER_CONFIG || join(root, '.env.openrouter-demo.json'))
+  : undefined;
 const feishuConfig = await readFile(join(root, '.env.feishu-demo.json'));
 const configCheck = JSON.parse(feishuConfig.toString('utf8'));
 if (!configCheck.appId || !configCheck.appSecret || !configCheck.folderToken || !configCheck.documentIds?.length) throw new Error('请先完成 docs/feishu-demo-setup.md 中的专用飞书配置；未配置的包不能作为完整演示交付。');
@@ -60,6 +66,7 @@ await cp(join(root, 'node_modules/electron/dist/Electron.app'), app, { recursive
 await rm(join(resources, 'default_app.asar'), { force: true });
 await mkdir(join(resources, 'app'), { recursive: true });
 await writeFile(join(resources, 'feishu-demo.json'), feishuConfig, { mode: 0o600 });
+if (demoKey) await writeFile(join(resources, 'openrouter-demo.json'), JSON.stringify({ apiKey: demoKey }), { mode: 0o600 });
 await cp(join(root, 'electron'), join(resources, 'app/electron'), { recursive: true });
 await writeFile(join(resources, 'app/package.json'), JSON.stringify({ name: 'syntropic-desktop', productName: 'Syntropic', version: '0.8.11', main: 'electron/main.mjs' }, null, 2));
 const runtime = join(resources, 'runtime');
@@ -100,7 +107,7 @@ for (const directory of browserPaths.directories) {
 }
 // Correct PTY executable permissions before signing; the app never mutates its bundle.
 await run(node, ['--input-type=module', '-e', `import {prepareNativeHost} from ${JSON.stringify(new URL('../electron/native-host.mjs', import.meta.url).href)}; prepareNativeHost(${JSON.stringify(runtime)})`]);
-await writeFile(join(resources, 'desktop-runtime.json'), JSON.stringify({ buildId: randomUUID(), nodeVersion, browserExecutable, builtAt: new Date().toISOString() }, null, 2));
+await writeFile(join(resources, 'desktop-runtime.json'), JSON.stringify({ buildId: randomUUID(), nodeVersion, browserExecutable, builtAt: new Date().toISOString(), demoAuth }, null, 2));
 await rename(join(app, 'Contents/MacOS/Electron'), join(app, 'Contents/MacOS/Syntropic'));
 const plist = join(app, 'Contents/Info.plist');
 for (const [key, value] of Object.entries({ CFBundleExecutable: 'Syntropic', CFBundleIdentifier: 'com.syntropic.desktop', CFBundleName: 'Syntropic', CFBundleDisplayName: 'Syntropic', CFBundleShortVersionString: '0.8.11' })) {
@@ -111,5 +118,5 @@ await run('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', app]);
 await run('/usr/bin/codesign', ['--verify', '--deep', '--strict', app]);
 // The source snapshot is disposable build input, not another installed runtime.
 await rm(source, { recursive: true, force: true });
-await writeFile(join(release, '使用说明.txt'), '双击 Syntropic.app 即可启动工作台和招聘系统。运行代码直接引用 App 内文件，只在用户目录保存清单和缓存；新版本启动成功后自动删除旧运行目录。内置网页通过 Chromium Headless Shell 显示和操作，无需预装 Chrome。\n需要联网及 Pi 中有效的 ChatGPT 授权才能执行 Agent 任务。\n本轮演示数据保存于 App 专属运行目录；刷新保留，完全退出后下次恢复预设。飞书演示资料通过随包专用应用配置读取。\n⌘Q 退出并停止本 App 启动的服务。\n此包为本机签名的 macOS Apple Silicon 内部演示版本，未做 Apple 公证。\n');
+await writeFile(join(release, '使用说明.txt'), '双击 Syntropic.app 即可启动工作台和招聘系统。运行代码直接引用 App 内文件，只在用户目录保存清单和缓存；新版本启动成功后自动删除旧运行目录。内置网页通过 Chromium Headless Shell 显示和操作，无需预装 Chrome。\n' + (demoAuth === 'openrouter' ? '需要联网；已预置 OpenRouter 演示额度，无需登录或配置 Key。主 Agent、后台任务与浏览器统一使用 GPT-5.6 Luna（low）。额度耗尽或授权失效时请联系提供者。\n' : '需要联网及 Pi 中有效的 ChatGPT 授权才能执行 Agent 任务。\n') + '本轮演示数据保存于 App 专属运行目录；刷新保留，完全退出后下次恢复预设。飞书演示资料通过随包专用应用配置读取。\n⌘Q 退出并停止本 App 启动的服务。\n此包为本机签名的 macOS Apple Silicon 内部演示版本，未做 Apple 公证。\n');
 console.log(`完成：${app}`);
