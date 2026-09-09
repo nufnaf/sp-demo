@@ -155,11 +155,11 @@
 
 .agent-os-window-layer { position: absolute; z-index: 30; inset: 44px 0 112px; pointer-events: none; }
 /* All desktop app windows share this outer radius; the mobile layout uses square corners. */
-.agent-os-window { position: absolute; width: min(1080px, calc(100vw - 160px)); height: min(690px, calc(100vh - 220px)); min-width: 680px; min-height: 460px; overflow: hidden; border: 1px solid rgba(255,255,255,.88); border-radius: 15px; color: var(--os-text); background: rgba(246,249,250,.82); box-shadow: inset 0 1px rgba(255,255,255,.9), 0 24px 72px rgba(45,67,80,.22); pointer-events: auto; backdrop-filter: blur(34px) saturate(1.22); opacity: .95; transform: scale(.992); transition: opacity 180ms ease, transform 260ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms ease; font-optical-sizing:auto; -webkit-font-smoothing:antialiased; }
+.agent-os-window { position: absolute; width: min(1080px, calc(100vw - 160px)); height: min(690px, calc(100vh - 220px)); min-width: 680px; min-height: 460px; overflow: hidden; border: 1px solid rgba(255,255,255,.88); border-radius: 15px; color: var(--os-text); background: rgba(246,249,250,.82); box-shadow: inset 0 1px rgba(255,255,255,.9), 0 24px 72px rgba(45,67,80,.22); pointer-events: auto; backdrop-filter: blur(34px) saturate(1.22); transform: scale(.992); transition: transform 260ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms ease; font-optical-sizing:auto; -webkit-font-smoothing:antialiased; }
 /* Preserve layout and mounted app state while exposing the desktop. */
 .agent-os-window.is-desktop-hidden { visibility: hidden; pointer-events: none; }
 .agent-os-desktop:focus { outline: none; }
-.agent-os-window.is-front { z-index: 2; opacity: 1; transform: scale(1); box-shadow: inset 0 1px rgba(255,255,255,.94), 0 30px 88px rgba(42,64,77,.27); }
+.agent-os-window.is-front { z-index: 2; transform: scale(1); box-shadow: inset 0 1px rgba(255,255,255,.94), 0 30px 88px rgba(42,64,77,.27); }
 .agent-os-window.is-maximized { inset: 8px 12px 0 !important; width: calc(100vw - 24px); height: calc(100vh - 164px); translate: none !important; }
 .agent-os-window-file { width: min(960px, calc(100vw - 220px)); height: min(640px, calc(100vh - 226px)); }
 .agent-os-window-document { width:min(1180px,calc(100vw - 100px));height:min(760px,calc(100vh - 170px)); }
