@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DesktopNotification } from "./DesktopNotification";
 import { encodeFilePathForApi } from "@/lib/file-paths";
 import { isJdDemoArtifact, publicationPrompt, type JdArtifact, type PublishedRecruitingJob } from "@/lib/recruiting-publication";
 import type { BrowserTaskState } from "@/lib/browser/types";
 
+import type { WorkspaceWidgetItem } from "./DesktopWorkspaceWidgets";
 import type { InsightResult } from "@/lib/insight-automation";
 
 interface Props {
@@ -14,7 +15,8 @@ interface Props {
   insights: InsightResult[];
   browserTasks: BrowserTaskState[];
   onOpenInsight: (insight: InsightResult) => void;
-  cwd: string;
+  cwd: string | null;
+  children: (surfaces: { notification: ReactNode; widgetInsights: WorkspaceWidgetItem[] }) => ReactNode;
   viewedArtifact: JdArtifact | null;
   onStartTask: (message: string) => Promise<string | null>;
   onTaskStarted: (sessionId: string) => void;
@@ -32,6 +34,7 @@ async function readJson<T>(url: string): Promise<T> {
 
 export function RecruitingPublication(props: Props) {
   const [suggestion, setSuggestion] = useState<JdArtifact | null>(null);
+  const [dismissed, setDismissed] = useState(false);
   const [preparing, setPreparing] = useState(false);
   const [pending, setPending] = useState<{ sessionId: string; draft: string; startedAt: number } | null>(null);
   const seen = useRef(new Set<string>());
@@ -39,17 +42,18 @@ export function RecruitingPublication(props: Props) {
   const [readInsights, setReadInsights] = useState<string[]>([]);
   const storageKey = `syntropic:notifications:${props.cwd}`;
   useEffect(() => {
+    if (!props.cwd) return;
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) ?? "{}");
-      setSuggestion(saved.suggestion ?? null); setPending(saved.pending ?? null);
+      setDismissed(saved.dismissed === true); setSuggestion(saved.suggestion ?? null); setPending(saved.pending ?? null);
       seen.current = new Set(saved.seen ?? []); setReadInsights(saved.readInsights ?? []);
     } catch { /* Invalid optional UI state does not affect saved work. */ }
     setLoaded(true);
-  }, [storageKey]);
+  }, [storageKey, props.cwd]);
   useEffect(() => {
-    if (!loaded) return;
-    localStorage.setItem(storageKey, JSON.stringify({ suggestion, pending, seen: [...seen.current], readInsights }));
-  }, [storageKey, loaded, suggestion, pending, readInsights]);
+    if (!loaded || !props.cwd) return;
+    localStorage.setItem(storageKey, JSON.stringify({ suggestion, dismissed, pending, seen: [...seen.current], readInsights }));
+  }, [storageKey, props.cwd, loaded, suggestion, dismissed, pending, readInsights]);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const callbacks = useRef(props);
@@ -67,6 +71,7 @@ export function RecruitingPublication(props: Props) {
     const timer = setTimeout(() => {
       seen.current.add(artifact.filePath);
       setSuggestion(artifact);
+      setDismissed(false);
     }, 1400);
     return () => clearTimeout(timer);
   }, [path, artifactTitle, props.cwd, pending, preparing, loaded]);
@@ -85,7 +90,7 @@ export function RecruitingPublication(props: Props) {
     const poll = async () => {
       if (Date.now() - pending.startedAt > 210000) return settled("发布结果暂时无法确认，请查看任务和招聘网页。");
       try {
-        const state = await readJson<{ tasks: BrowserTaskState[] }>(`/api/browser/state?cwd=${encodeURIComponent(props.cwd)}`);
+        const state = await readJson<{ tasks: BrowserTaskState[] }>(`/api/browser/state?cwd=${encodeURIComponent(props.cwd ?? "")}`);
         if (cancelled) return;
         const task = state.tasks.filter((item) => item.parentSessionId === pending.sessionId).at(-1);
         if (task?.status === "completed") {
@@ -153,22 +158,41 @@ export function RecruitingPublication(props: Props) {
     setReadInsights((items) => [...items, nextInsight.filePath]);
     props.onOpenInsight(nextInsight);
   };
-  if (!loaded) return null;
-  // Publication stays actionable. Short status notices then insights share its
-  // exact surface; no second toast can overlap it or create another outlet.
-  if (suggestion && !pending) return <DesktopNotification
-    ariaLabel="岗位发布建议" label="需要确认" title="AI 主动洞察：已识别新创建的 JD"
-    description={props.notice || "岗位 JD 已准备好，可以发布到内部招聘系统。"}
-    action={{ label: preparing ? "正在准备…" : "发布岗位 ›", onClick: () => void publish(), disabled: preparing }}
-    dismissLabel="稍后发布" onDismiss={() => setSuggestion(null)}
-  />;
-  if (props.notice) return <DesktopNotification
-    ariaLabel="工作台通知" label="工作台动态" title={props.notice} autoDismiss
-    dismissLabel="关闭通知" onDismiss={props.onDismissNotice}
-  />;
-  return nextInsight ? <DesktopNotification
-    ariaLabel="洞察通知" label="AI 洞察已生成" title={nextInsight.title}
-    action={{ label: "查看洞察", onClick: consumeInsight }}
-    dismissLabel="稍后查看洞察" onDismiss={() => setReadInsights((items) => [...items, nextInsight.filePath])}
-  /> : null;
+  const publicationInsight: WorkspaceWidgetItem | null = loaded && suggestion ? {
+    id: `publication:${suggestion.filePath}`,
+    title: "已识别新创建的 JD",
+    detail: pending ? "正在通过招聘网页发布岗位，完成后将同步招聘进展。" : "岗位 JD 已准备好，可以发布到内部招聘系统。",
+    actionLabel: pending ? "正在发布…" : preparing ? "正在准备…" : "发布岗位",
+    disabled: Boolean(pending) || preparing,
+    onOpen: () => void publish(),
+  } : null;
+  let notification: ReactNode = null;
+  // Both surfaces use this same suggestion and action. Dismissing the toast
+  // leaves the suggestion actionable in the desktop widget.
+  if (loaded) {
+    if (publicationInsight && !pending && !dismissed) notification = <DesktopNotification
+      ariaLabel="岗位发布建议" label="需要确认" title={`AI 主动洞察：${publicationInsight.title}`}
+      description={props.notice || publicationInsight.detail}
+      action={{ label: `${publicationInsight.actionLabel} ›`, onClick: publicationInsight.onOpen, disabled: publicationInsight.disabled }}
+      dismissLabel="稍后发布" onDismiss={() => setDismissed(true)}
+    />;
+    else if (props.notice) notification = <DesktopNotification
+      ariaLabel="工作台通知" label="工作台动态" title={props.notice} autoDismiss
+      dismissLabel="关闭通知" onDismiss={props.onDismissNotice}
+    />;
+    else if (nextInsight) notification = <DesktopNotification
+      ariaLabel="洞察通知" label="AI 洞察已生成" title={nextInsight.title}
+      action={{ label: "查看洞察", onClick: consumeInsight }}
+      dismissLabel="稍后查看洞察" onDismiss={() => setReadInsights((items) => [...items, nextInsight.filePath])}
+    />;
+  }
+  const widgetInsights: WorkspaceWidgetItem[] = props.insights.map(result => ({
+    id: result.filePath, title: result.title, detail: result.summary ?? "",
+    onOpen: () => props.onOpenInsight(result),
+  }));
+  if (publicationInsight) {
+    if (!dismissed) widgetInsights.unshift(publicationInsight);
+    else widgetInsights.push(publicationInsight);
+  }
+  return props.children({ notification, widgetInsights });
 }

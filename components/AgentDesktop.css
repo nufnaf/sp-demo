@@ -345,7 +345,8 @@
 .agent-os-feishu-library-body>main>.agent-os-feishu-documents-state{height:100%;min-height:0;margin:0;border:0;border-radius:0;background:white}
 .agent-os-feishu-editor{width:100%;height:100%;background:white}.agent-os-feishu-editor>div{position:relative;width:100%;height:100%;min-height:0;background:white}.agent-os-feishu-editor iframe{width:100%;height:100%;border:0;display:block;background:white}.agent-os-feishu-editor>div>p{position:absolute;z-index:1;inset:0;margin:0;display:flex;align-items:center;justify-content:center;gap:8px;color:rgba(37,48,56,.5);background:white;font-size:8px}.agent-os-feishu-editor>div>p .agent-os-spinner{border-color:rgba(51,112,255,.16);border-top-color:#3370ff}.agent-os-feishu-editor-empty{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:rgba(37,48,56,.45);background:white}.agent-os-feishu-editor-empty strong{font-size:10px}
 
-.agent-os-ai-surface { position: absolute; z-index: 150; left: 50%; bottom: 114px; width: min(362px, calc(100vw - 28px)); transform: translateX(-50%); transition: width 240ms var(--os-ease-out); }
+/* Persistent AI interaction sits above app windows, launchpad, menus and notices. */
+.agent-os-ai-surface { position: absolute; z-index: 300; left: 50%; bottom: 114px; width: min(362px, calc(100vw - 28px)); transform: translateX(-50%); transition: width 240ms var(--os-ease-out); }
 .agent-os-ai-surface.voice-active { width: min(560px, calc(100vw - 28px)); }
 .agent-os-ai-surface:has(.agent-os-jarvis-panel) { width: min(560px, calc(100vw - 28px)); }
 .agent-os-composer { height: 48px; border: 1px solid white; border-radius: 16px; padding: 0 8px 0 10px; display: flex; align-items: center; gap: 4px; background: rgba(255,255,255,.82); box-shadow: 2px 4px 8px rgba(0,0,0,.08); backdrop-filter: blur(4px); transition: height 240ms var(--os-ease-out), border-radius 240ms var(--os-ease-out), box-shadow 180ms ease; }
@@ -823,11 +824,7 @@
 .agent-os .agent-os-jarvis-panel > footer { justify-content: space-between; padding: 9px 15px; }
 .agent-os .agent-os-jarvis-panel > footer small { display: flex; align-items: center; gap: 6px; font-size: 9px; }
 .agent-os .agent-os-jarvis-panel > footer > span { color: #99a69d; font-size: 9px; }
-.conversation-active-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #62a586; }
-.conversation-access { position: absolute; right: calc(100% + 12px); bottom: 9px; display: flex; white-space: nowrap; }
-.conversation-access button { display: flex; align-items: center; gap: 6px; min-height: 28px; padding: 4px 10px; border: 0; border-radius: 14px; color: white; background: rgba(20,32,42,.2); font-size: 11px; cursor: pointer; }
-.conversation-access button:hover { background: rgba(255,255,255,.6); }
-.conversation-access button:focus-visible, .agent-os-jarvis-task:focus-visible { outline: 2px solid #769c89; outline-offset: 2px; }
+.agent-os-jarvis-task:focus-visible { outline: 2px solid #769c89; outline-offset: 2px; }
 
 .agent-os-live__chip.is-dispatched { height: auto; min-height: 58px; max-width: 250px; padding: 10px 12px; gap: 9px; border-radius: 14px; border-color: rgba(104,145,125,.2); color: #526e5f; background: rgba(247,252,249,.86); box-shadow: 0 6px 20px rgba(51,81,67,.06); }
 .agent-os-live__chip.is-dispatched > i { width: 5px; height: 5px; flex-shrink: 0; animation: none; background: #78b197; }
@@ -863,5 +860,7 @@
   .agent-os-dock { padding-inline: 12px; overflow-x: auto; scrollbar-width: none; }
   .agent-os-workspace-name { font-size: 13px; }
   .agent-os-ai-surface { bottom: 88px; }
-  .agent-os-start-footer, .conversation-access { right: auto; left: 50%; bottom: calc(100% + 10px); transform: translateX(-50%); }
+  .agent-os-start-footer { right: auto; left: 50%; bottom: calc(100% + 10px); transform: translateX(-50%); }
 }
+
+.agent-os-composer .composer-brand { display: grid; place-items: center; flex: 0 0 36px; width: 36px; height: 36px; }

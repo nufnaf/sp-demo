@@ -7,7 +7,7 @@ import { recruitingHomeSchedule } from "@/lib/desktop-home";
 import type { DemoMeeting, RecruitingScene } from "@/lib/recruiting-scene";
 import "./DesktopWorkspaceWidgets.css";
 
-export interface WorkspaceWidgetItem { id: string; title: string; detail: string; running?: boolean; onOpen: () => void }
+export interface WorkspaceWidgetItem { id: string; title: string; detail: string; running?: boolean; actionLabel?: string; disabled?: boolean; onOpen: () => void }
 const profiles: Record<string, { goal: string; note: string; file: string; insight: string }> = {
   "product-release": { goal: "完成企业 Agent 系统季度版本发布", note: "发布材料、产品体验与支持安排同步就绪", file: "产品发布计划.md", insight: "发布材料需要统一核心叙事与适用场景" },
   "research-insights": { goal: "理解用户对 Agent 协作的核心诉求", note: "访谈记录 → 核心发现 → 下一轮研究", file: "用户访谈记录.md", insight: "用户更关注持续可见的进展，而不只是最终结果" },
@@ -45,7 +45,7 @@ export function DesktopWorkspaceWidgets({ cwd, recruiting, tasks, artifacts, ins
   }, [recruiting]);
   const openProfile = () => { if (profile) onOpenPreset(profile.file); };
   const fileItems = [...artifacts, ...(profile && !artifacts.some(item => item.title === profile.file) ? [{ id: "reference", title: profile.file, detail: "工作台资料", onOpen: openProfile }] : [])];
-  const insightItems = [...insights, ...(profile ? [{ id: "observation", title: profile.insight, detail: "来自工作台资料", onOpen: openProfile }] : [])];
+  const insightItems: WorkspaceWidgetItem[] = [...insights, ...(profile ? [{ id: "observation", title: profile.insight, detail: "来自工作台资料", onOpen: openProfile }] : [])];
   const schedule = recruiting && now ? recruitingHomeSchedule(now, meeting) : [];
   const hasGoal = recruiting || Boolean(profile);
   const empty = !hasGoal && !tasks.length && !insightItems.length && !fileItems.length;
@@ -90,8 +90,8 @@ export function DesktopWorkspaceWidgets({ cwd, recruiting, tasks, artifacts, ins
         </div>
       </div>, <button type="button" className="workspace-schedule-count" onClick={onOpenSchedule} aria-label={`查看日程，共 ${schedule.length} 个事件`}>{schedule.length} 个事件</button>)}
     {card("insights", "AI 洞察", <><DesktopDesignIcon name="sparkles"/><strong>AI 洞察</strong></>,
-      insightItems.length ? <div className="workspace-insight-list">{insightItems.map(item => <button type="button" className="workspace-insight" key={item.id} onClick={item.onOpen} title={item.title}>
-        <span className="workspace-insight-title">{item.title}</span><span className="workspace-insight-link">查看依据与下一步 <span aria-hidden="true">↗</span></span>
+      insightItems.length ? <div className="workspace-insight-list">{insightItems.map(item => <button type="button" className="workspace-insight" key={item.id} onClick={item.onOpen} disabled={item.disabled} title={item.title}>
+        <span className="workspace-insight-title">{item.title}</span>{item.detail && <span className="workspace-insight-summary">{item.detail}</span>}<span className="workspace-insight-link">{item.actionLabel ?? "查看依据与下一步"} <span aria-hidden="true">↗</span></span>
       </button>)}</div> : emptyState("洞察会在合适的时机出现", "Syntropic 会理解新任务和产物，主动发现值得推进的下一步", <span className="workspace-observing"><DesktopDesignIcon name="sparkles" size={16}/>持续观察</span>),
       <small>{insightItems.length} 条最新发现</small>)}
     {card("tasks", "当前任务", <span className="workspace-task-total"><strong>{tasks.length}</strong><span>当前任务</span></span>,

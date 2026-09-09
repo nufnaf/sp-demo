@@ -164,3 +164,6 @@
 @media (prefers-reduced-transparency: reduce) {
   .workspace-widget > .agent-os-card { background: #e7ecef; backdrop-filter: none; }
 }
+
+.workspace-insight-summary { color: #52645d; font-size: 12px; line-height: 1.6; }
+.workspace-insight:disabled { cursor: default; opacity: .7; }

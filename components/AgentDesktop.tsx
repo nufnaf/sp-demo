@@ -1028,7 +1028,7 @@ function Launchpad({ open, cwd, onClose, onOpenApp }: {
 
   if (!open) return null;
   return (
-    <section className="agent-os-launchpad" role="dialog" aria-modal="true" aria-label="启动台" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <section className="agent-os-launchpad" role="dialog" aria-label="启动台" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <header className="agent-os-launchpad-header">
         <label><Icon name="search" size={17}/><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索应用" aria-label="搜索应用"/></label>
         <button type="button" aria-label="关闭启动台" onClick={onClose}><Icon name="close" size={18}/></button>
@@ -1920,10 +1920,24 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   }, [runningIds, workspaceSessions]);
 
   const openTask = useCallback((sessionId: string) => {
+    if (presentationCwd) {
+      const browserTask = browserTasks.filter(task => task.parentSessionId === sessionId).at(-1);
+      const artifact = artifacts.find(item => item.sessionId === sessionId);
+      if (browserTask?.pageId) {
+        setBrowserPageId(browserTask.pageId); setBrowserOpen(true); setFrontWindow("browser");
+      } else if (artifact) {
+        const identity = artifactIdentity(artifact);
+        setOpenArtifacts(current => current.some(item => artifactIdentity(item) === identity) ? current : [...current, artifact]);
+        setFrontWindow(`file:${identity}`);
+      } else {
+        setNotice(runningIds.has(sessionId) ? "任务正在推进，成果会显示在最近成果中" : "这项任务暂时没有可打开的成果");
+      }
+      return;
+    }
     setTaskSessionId(sessionId);
     setFrontWindow("tasks");
     window.history.replaceState(null, "", `?session=${encodeURIComponent(sessionId)}`);
-  }, [setFrontWindow]);
+  }, [setFrontWindow, presentationCwd, browserTasks, artifacts, runningIds, setNotice]);
 
   useEffect(() => {
     if (!taskSessionId) return;
@@ -2374,10 +2388,39 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   for (const task of browserTasks.filter((task) => task.cwd === activeCwd && !workspaceSessions.some((session) => session.id === task.parentSessionId))) {
     widgetTasks.push({ id: task.id, title: /发布/.test(task.task) ? "发布 AI Agent 工程师岗位" : "查询招聘进展", detail: ({ completed: "已完成", failed: "执行失败", stopped: "已停止", starting: "正在准备", running: "进行中", stopping: "正在停止" })[task.status], running: ["starting", "running", "stopping"].includes(task.status), onOpen: () => { if (task.pageId) { setBrowserPageId(task.pageId); setBrowserOpen(true); setFrontWindow("browser"); } } });
   }
-  if (pendingRequest && jarvis.running) widgetTasks.unshift({ id: "pending-request", title: pendingRequest, detail: "正在准备", running: true, onOpen: () => setJarvisPanelOpen(true) });
+  if (pendingRequest && jarvis.running) widgetTasks.unshift({ id: "pending-request", title: pendingRequest, detail: "正在准备", running: true, onOpen: () => { if (presentationCwd) setNotice("正在准备任务，进展会显示在当前任务中"); else setJarvisPanelOpen(true); } });
   widgetTasks.sort((a, b) => Number(Boolean(b.running)) - Number(Boolean(a.running)));
 
   return (
+    <RecruitingPublication
+        key={activeCwd ?? "no-workspace"}
+        notice={notice}
+        onDismissNotice={() => setNotice(null)}
+        insights={insightResults}
+        browserTasks={browserTasks}
+        onOpenInsight={openInsightResult}
+        cwd={activeCwd}
+        viewedArtifact={openArtifacts.find((artifact) => `file:${artifactIdentity(artifact)}` === frontWindow) ?? null}
+        onStartTask={(message) => startTask(message, "publication")}
+        onTaskStarted={(sessionId) => { publicationSessionRef.current = sessionId; }}
+        onPublished={(job, sessionId) => {
+          setPublishedDraft(job.draft);
+          const origin = browserReturnOriginRef.current;
+          if (origin?.sessionId === sessionId && isBrowserOriginCurrent(origin, { cwd: activeCwd, taskSessionId, publicationSessionId: publicationSessionRef.current, browserOpen, frontWindow })) {
+            browserReturnOriginRef.current = null;
+            setJarvisPanelOpen(false);
+            setHrRecruitingOpen(true);
+            setFrontWindow("hr");
+          }
+          setNotice(`「${job.title}」已发布到内部招聘系统`);
+        }}
+        onSettled={(sessionId) => {
+          if (publicationSessionRef.current === sessionId) publicationSessionRef.current = null;
+          if (browserReturnOriginRef.current?.sessionId === sessionId) browserReturnOriginRef.current = null;
+        }}
+        onNotice={setNotice}
+    >
+      {({ notification, widgetInsights }) => (
     <main className={`agent-os${showStart ? " has-start-guide" : ""}`}>
       <div className="agent-os-wallpaper" aria-hidden="true"/>
 
@@ -2454,7 +2497,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
         {presentationCwd && activeCwd && <DesktopWorkspaceWidgets key={activeCwd} cwd={activeCwd} recruiting={activeCwd === presentationCwd}
           working={widgetTasks.some(task => task.running)} tasks={widgetTasks}
           artifacts={artifacts.map(artifact => ({ id: artifactIdentity(artifact), title: getFileName(artifact.filePath), detail: artifact.taskTitle, onOpen: () => openArtifact(artifact) }))}
-          insights={insightResults.map(result => ({ id: result.filePath, title: result.title, detail: formatInsightModified(result.modified), onOpen: () => openInsightResult(result) }))}
+          insights={widgetInsights}
           onOpenLibrary={openArtifactLibrary} onOpenRecruiting={() => { setHrRecruitingOpen(true); setFrontWindow("hr"); }}
           onOpenSchedule={() => { setScheduleOpen(true); setFrontWindow("schedule"); }}
           onOpenPreset={file => openArtifact({ filePath: `${activeCwd}/${file}`, sessionId: `preset:${activeCwd}`, cwd: activeCwd, taskTitle: "工作台资料", modified: new Date().toISOString() })}/> }
@@ -2479,7 +2522,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
       <Launchpad open={launchpadOpen} cwd={activeCwd} onClose={closeLaunchpad} onOpenApp={openDockItem}/>
 
       <section className="agent-os-window-layer">
-        {taskSessionId && <DesktopWindow title="任务" kind="tasks" front={frontWindow === "tasks"} onFocus={() => setFrontWindow("tasks")} onClose={() => { setTaskSessionId(null); window.history.replaceState(null, "", "/"); }}>
+        {!presentationCwd && taskSessionId && <DesktopWindow title="任务" kind="tasks" front={frontWindow === "tasks"} onFocus={() => setFrontWindow("tasks")} onClose={() => { setTaskSessionId(null); window.history.replaceState(null, "", "/"); }}>
           <div className="agent-os-pi-app"><AppShell key={taskSessionId} initialSessionId={taskSessionId}/></div>
         </DesktopWindow>}
         {artifactLibraryOpen && <DesktopWindow title="产物库" kind="library" front={frontWindow === "library"} onFocus={() => setFrontWindow("library")} onClose={closeArtifactLibrary}>
@@ -2614,7 +2657,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
 
       <section className={`agent-os-ai-surface${showStart ? " is-starting" : ""}${desktopVoice.isActive ? ` voice-active voice-${desktopVoice.state}` : ""}`}>
         {showStart && <DesktopStartStage scene={startMode ?? "research"} onSceneChange={chooseStart} onDismiss={dismissGuide}/>}
-        {jarvisPanelOpen ? (
+        {!presentationCwd && jarvisPanelOpen ? (
           <section className={`agent-os-jarvis-panel voice-${desktopVoice.state}${jarvis.running ? " is-running" : ""}${desktopVoice.isActive ? " is-live" : ""}`} aria-label="Syntropic 对话" id="desktop-conversation">
             <header>
               <span className="conversation-heading"><Icon name="chat" size={14}/><strong>对话</strong><small>{jarvis.running ? "正在回应" : "Syntropic"}</small></span>
@@ -2672,7 +2715,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
                 <VoiceOrb state={desktopVoice.state} level={desktopVoice.voiceLevel} size={112}/>
               </button>
               <div className="agent-os-live__actions">
-                <button type="button" aria-pressed={jarvisPanelOpen} onClick={() => { setJarvisPanelOpen((value) => !value); setLiveMenuOpen(false); }} title={jarvisPanelOpen ? "隐藏文字记录" : "文字记录"}><Icon name="chat" size={16}/></button>
+                {!presentationCwd && <button type="button" aria-pressed={jarvisPanelOpen} onClick={() => { setJarvisPanelOpen((value) => !value); setLiveMenuOpen(false); }} title={jarvisPanelOpen ? "隐藏文字记录" : "文字记录"}><Icon name="chat" size={16}/></button>}
                 <button type="button" className="end" onClick={desktopVoice.toggle} title="结束对话（Esc）"><Icon name="close" size={16}/></button>
               </div>
             </div>
@@ -2681,7 +2724,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
         <form className={`agent-os-composer${dictation.isRecording ? " is-dictating" : ""}`} onSubmit={submitPrompt}>
           {dictation.isRecording ? (
             <div className="agent-os-dictation" role="status" aria-live="polite">
-              <button className="jarvis-toggle" type="button" aria-label={jarvisPanelOpen ? "收起 Syntropic 面板" : "打开 Syntropic 面板"} aria-pressed={jarvisPanelOpen} onClick={() => setJarvisPanelOpen((value) => !value)}><BrandMark compact/></button>
+              {presentationCwd ? <span className="composer-brand" aria-hidden="true"><BrandMark compact/></span> : <button className="jarvis-toggle" type="button" aria-label={jarvisPanelOpen ? "收起 Syntropic 面板" : "打开 Syntropic 面板"} aria-pressed={jarvisPanelOpen} onClick={() => setJarvisPanelOpen((value) => !value)}><BrandMark compact/></button>}
               <div className="agent-os-dictation__capture">
                 <span className="agent-os-dictation__wave" aria-hidden="true" style={{ "--voice-level": dictation.level } as React.CSSProperties}>
                   {DICTATION_BARS.map((weight, index) => <i key={index} style={{ "--bar": weight, "--delay": `${index * 37}ms` } as React.CSSProperties}/>)}
@@ -2693,7 +2736,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
             </div>
           ) : (
             <>
-              <button className="jarvis-toggle" type="button" aria-label={jarvisPanelOpen ? "收起 Syntropic 面板" : "打开 Syntropic 面板"} aria-pressed={jarvisPanelOpen} onClick={() => setJarvisPanelOpen((value) => !value)}><BrandMark compact/></button>
+              {presentationCwd ? <span className="composer-brand" aria-hidden="true"><BrandMark compact/></span> : <button className="jarvis-toggle" type="button" aria-label={jarvisPanelOpen ? "收起 Syntropic 面板" : "打开 Syntropic 面板"} aria-pressed={jarvisPanelOpen} onClick={() => setJarvisPanelOpen((value) => !value)}><BrandMark compact/></button>}
               {showStart && (startMode === "files" || startMode === "apps") && <button className="stage-resource-button" type="button" disabled={openingStartResource} onClick={async () => {
                 if (startMode === "apps") { setGuideOpen(false); setLaunchpadOpen(true); return; }
                 setOpeningStartResource(true);
@@ -2715,7 +2758,6 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
           )}
         </form>
         )}
-        {!desktopVoice.isActive && !showStart && (hasStartedWork || jarvis.turns.length > 0 || jarvisPanelOpen) && <div className="conversation-access"><button type="button" aria-expanded={jarvisPanelOpen} aria-controls="desktop-conversation" onClick={() => { followConversationRef.current = true; setJarvisPanelOpen((open) => !open); }}><Icon name="chat" size={13}/>{jarvisPanelOpen ? "收起对话" : "对话记录"}{!jarvisPanelOpen && jarvis.running && <i className="conversation-active-dot"/>}</button></div>}
         {!desktopVoice.isActive && !showStart && !hasStartedWork && !hasOpenWindow && !jarvisPanelOpen && <div className="agent-os-start-footer">
           <button type="button" aria-expanded={showStart} onClick={() => { setGuideOpen(true); setJarvisPanelOpen(false); }}><Icon name="tiles" size={13}/><span>可以做什么</span><span className="guide-entry-arrow" aria-hidden="true">›</span></button>
         </div>}
@@ -2742,39 +2784,14 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
         </button>
       </div> : null}
 
-      {activeCwd && <RecruitingPublication
-        key={activeCwd}
-        notice={notice}
-        onDismissNotice={() => setNotice(null)}
-        insights={insightResults}
-        browserTasks={browserTasks}
-        onOpenInsight={openInsightResult}
-        cwd={activeCwd}
-        viewedArtifact={openArtifacts.find((artifact) => `file:${artifactIdentity(artifact)}` === frontWindow) ?? null}
-        onStartTask={(message) => startTask(message, "publication")}
-        onTaskStarted={(sessionId) => { publicationSessionRef.current = sessionId; }}
-        onPublished={(job, sessionId) => {
-          setPublishedDraft(job.draft);
-          const origin = browserReturnOriginRef.current;
-          if (origin?.sessionId === sessionId && isBrowserOriginCurrent(origin, { cwd: activeCwd, taskSessionId, publicationSessionId: publicationSessionRef.current, browserOpen, frontWindow })) {
-            browserReturnOriginRef.current = null;
-            setJarvisPanelOpen(false);
-            setHrRecruitingOpen(true);
-            setFrontWindow("hr");
-          }
-          setNotice(`「${job.title}」已发布到内部招聘系统`);
-        }}
-        onSettled={(sessionId) => {
-          if (publicationSessionRef.current === sessionId) publicationSessionRef.current = null;
-          if (browserReturnOriginRef.current?.sessionId === sessionId) browserReturnOriginRef.current = null;
-        }}
-        onNotice={setNotice}
-      />}
+      {notification}
       {!activeCwd && notice && <DesktopNotification
         ariaLabel="工作台通知" label="工作台动态" title={notice} autoDismiss
         dismissLabel="关闭通知" onDismiss={() => setNotice(null)}
       />}
 
     </main>
+      )}
+    </RecruitingPublication>
   );
 }
