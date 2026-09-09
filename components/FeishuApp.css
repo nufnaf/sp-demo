@@ -77,6 +77,11 @@
 .feishu-doc-open:hover, .feishu-doc-row:focus-within { background: #f6faf8; }
 .feishu-doc-row > :not(.feishu-doc-open) { position: relative; pointer-events: none; }
 .feishu-doc-icon { width: 44px; height: 46px; display: grid; place-items: center; border-radius: 13px; color: white; background: #5485e8; box-shadow: inset 0 1px rgba(255,255,255,.28), 0 4px 8px rgba(59,101,184,.12); }
+.feishu-doc-icon.is-bitable { background: #4caa85; }
+.feishu-doc-icon.is-sheet { background: #52a6bb; }
+.feishu-doc-icon.is-wiki { background: #e7a04b; }
+.feishu-doc-icon.is-minutes { background: #9270c7; }
+.feishu-doc-icon.is-file { background: #81928c; }
 .feishu-doc-copy { min-width: 0; }
 .feishu-doc-title { display: flex; align-items: center; gap: 4px; }
 .feishu-doc-title strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 550; }

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { AudioLines, BookOpen, File, Layers, Sheet, type LucideIcon } from "lucide-react";
 import type { DemoDocument } from "@/lib/feishu-demo-client";
 import { PresentationSchedule } from "./RecruitingPipeline";
 import "./FeishuApp.css";
@@ -9,6 +10,19 @@ import "./FeishuApp.css";
 const sections = ["最近使用", "会议", "团队空间", "与我共享", "收藏"] as const;
 type Section = typeof sections[number];
 const favoriteKey = "syntropic:feishu:favorites";
+
+// The resource API supplies type and readability independently: a docx may be
+// list-only. Missing readability keeps the existing docx-only API compatible.
+type FeishuListResource = Omit<DemoDocument, "type"> & { type: string; readable?: boolean };
+const resourceTypes = new Map<string, { label: string; tone: string; icon?: LucideIcon }>([
+  ["docx", { label: "文档", tone: "document" }],
+  ["sheet", { label: "电子表格", tone: "sheet", icon: Sheet }],
+  ["bitable", { label: "多维表格", tone: "bitable", icon: Layers }],
+  ["wiki", { label: "知识库", tone: "wiki", icon: BookOpen }],
+  ["minutes", { label: "妙记", tone: "minutes", icon: AudioLines }],
+]);
+const genericResource = { label: "文件", tone: "file", icon: File };
+
 function Glyph({ name }: { name: string }) {
   const paths: Record<string, string> = {
     最近使用: "M12 8v4l3 2 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0",
@@ -27,8 +41,8 @@ function dateLabel(value?: string) {
   return new Date(value).toLocaleDateString("zh-CN", { month: "long", day: "numeric" });
 }
 
-export function FeishuDemoApp({ onOpen, recruiting = true }: { recruiting?: boolean; onOpen: (document: DemoDocument) => void }) {
-  const [documents, setDocuments] = useState<DemoDocument[]>([]);
+export function FeishuDemoApp({ onOpen, recruiting = true }: { recruiting?: boolean; onOpen: (document: FeishuListResource) => void }) {
+  const [documents, setDocuments] = useState<FeishuListResource[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -70,15 +84,19 @@ export function FeishuDemoApp({ onOpen, recruiting = true }: { recruiting?: bool
       <section className="feishu-list" aria-label="文档列表"><div className="feishu-list-head"><span>文件</span><span>所属空间</span><span>最近更新</span></div>
         {error ? <div className="feishu-empty" role="alert"><Glyph name="document"/><strong>文档暂时无法加载</strong><p>{error}</p><button type="button" onClick={() => setRevision((n) => n + 1)}>重新加载</button></div>
           : loading && !documents.length ? <div className="feishu-empty" role="status"><span className="agent-os-spinner"/><p>正在加载文档…</p></div>
-          : visible.length ? visible.map((doc) => <div className="feishu-doc-row" key={doc.id}>
-            <button type="button" className="feishu-doc-open" aria-label={`打开${doc.title}`} onClick={() => onOpen(doc)}/>
-            <span className="feishu-doc-icon"><Glyph name="document"/></span>
+          : visible.length ? visible.map((doc) => {
+            const resource = resourceTypes.get(doc.type) ?? genericResource;
+            const ResourceIcon = resource.icon;
+            const readable = doc.type === "docx" && doc.readable !== false;
+            return <div className="feishu-doc-row" key={doc.id}>
+            {readable && <button type="button" className="feishu-doc-open" aria-label={`打开${doc.title}`} onClick={() => onOpen(doc)}/>}
+            <span className={`feishu-doc-icon is-${resource.tone}`} aria-label={resource.label}>{ResourceIcon ? <ResourceIcon size={16} strokeWidth={1.6} aria-hidden="true"/> : <Glyph name="document"/>}</span>
             <div className="feishu-doc-copy">
               <div className="feishu-doc-title"><strong title={doc.title}>{doc.title}</strong><button type="button" className="feishu-star" aria-label={`${favorites.includes(doc.id) ? "取消收藏" : "收藏"}${doc.title}`} aria-pressed={favorites.includes(doc.id)} onClick={() => toggleFavorite(doc.id)}><Glyph name="收藏"/></button></div>
-              <small>文档 · 团队资料</small>
+              <small>{resource.label} · 团队资料</small>
             </div>
             <span className="feishu-space">星流科技</span><time dateTime={doc.modifiedAt}>{dateLabel(doc.modifiedAt)}</time>
-          </div>) : <div className="feishu-empty"><Glyph name={query ? "search" : section === "收藏" ? "收藏" : "document"}/><strong>{query ? "没有找到文档" : section === "收藏" ? "还没有收藏的文档" : "这里还没有文档"}</strong><p>{query ? "尝试搜索其他文档名称。" : section === "收藏" ? "点击文档旁的星标，方便下次查找。" : "团队共享的资料会显示在这里。"}</p></div>}
+          </div>; }) : <div className="feishu-empty"><Glyph name={query ? "search" : section === "收藏" ? "收藏" : "document"}/><strong>{query ? "没有找到文档" : section === "收藏" ? "还没有收藏的文档" : "这里还没有文档"}</strong><p>{query ? "尝试搜索其他文档名称。" : section === "收藏" ? "点击文档旁的星标，方便下次查找。" : "团队共享的资料会显示在这里。"}</p></div>}
       </section>
     </>}</main>
   </div>;
