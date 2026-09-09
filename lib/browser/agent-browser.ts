@@ -5,6 +5,7 @@ import { connect, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { measureStartup, type BrowserStartupTimer } from "./startup-timing";
 
 // The version-pinned agent-browser Rust daemon executes every AI interaction.
 // Own a foreground child instead of the CLI's detached auto-start daemon so
@@ -16,51 +17,55 @@ export class AgentBrowserExecutor {
   private readonly sockets = new Set<Socket>();
   private exited: Promise<void> = Promise.resolve();
 
-  async start(cdpUrl: string, targetId: string, signal: AbortSignal): Promise<void> {
+  async start(cdpUrl: string, targetId: string, signal: AbortSignal, startup?: BrowserStartupTimer): Promise<void> {
     signal.throwIfAborted();
-    // Resolve from the deployed runtime at execution time. Webpack rewrites
-    // imported createRequire calls with dynamic arguments incorrectly.
-    const require = process.getBuiltinModule("module").createRequire(join(process.cwd(), "package.json"));
-    const root = dirname(require.resolve("agent-browser/package.json"));
-    const executable = join(root, "bin", `agent-browser-${process.platform}-${process.arch}`);
-    if (!existsSync(executable)) throw new Error("agent-browser 未安装完整，请运行 npm ci --legacy-peer-deps。");
-    // Unix socket paths have a short length limit on macOS.
-    this.directory = mkdtempSync(join(tmpdir(), "ab-"));
-    this.child = spawn(executable, [], {
-      cwd: this.directory,
-      env: {
-        NODE_ENV: process.env.NODE_ENV,
-        PATH: process.env.PATH,
-        TMPDIR: tmpdir(),
-        AGENT_BROWSER_DAEMON: "1",
-        AGENT_BROWSER_SESSION: "task",
-        AGENT_BROWSER_SOCKET_DIR: this.directory,
-        AGENT_BROWSER_DEFAULT_TIMEOUT: "8000",
-        AGENT_BROWSER_IDLE_TIMEOUT_MS: "600000",
-      },
-      stdio: "ignore",
-    });
     let startError: NodeJS.ErrnoException | undefined;
-    this.exited = new Promise((resolve) => {
-      this.child!.once("error", (error) => { startError = error; resolve(); });
-      this.child!.once("exit", () => {
-        this.stopped = true;
-        for (const socket of this.sockets) socket.destroy(new Error("浏览器执行器已停止"));
-        resolve();
+    await measureStartup(startup, "executor-spawn", () => {
+      // Resolve from the deployed runtime at execution time. Webpack rewrites
+      // imported createRequire calls with dynamic arguments incorrectly.
+      const require = process.getBuiltinModule("module").createRequire(join(process.cwd(), "package.json"));
+      const root = dirname(require.resolve("agent-browser/package.json"));
+      const executable = join(root, "bin", `agent-browser-${process.platform}-${process.arch}`);
+      if (!existsSync(executable)) throw new Error("agent-browser 未安装完整，请运行 npm ci --legacy-peer-deps。");
+      // Unix socket paths have a short length limit on macOS.
+      this.directory = mkdtempSync(join(tmpdir(), "ab-"));
+      this.child = spawn(executable, [], {
+        cwd: this.directory,
+        env: {
+          NODE_ENV: process.env.NODE_ENV,
+          PATH: process.env.PATH,
+          TMPDIR: tmpdir(),
+          AGENT_BROWSER_DAEMON: "1",
+          AGENT_BROWSER_SESSION: "task",
+          AGENT_BROWSER_SOCKET_DIR: this.directory,
+          AGENT_BROWSER_DEFAULT_TIMEOUT: "8000",
+          AGENT_BROWSER_IDLE_TIMEOUT_MS: "600000",
+        },
+        stdio: "ignore",
       });
+      this.exited = new Promise((resolve) => {
+        this.child!.once("error", (error) => { startError = error; resolve(); });
+        this.child!.once("exit", () => {
+          this.stopped = true;
+          for (const socket of this.sockets) socket.destroy(new Error("浏览器执行器已停止"));
+          resolve();
+        });
+      });
+      signal.addEventListener("abort", () => { void this.stop(); }, { once: true });
     });
-    signal.addEventListener("abort", () => { void this.stop(); }, { once: true });
-    const deadline = Date.now() + 10000;
-    while (!existsSync(join(this.directory, "task.sock"))) {
-      signal.throwIfAborted();
-      if (startError) throw new Error(`agent-browser 无法启动：${startError.code ?? startError.message}`);
-      if (this.stopped || Date.now() > deadline) throw new Error("agent-browser 启动超时或提前退出");
-      await delay(20, undefined, { signal });
-    }
+    await measureStartup(startup, "executor-ready", async () => {
+      const deadline = Date.now() + 10000;
+      while (!existsSync(join(this.directory, "task.sock"))) {
+        signal.throwIfAborted();
+        if (startError) throw new Error(`agent-browser 无法启动：${startError.code ?? startError.message}`);
+        if (this.stopped || Date.now() > deadline) throw new Error("agent-browser 启动超时或提前退出");
+        await delay(20, undefined, { signal });
+      }
+    });
     // Only the host can connect or select a target. Never expose these commands
     // or the CDP address to the model. Pinning prevents neighbor-tab fallback.
-    await this.send({ action: "launch", cdpUrl });
-    await this.send({ action: "tab_switch", tabId: targetId, pinTab: true });
+    await measureStartup(startup, "executor-connect", () => this.send({ action: "launch", cdpUrl }));
+    await measureStartup(startup, "target-pin", () => this.send({ action: "tab_switch", tabId: targetId, pinTab: true }));
   }
 
   private async send(command: Record<string, unknown>): Promise<unknown> {

@@ -6,6 +6,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { AgentBrowserExecutor, assertTaskUrl, browserCommand, type BrowserStep } from "./agent-browser";
 import { getBrowserManager } from "./manager";
+import { BrowserStartupTimer } from "./startup-timing";
 import type { BrowserTaskState } from "./types";
 
 export const BROWSER_MODEL = { provider: "openai-codex", modelId: "gpt-5.6-luna", thinkingLevel: "low" } as const;
@@ -129,14 +130,17 @@ async function execute(run: TaskRun, url: string): Promise<BrowserTaskState> {
     assertRunning();
     recordTiming("auth", authStarted);
     const browserStarted = performance.now();
-    const target = await manager.openTaskPage(run.state.cwd, run.state.parentSessionId, run.state.id);
+    const startup = new BrowserStartupTimer();
+    // Keep partial measurements on failure without emitting extra page updates.
+    run.state = { ...run.state, startupTimings: startup.entries };
+    const target = await manager.openTaskPage(run.state.cwd, run.state.parentSessionId, run.state.id, startup, signal);
     target.page.once("close", () => {
       pageClosed = true;
       if (ACTIVE.has(run.state.status)) run.controller.abort(new Error("目标页面已关闭，任务已终止；不会切换到其他页面。"));
     });
-    update({ pageId: target.pageId });
+    update({ pageId: target.pageId, ...(target.warmup ? { warmup: target.warmup } : {}) });
     assertRunning();
-    await executor.start(target.cdpUrl, target.targetId, signal);
+    await executor.start(target.cdpUrl, target.targetId, signal, startup);
     assertRunning();
     recordTiming("browser-start", browserStarted);
     await timed("navigate", () => executor.perform({ action: "navigate", url }));
@@ -214,6 +218,11 @@ async function execute(run: TaskRun, url: string): Promise<BrowserTaskState> {
         if (run.state.turns > 40) run.controller.abort(new Error("浏览器任务达到模型轮次上限，已停止"));
       }
       if (event.type === "message_end" && event.message.role === "assistant" && modelStarted !== undefined) {
+        const usage = event.message.usage;
+        run.state = { ...run.state, modelUsage: [...(run.state.modelUsage ?? []), {
+          turn: run.state.turns, input: usage.input, cacheRead: usage.cacheRead, output: usage.output,
+          durationMs: Math.round(performance.now() - modelStarted),
+        }] };
         recordTiming("model", modelStarted);
         modelStarted = undefined;
       }

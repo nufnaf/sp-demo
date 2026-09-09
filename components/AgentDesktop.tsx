@@ -1395,6 +1395,25 @@ function DesktopWindow({
 }
 
 export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } = {}) {
+  useEffect(() => {
+    if (!presentationCwd) return;
+    let frame = 0;
+    let sent = false;
+    const prepare = () => {
+      if (sent || document.visibilityState !== "visible") return;
+      // Give the mounted desktop a paint before starting background Chromium.
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => {
+          if (document.visibilityState !== "visible" || sent) return;
+          sent = true;
+          void fetch("/api/browser/prepare", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {});
+        });
+      });
+    };
+    prepare();
+    document.addEventListener("visibilitychange", prepare);
+    return () => { cancelAnimationFrame(frame); document.removeEventListener("visibilitychange", prepare); };
+  }, [presentationCwd]);
   const now = useClock();
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [runningIds, setRunningIds] = useState<Set<string>>(() => new Set());
@@ -2104,7 +2123,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     return data.cwd;
   }, [activeCwd]);
 
-  const startTask = useCallback(async (message: string) => {
+  const startTask = useCallback(async (message: string, recruitingTask?: "publication") => {
     const normalizedMessage = message.trim();
     if (!normalizedMessage) return null;
     setSubmitting(true);
@@ -2113,7 +2132,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
       const response = await fetch("/api/agent/new", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cwd, type: "prompt", message: normalizedMessage }),
+        body: JSON.stringify({ cwd, type: "prompt", message: normalizedMessage, ...(recruitingTask ? { recruitingTask } : {}) }),
       });
       const data = await response.json() as { sessionId?: string; error?: string };
       if (!response.ok || !data.sessionId) throw new Error(data.error ?? "任务创建失败");
@@ -2740,7 +2759,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
         onOpenInsight={openInsightResult}
         cwd={activeCwd}
         viewedArtifact={openArtifacts.find((artifact) => `file:${artifactIdentity(artifact)}` === frontWindow) ?? null}
-        onStartTask={startTask}
+        onStartTask={(message) => startTask(message, "publication")}
         onTaskStarted={(sessionId) => { publicationSessionRef.current = sessionId; setTaskSessionId(sessionId); }}
         onPublished={(job, sessionId) => {
           setPublishedDraft(job.draft);

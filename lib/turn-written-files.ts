@@ -8,7 +8,7 @@ export interface WrittenFile {
 }
 
 function isFileWritingToolName(toolName: string): boolean {
-  return isWriteToolName(toolName) || isEditToolName(toolName);
+  return isWriteToolName(toolName) || isEditToolName(toolName) || toolName === "save_recruiting_jd";
 }
 
 function readToolPath(input: Record<string, unknown> | undefined): string | null {

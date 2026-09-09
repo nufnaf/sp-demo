@@ -1,4 +1,6 @@
 import { recruitingTaskPrompt } from "./recruiting-jd-contract";
+import { recruitingTaskKind, readRecruitingTaskKind, recruitingProfile, RECRUITING_TASK_PROFILE, type RecruitingTaskKind } from "./recruiting-task-profile";
+import { createRecruitingJdExtension } from "./recruiting-jd-extension";
 import { createFeishuDemoExtension } from "./feishu-demo-extension";
 import { presentationSessionDir, presentationRoot, presentationModelDefaults } from "./presentation-runtime";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
@@ -172,6 +174,7 @@ const COMMANDS_ALLOWED_DURING_SESSION_REPLACEMENT = new Set([
 ]);
 
 export interface RpcSessionStartOptions {
+  recruitingTask?: RecruitingTaskKind;
   toolNames?: string[];
   initialModel?: { provider: string; modelId: string };
   allowInitialModelFallback?: boolean;
@@ -1873,7 +1876,9 @@ function createJarvisTaskRuntime(): JarvisRuntime & {
       if (!message) throw new Error("Task prompt is required");
       const label = description.trim() || message.slice(0, 24);
       const cwd = jarvis.cwd;
-      const { session, realSessionId } = await startRpcSession(`__jarvis_task__${randomUUID()}`, "", cwd);
+      const { session, realSessionId } = await startRpcSession(`__jarvis_task__${randomUUID()}`, "", cwd, {
+        ...(recruitingTaskPrompt(cwd, message) !== message ? { recruitingTask: "jd" as const } : {}),
+      });
       const createdAt = new Date().toISOString();
       session.inner.sessionManager.appendCustomEntry(JARVIS_TASK_ORIGIN_TYPE, {
         version: 1,
@@ -1893,7 +1898,7 @@ function createJarvisTaskRuntime(): JarvisRuntime & {
       store.set(realSessionId, task);
       allowFileRoot(cwd);
       invalidateSessionListCache();
-      await session.send({ type: "prompt", message: recruitingTaskPrompt(cwd, message) });
+      await session.send({ type: "prompt", message });
       jarvis.notifyJarvisTask(jarvisTaskSnapshot(task));
       return jarvisTaskSnapshot(task);
     },
@@ -2239,6 +2244,11 @@ export async function startRpcSession(
   }
   const sessionCwd = sessionManager.getCwd();
   const appModelDefaults = presentationModelDefaults(sessionCwd);
+  const recruitingKind = sessionFile
+    ? readRecruitingTaskKind(sessionCwd, sessionManager.getEntries() as unknown as SessionEntry[])
+    : recruitingTaskKind(sessionCwd, options.recruitingTask);
+  const recruiting = recruitingKind ? recruitingProfile(recruitingKind) : undefined;
+  if (recruitingKind && !sessionFile) sessionManager.appendCustomEntry(RECRUITING_TASK_PROFILE, { version: 1, kind: recruitingKind });
   const subagentResources = sessionFile
     ? readSubagentSessionResources(
         sessionManager.getEntries() as unknown as SessionEntry[],
@@ -2300,7 +2310,14 @@ export async function startRpcSession(
       cwd: sessionCwd,
       agentDir,
       settingsManager,
-      resourceLoaderOptions: subagentResources
+      resourceLoaderOptions: recruiting
+        ? {
+            ...recruiting.resources,
+            extensionFactories: recruitingKind === "jd"
+              ? [createFeishuDemoExtension(), createRecruitingJdExtension(sessionCwd)]
+              : [createBrowserExtension(true)],
+          }
+        : subagentResources
         ? {
             noExtensions: !subagentResources.loadExtensions,
             noSkills: !subagentResources.loadSkills,
@@ -2336,6 +2353,7 @@ export async function startRpcSession(
             extensionFactories: [
               createBrowserExtension(),
               createFeishuDemoExtension(),
+              createRecruitingJdExtension(sessionCwd),
               createFilesAppExtension(),
               ...(presentationRoot() ? [] : [createAppConnectorExtension()]),
               createProjectCommandBashExtension({
@@ -2382,7 +2400,7 @@ export async function startRpcSession(
       ...(initial.model ? { model: initial.model } : {}),
       ...(initial.thinkingLevel ? { thinkingLevel: initial.thinkingLevel } : {}),
       ...(initial.scopedModels.length > 0 ? { scopedModels: initial.scopedModels } : {}),
-      ...(jarvis ? { tools: [...JARVIS_TOOL_NAMES] } : toolsOption !== undefined ? { tools: toolsOption } : {}),
+      ...(recruiting ? { tools: recruiting.tools } : jarvis ? { tools: [...JARVIS_TOOL_NAMES] } : toolsOption !== undefined ? { tools: toolsOption } : {}),
       ...(subagentResources ? { excludeTools: [...SUBAGENT_CONTROL_TOOL_NAMES] } : {}),
     });
 
@@ -2405,7 +2423,9 @@ export async function startRpcSession(
     // If specific tool names were requested (non-empty), set the active tools to the
     // requested builtin coding tools PLUS all extension/package tools, so installed
     // extensions stay usable in Pi Web just like in the `pi` CLI.
-    if (jarvis) {
+    if (recruiting) {
+      inner.setActiveToolsByName(recruiting.tools);
+    } else if (jarvis) {
       inner.setActiveToolsByName(inner.getAllTools().map((tool) => tool.name).filter((name) => (JARVIS_TOOL_NAMES as readonly string[]).includes(name)));
     } else if (!subagentResources && !chatOnly) {
       inner.setActiveToolsByName(withExtensionTools(inner, selectedToolNames ?? inner.getActiveToolNames()));

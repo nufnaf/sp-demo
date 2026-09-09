@@ -1,4 +1,15 @@
+import type { BrowserStartupTiming } from "./startup-timing";
+
 export type BrowserController = "shared" | "agent";
+
+export interface BrowserWarmupState {
+  status: "warming" | "ready" | "claimed" | "failed";
+  startedAt: string;
+  readyAt?: string;
+  claimedAt?: string;
+  durationMs: number;
+  timings: BrowserStartupTiming[];
+}
 
 export interface BrowserTaskState {
   id: string;
@@ -16,6 +27,10 @@ export interface BrowserTaskState {
   startedAt: string;
   elapsedMs: number;
   timings?: { phase: "auth" | "browser-start" | "navigate" | "snapshot" | "session" | "model" | "action" | "cleanup"; durationMs: number }[];
+  /** Children of browser-start; do not add these to the top-level timings. */
+  startupTimings?: BrowserStartupTiming[];
+  warmup?: BrowserWarmupState;
+  modelUsage?: { turn: number; input: number; cacheRead: number; output: number; durationMs: number }[];
   result?: string;
   error?: string;
 }

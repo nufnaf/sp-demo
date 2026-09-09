@@ -58,7 +58,7 @@ export function createBrowserExtension(taskOnly = false): InlineExtension {
             });
             try {
               const task = await run.completion;
-              return result(JSON.stringify(task), task, task.status !== "completed");
+              return result(JSON.stringify({ id: task.id, status: task.status, result: task.result, error: task.error }), task, task.status !== "completed");
             } finally { unsubscribe(); }
           } catch (error) { return failure(error); }
         },
