@@ -61,13 +61,23 @@ export function FeishuDemoApp({ onOpen, recruiting = true }: { recruiting?: bool
       <footer><Glyph name="团队空间"/><div><strong>团队资料</strong><small>星流科技 · 共享空间</small></div></footer>
     </aside>
     <main className="feishu-main">{section === "会议" ? <PresentationSchedule recruiting={recruiting}/> : <>
-      <header className="feishu-home-header"><div><span>飞书文档</span><h2>{section}</h2></div><div className="feishu-actions"><label className="feishu-search"><Glyph name="search"/><input aria-label="搜索飞书文档" placeholder="搜索飞书文档" value={query} onChange={(e) => setQuery(e.target.value)}/></label><button type="button" className="feishu-refresh" aria-label="刷新文档" disabled={loading} onClick={() => setRevision((n) => n + 1)}><Glyph name="refresh"/></button></div></header>
-      <section className="feishu-list" aria-label="文档列表"><div className="feishu-list-head"><span>文件</span><span>所属空间</span><span>最近更新</span><span/></div>
+      <header className="feishu-home-header">
+        <span className="feishu-eyebrow">飞书文档</span>
+        <h2>{section}</h2>
+        <label className="feishu-search"><Glyph name="search"/><input aria-label="搜索飞书文档" placeholder="搜索飞书文档" value={query} onChange={(e) => setQuery(e.target.value)}/></label>
+        <p>连接团队正在使用的工具，让 Agent 在授权范围内理解上下文并完成工作。</p>
+      </header>
+      <section className="feishu-list" aria-label="文档列表"><div className="feishu-list-head"><span>文件</span><span>所属空间</span><span>最近更新</span></div>
         {error ? <div className="feishu-empty" role="alert"><Glyph name="document"/><strong>文档暂时无法加载</strong><p>{error}</p><button type="button" onClick={() => setRevision((n) => n + 1)}>重新加载</button></div>
           : loading && !documents.length ? <div className="feishu-empty" role="status"><span className="agent-os-spinner"/><p>正在加载文档…</p></div>
           : visible.length ? visible.map((doc) => <div className="feishu-doc-row" key={doc.id}>
-            <button type="button" className="feishu-doc-open" onClick={() => onOpen(doc)}><span className="feishu-doc-icon"><Glyph name="document"/></span><span className="feishu-doc-copy"><strong>{doc.title}</strong><small>文档 · 团队资料</small></span><span className="feishu-space">星流科技</span><time dateTime={doc.modifiedAt}>{dateLabel(doc.modifiedAt)}</time></button>
-            <button type="button" className="feishu-star" aria-label={`${favorites.includes(doc.id) ? "取消收藏" : "收藏"}${doc.title}`} aria-pressed={favorites.includes(doc.id)} onClick={() => toggleFavorite(doc.id)}><Glyph name="收藏"/></button>
+            <button type="button" className="feishu-doc-open" aria-label={`打开${doc.title}`} onClick={() => onOpen(doc)}/>
+            <span className="feishu-doc-icon"><Glyph name="document"/></span>
+            <div className="feishu-doc-copy">
+              <div className="feishu-doc-title"><strong title={doc.title}>{doc.title}</strong><button type="button" className="feishu-star" aria-label={`${favorites.includes(doc.id) ? "取消收藏" : "收藏"}${doc.title}`} aria-pressed={favorites.includes(doc.id)} onClick={() => toggleFavorite(doc.id)}><Glyph name="收藏"/></button></div>
+              <small>文档 · 团队资料</small>
+            </div>
+            <span className="feishu-space">星流科技</span><time dateTime={doc.modifiedAt}>{dateLabel(doc.modifiedAt)}</time>
           </div>) : <div className="feishu-empty"><Glyph name={query ? "search" : section === "收藏" ? "收藏" : "document"}/><strong>{query ? "没有找到文档" : section === "收藏" ? "还没有收藏的文档" : "这里还没有文档"}</strong><p>{query ? "尝试搜索其他文档名称。" : section === "收藏" ? "点击文档旁的星标，方便下次查找。" : "团队共享的资料会显示在这里。"}</p></div>}
       </section>
     </>}</main>
