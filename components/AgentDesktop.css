@@ -185,6 +185,12 @@
 .agent-os-window-file .agent-os-window-bar > strong { font-size:9px }
 .agent-os-window-document .agent-os-window-bar{height:36px;grid-template-columns:78px 1fr 78px;background:rgba(255,255,255,.7)}.agent-os-window-document .agent-os-window-body{height:calc(100% - 36px);background:white}.agent-os-window-document .agent-os-window-bar>strong{font-size:9px}.agent-os-window-document .agent-os-window-bar>strong img{width:16px;height:16px}
 .agent-os-file-app .file-viewer-toolbar { display:none!important }
+.agent-os-window-file.agent-os-window-jd { width:min(1440px,calc(100vw - 96px));height:min(900px,calc(100vh - 174px));border-radius:28px;background:#fff; }
+.agent-os-window-jd .agent-os-window-bar { height:50px;grid-template-columns:76px 1fr auto;background:#f6f6f6;border-bottom:0; }
+.agent-os-window-jd .agent-os-window-bar>strong { justify-self:start;font-size:0; }
+.agent-os-window-jd .agent-os-window-bar>span:last-child { padding-right:16px; }
+.agent-os-window-jd .agent-os-window-body { height:calc(100% - 50px); }
+.jd-window-status { display:inline-block;padding:8px 13px;border-radius:999px;background:#e7f6f0;color:#087457;font-size:13px;font-weight:700;white-space:nowrap; }
 
 /* Artifact Library — one calm file surface, with Quick Look as a temporary layer. */
 .agent-os-library { position:relative;width:100%;height:100%;display:grid;grid-template-rows:54px minmax(0,1fr);overflow:hidden;outline:0;color:var(--text);background:var(--bg) }

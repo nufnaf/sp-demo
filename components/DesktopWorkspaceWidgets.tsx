@@ -60,8 +60,8 @@ export function DesktopWorkspaceWidgets({ cwd, recruiting, tasks, artifacts, ins
   return <div className={`workspace-widgets${empty ? " is-empty" : ""}`} role="group" aria-label="工作台概览">
     {card("goal", "业务目标", <span className="workspace-eyebrow">核心业务目标</span>, hasGoal ? <>
       <button type="button" className="workspace-goal" onClick={recruiting ? onOpenRecruiting : openProfile}>
-        <strong>{recruiting ? <><em>{target}位</em>AI Agent 工程师<span className="workspace-goal-outcome">到岗</span></> : profile?.goal}</strong>
-        <p>{recruiting ? "Agent 研发 · 杭州 / 上海" : profile?.note}</p>
+        <strong>{recruiting ? <><em>{target}位</em>高级 AI Agent 研发工程师<span className="workspace-goal-outcome">到岗</span></> : profile?.goal}</strong>
+        <p>{recruiting ? "Agent Platform · 北京 / 上海" : profile?.note}</p>
       </button>
       {recruiting && <div className="workspace-goal-progress">
         <div><span>当前进度</span><strong>0 / {target} · 0%</strong></div>
