@@ -32,10 +32,11 @@ test("dictation returns stopped speech to the composer and only sends from the s
   assert.doesNotMatch(desktopCss, /agent-os-dictation__(?:dot|wave)[^}]*#ff453a/);
 });
 
-test("dictation and typing share the chat-opening send path", () => {
+test("dictation and typing keep the input available after using the shared send path", () => {
+  assert.doesNotMatch(desktop, /composerCollapsed|agent-os-composer-compact|展开输入框/);
   assert.match(desktop, /await sendDesktopMessage\(prompt\)/);
   assert.match(desktop, /void sendDesktopMessage\(completeText\)/);
-  assert.match(desktop, /const sendDesktopMessage[\s\S]*?setJarvisPanelOpen\(true\)[\s\S]*?await jarvis.send\(message\)/);
+  assert.match(desktop, /const sendDesktopMessage[\s\S]*?setJarvisPanelOpen\(false\)[\s\S]*?await jarvis.send\(message\)/);
 });
 test("live dispatch receipts come from new events, not restored task history", () => {
   assert.match(desktop, /if \(liveVoiceActiveRef.current\) setLiveDispatches/);

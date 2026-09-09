@@ -82,7 +82,7 @@ export function AppStore({ onOpenApp, onNotice }: {
       void fetch(`/api/app-store?${params}`, { cache: "no-store", signal: controller.signal })
         .then(async (response) => {
           const data = await response.json() as AppStoreCatalogResponse & { error?: string };
-          if (!response.ok) throw new Error(data.error ?? "应用商店暂时不可用");
+          if (!response.ok) throw new Error(data.error ?? "应用市场暂时不可用");
           setCatalog(data);
         })
         .catch((fetchError: unknown) => {
@@ -134,9 +134,9 @@ export function AppStore({ onOpenApp, onNotice }: {
 
   return <div className="agent-store">
     <aside className="agent-store-sidebar">
-      <header><AppStoreBrandIcon className="agent-store-mark"/><div><strong>应用商店</strong><small>Syntropic Apps</small></div></header>
-      <label className="agent-store-sidebar-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索应用" aria-label="搜索应用商店"/></label>
-      <nav aria-label="应用商店分类">{SECTIONS.map((item) => <button key={item.id} type="button" aria-current={section === item.id ? "page" : undefined} onClick={() => setSection(item.id)}><i><StoreNavIcon section={item.id}/></i><span>{item.label}</span></button>)}</nav>
+      <header><AppStoreBrandIcon className="agent-store-mark"/><div><strong>应用市场</strong><small>Syntropic Apps</small></div></header>
+      <label className="agent-store-sidebar-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索应用" aria-label="搜索应用市场"/></label>
+      <nav aria-label="应用市场分类">{SECTIONS.map((item) => <button key={item.id} type="button" aria-current={section === item.id ? "page" : undefined} onClick={() => setSection(item.id)}><i><StoreNavIcon section={item.id}/></i><span>{item.label}</span></button>)}</nav>
       <footer><span><SyntropicMark size={20}/></span><div><strong>中国区精选</strong><small>{catalog ? `${catalog.total.toLocaleString()} 个应用` : "正在同步"}</small></div><button type="button" aria-label="同步应用目录" title="同步应用目录" onClick={() => { void loadInstallations(); setRefreshRevision((value) => value + 1); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 9a7 7 0 0 1 11.8-2L20 9M4 15l2.1 2a7 7 0 0 0 11.8-2"/></svg></button></footer>
     </aside>
 

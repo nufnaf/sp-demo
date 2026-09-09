@@ -6,7 +6,7 @@ import { splitFinalAssistantBlocks } from "@/lib/message-display";
 import { INITIAL_STREAMING_STATE, streamReducer, type ClientAssistantMessageEvent } from "@/lib/streaming-message";
 import type { AgentMessage, AssistantMessage, CustomMessage, UserMessage } from "@/lib/types";
 
-export type JarvisTaskStatus = "running" | "completed" | "aborted";
+export type JarvisTaskStatus = "running" | "completed" | "aborted" | "failed";
 
 export interface JarvisTask {
   sessionId: string;
@@ -49,7 +49,7 @@ function parseTask(value: unknown): JarvisTask | null {
   if (!value || typeof value !== "object") return null;
   const details = value as { kind?: unknown; sessionId?: unknown; description?: unknown; status?: unknown; createdAt?: unknown; completedAt?: unknown };
   if (details.kind !== TASK_DETAIL_KIND || typeof details.sessionId !== "string") return null;
-  const status = details.status === "completed" || details.status === "aborted" ? details.status : "running";
+  const status = details.status === "completed" || details.status === "aborted" || details.status === "failed" ? details.status : "running";
   return {
     sessionId: details.sessionId,
     description: typeof details.description === "string" ? details.description : "任务",
@@ -122,6 +122,8 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
   const [error, setError] = useState<string | null>(null);
   const [turns, setTurns] = useState<JarvisTurn[]>([]);
   const [tasks, setTasks] = useState<JarvisTask[]>([]);
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
   // Only advances for replies received by this mounted client. Restored
   // transcript entries must not be presented as fresh desktop notifications.
   const [latestReplyTurnId, setLatestReplyTurnId] = useState(0);
@@ -197,6 +199,18 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
   // Follow the session's event stream.
   useEffect(() => {
     if (!sessionId) return;
+    const delivered = new Map(tasksRef.current.map((task) => [task.sessionId, task.status]));
+    const acceptTask = (task: JarvisTask) => {
+      const previous = delivered.get(task.sessionId);
+      // The tool result and the later spoken report can repeat a live update.
+      if (previous === task.status || (previous && previous !== "running" && task.status === "running")) return;
+      delivered.set(task.sessionId, task.status);
+      setTasks((current) => upsertTask(current, task));
+      const started = task.status === "running";
+      if (started) callbacks.current.onTaskStarted?.(task);
+      else callbacks.current.onTaskSettled?.(task);
+      pushTurn({ role: "task", text: task.description, task, taskEvent: started ? "started" : "settled" });
+    };
     const source = new EventSource(`/api/agent/${encodeURIComponent(sessionId)}/events`);
     source.onmessage = (event: MessageEvent<string>) => {
       let payload: Record<string, unknown>;
@@ -240,6 +254,7 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
           const message = payload.message as AgentMessage | undefined;
           if (!message) break;
           if (message.role === "assistant") {
+            if (message.stopReason === "error") setError(message.errorMessage || "Syntropic 暂时无法完成请求，请重试。");
             const text = assistantText(message);
             if (text) {
               setLastReply(text);
@@ -250,11 +265,14 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
             pushTurn({ role: "user", text: plainText(message.content) });
           } else if (message.role === "custom" && message.customType === TASK_NOTIFICATION_TYPE) {
             for (const task of parseTaskBatch(message.details)) {
-              setTasks((current) => upsertTask(current, task));
-              callbacks.current.onTaskSettled?.(task);
-              pushTurn({ role: "task", text: task.description, task, taskEvent: "settled" });
+              acceptTask(task);
             }
           }
+          break;
+        }
+        case "jarvis_task_update": {
+          const task = parseTask(payload.task);
+          if (task) acceptTask(task);
           break;
         }
         case "tool_execution_end": {
@@ -262,9 +280,7 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
           const result = payload.result as { details?: unknown } | undefined;
           const task = parseTask(result?.details);
           if (!task) break;
-          setTasks((current) => upsertTask(current, task));
-          callbacks.current.onTaskStarted?.(task);
-          pushTurn({ role: "task", text: task.description, task, taskEvent: "started" });
+          acceptTask(task);
           break;
         }
         default:

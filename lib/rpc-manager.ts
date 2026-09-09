@@ -1,3 +1,8 @@
+import { recruitingTaskPrompt } from "./recruiting-jd-contract";
+import { recruitingTaskKind, readRecruitingTaskKind, recruitingProfile, RECRUITING_TASK_PROFILE, type RecruitingTaskKind } from "./recruiting-task-profile";
+import { createRecruitingJdExtension } from "./recruiting-jd-extension";
+import { createFeishuDemoExtension } from "./feishu-demo-extension";
+import { presentationSessionDir, presentationRoot, presentationModelDefaults } from "./presentation-runtime";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { createAgentSessionFromServices, createAgentSessionServices, getAgentDir, initTheme, SessionManager, SettingsManager, Theme } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager as TuiKeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
@@ -53,6 +58,7 @@ import {
   JARVIS_TASK_ORIGIN_TYPE,
   JARVIS_TOOL_NAMES,
   jarvisTaskBatchMessage,
+  jarvisTaskDetails,
   trimTaskSummary,
   type JarvisMetadata,
   type JarvisRuntime,
@@ -168,6 +174,7 @@ const COMMANDS_ALLOWED_DURING_SESSION_REPLACEMENT = new Set([
 ]);
 
 export interface RpcSessionStartOptions {
+  recruitingTask?: RecruitingTaskKind;
   toolNames?: string[];
   initialModel?: { provider: string; modelId: string };
   allowInitialModelFallback?: boolean;
@@ -483,6 +490,10 @@ export class AgentSessionWrapper {
     this.applyExactSystemPrompt();
   }
 
+  notifyJarvisTask(task: JarvisTaskInfo): void {
+    this.emit({ type: "jarvis_task_update", task: jarvisTaskDetails(task), occurredAt: new Date().toISOString() });
+  }
+
   private emit(event: AgentEvent): void {
     for (const listener of this.listeners) {
       try {
@@ -715,6 +726,8 @@ export class AgentSessionWrapper {
       }
 
       case "abort":
+        // The task-window stop button shares the same outcome as abort_task.
+        if (getJarvisTaskStore().has(this.sessionId)) getJarvisTaskStore().get(this.sessionId)!.abortRequested = true;
         if (this.shouldObserveTaskInsights()) {
           recordTaskInsightEvent({
             source: "task",
@@ -1863,7 +1876,9 @@ function createJarvisTaskRuntime(): JarvisRuntime & {
       if (!message) throw new Error("Task prompt is required");
       const label = description.trim() || message.slice(0, 24);
       const cwd = jarvis.cwd;
-      const { session, realSessionId } = await startRpcSession(`__jarvis_task__${randomUUID()}`, "", cwd);
+      const { session, realSessionId } = await startRpcSession(`__jarvis_task__${randomUUID()}`, "", cwd, {
+        ...(recruitingTaskPrompt(cwd, message) !== message ? { recruitingTask: "jd" as const } : {}),
+      });
       const createdAt = new Date().toISOString();
       session.inner.sessionManager.appendCustomEntry(JARVIS_TASK_ORIGIN_TYPE, {
         version: 1,
@@ -1884,6 +1899,7 @@ function createJarvisTaskRuntime(): JarvisRuntime & {
       allowFileRoot(cwd);
       invalidateSessionListCache();
       await session.send({ type: "prompt", message });
+      jarvis.notifyJarvisTask(jarvisTaskSnapshot(task));
       return jarvisTaskSnapshot(task);
     },
 
@@ -1892,8 +1908,7 @@ function createJarvisTaskRuntime(): JarvisRuntime & {
       if (!task || task.jarvisSessionId !== jarvisSessionId) return null;
       const wrapper = getRegistry().get(taskId);
       if (task.status === "running" && wrapper && !wrapper.isRunning()) {
-        task.status = task.abortRequested ? "aborted" : "completed";
-        task.completedAt ??= new Date().toISOString();
+        await this.handleTaskSettled(taskId);
       }
       return jarvisTaskSnapshot(task, wrapper);
     },
@@ -1927,10 +1942,16 @@ function createJarvisTaskRuntime(): JarvisRuntime & {
       const task = store.get(sessionId);
       if (!task || task.status !== "running") return;
       const wrapper = getRegistry().get(sessionId);
-      task.status = task.abortRequested ? "aborted" : "completed";
+      const lastAssistant = wrapper?.inner.sessionManager.getBranch().findLast((entry) => entry.type === "message" && entry.message.role === "assistant");
+      const failed = lastAssistant?.type === "message" && lastAssistant.message.role === "assistant" && lastAssistant.message.stopReason === "error";
+      const aborted = lastAssistant?.type === "message" && lastAssistant.message.role === "assistant" && lastAssistant.message.stopReason === "aborted";
+      task.status = task.abortRequested || aborted ? "aborted" : failed ? "failed" : "completed";
       task.completedAt = new Date().toISOString();
       const inbox = getJarvisInbox(task.jarvisSessionId);
-      inbox.pending.push(jarvisTaskSnapshot(task, wrapper));
+      const snapshot = jarvisTaskSnapshot(task, wrapper);
+      // UI state must not wait for the spoken report or its batching window.
+      getRegistry().get(task.jarvisSessionId)?.notifyJarvisTask(snapshot);
+      inbox.pending.push(snapshot);
       // Give sibling tasks finishing together a moment to join the same report.
       scheduleFlush(task.jarvisSessionId, JARVIS_SETTLE_MS);
     },
@@ -2200,7 +2221,7 @@ export async function startRpcSession(
   cwd: string | undefined,
   options: RpcSessionStartOptions = {},
 ): Promise<{ session: AgentSessionWrapper; realSessionId: string }> {
-  await hydrateAppConnectionEnvironment();
+  if (!presentationRoot()) await hydrateAppConnectionEnvironment();
   const { initialModel, allowInitialModelFallback, thinkingLevel } = options;
   const requestedToolNames = options.toolNames === undefined
     ? undefined
@@ -2219,9 +2240,15 @@ export async function startRpcSession(
     sessionManager = SessionManager.open(sessionFile, undefined);
   } else {
     if (!cwd) throw new Error("cwd is required for a new session");
-    sessionManager = SessionManager.create(cwd, undefined);
+    sessionManager = SessionManager.create(cwd, presentationSessionDir(cwd));
   }
   const sessionCwd = sessionManager.getCwd();
+  const appModelDefaults = presentationModelDefaults(sessionCwd);
+  const recruitingKind = sessionFile
+    ? readRecruitingTaskKind(sessionCwd, sessionManager.getEntries() as unknown as SessionEntry[])
+    : recruitingTaskKind(sessionCwd, options.recruitingTask);
+  const recruiting = recruitingKind ? recruitingProfile(recruitingKind) : undefined;
+  if (recruitingKind && !sessionFile) sessionManager.appendCustomEntry(RECRUITING_TASK_PROFILE, { version: 1, kind: recruitingKind });
   const subagentResources = sessionFile
     ? readSubagentSessionResources(
         sessionManager.getEntries() as unknown as SessionEntry[],
@@ -2283,7 +2310,14 @@ export async function startRpcSession(
       cwd: sessionCwd,
       agentDir,
       settingsManager,
-      resourceLoaderOptions: subagentResources
+      resourceLoaderOptions: recruiting
+        ? {
+            ...recruiting.resources,
+            extensionFactories: recruitingKind === "jd"
+              ? [createFeishuDemoExtension(), createRecruitingJdExtension(sessionCwd)]
+              : [createBrowserExtension(true)],
+          }
+        : subagentResources
         ? {
             noExtensions: !subagentResources.loadExtensions,
             noSkills: !subagentResources.loadSkills,
@@ -2309,16 +2343,19 @@ export async function startRpcSession(
               noThemes: true,
               noContextFiles: true,
               appendSystemPrompt: [buildJarvisSystemPrompt(sessionCwd)],
-              extensionFactories: [createJarvisExtension(JARVIS_TASKS)],
+              extensionFactories: [createJarvisExtension(JARVIS_TASKS), createBrowserExtension(true)],
             }
         : chatOnly
           ? CHAT_ONLY_RESOURCE_LOADER_OPTIONS
         : {
+            ...(presentationRoot() ? { noExtensions: true, noSkills: true, noPromptTemplates: true } : {}),
             appendSystemPromptOverride: appendHtmlArtifactPrompt,
             extensionFactories: [
               createBrowserExtension(),
+              createFeishuDemoExtension(),
+              createRecruitingJdExtension(sessionCwd),
               createFilesAppExtension(),
-              createAppConnectorExtension(),
+              ...(presentationRoot() ? [] : [createAppConnectorExtension()]),
               createProjectCommandBashExtension({
                 cwd: sessionCwd,
                 settings: settingsManager,
@@ -2345,15 +2382,17 @@ export async function startRpcSession(
       : undefined;
     const defaultProvider = services.settingsManager.getDefaultProvider();
     const defaultModelId = services.settingsManager.getDefaultModel();
+    const requestedInitialModel = effectiveInitialModel ?? appModelDefaults;
+    const requestedThinkingLevel = thinkingLevel ?? appModelDefaults?.thinkingLevel;
     const hasExistingMessages = sessionManager.getBranch().some((entry) => entry.type === "message");
     const initial = hasExistingMessages
       ? { scopedModels: [...scope.scopedModels] }
       : selectInitialModelScope(scope, {
-        ...(effectiveInitialModel ? { requestedModel: effectiveInitialModel } : {}),
+        ...(requestedInitialModel ? { requestedModel: requestedInitialModel } : {}),
         ...(defaultProvider && defaultModelId
           ? { defaultModel: { provider: defaultProvider, modelId: defaultModelId } }
           : {}),
-        ...(thinkingLevel ? { thinkingLevel } : {}),
+        ...(requestedThinkingLevel ? { thinkingLevel: requestedThinkingLevel } : {}),
       });
     const { session: inner } = await createAgentSessionFromServices({
       services,
@@ -2361,13 +2400,13 @@ export async function startRpcSession(
       ...(initial.model ? { model: initial.model } : {}),
       ...(initial.thinkingLevel ? { thinkingLevel: initial.thinkingLevel } : {}),
       ...(initial.scopedModels.length > 0 ? { scopedModels: initial.scopedModels } : {}),
-      ...(jarvis ? { tools: [...JARVIS_TOOL_NAMES] } : toolsOption !== undefined ? { tools: toolsOption } : {}),
+      ...(recruiting ? { tools: recruiting.tools } : jarvis ? { tools: [...JARVIS_TOOL_NAMES] } : toolsOption !== undefined ? { tools: toolsOption } : {}),
       ...(subagentResources ? { excludeTools: [...SUBAGENT_CONTROL_TOOL_NAMES] } : {}),
     });
 
     const persistedPreferences = await persistExplicitStartupPreferences(
       services.settingsManager,
-      {
+      appModelDefaults ? {} : {
         ...(effectiveInitialModel ? { model: effectiveInitialModel } : {}),
         ...(thinkingLevel ? { thinkingLevel } : {}),
       },
@@ -2384,7 +2423,9 @@ export async function startRpcSession(
     // If specific tool names were requested (non-empty), set the active tools to the
     // requested builtin coding tools PLUS all extension/package tools, so installed
     // extensions stay usable in Pi Web just like in the `pi` CLI.
-    if (jarvis) {
+    if (recruiting) {
+      inner.setActiveToolsByName(recruiting.tools);
+    } else if (jarvis) {
       inner.setActiveToolsByName(inner.getAllTools().map((tool) => tool.name).filter((name) => (JARVIS_TOOL_NAMES as readonly string[]).includes(name)));
     } else if (!subagentResources && !chatOnly) {
       inner.setActiveToolsByName(withExtensionTools(inner, selectedToolNames ?? inner.getActiveToolNames()));
@@ -2403,7 +2444,7 @@ export async function startRpcSession(
           console.error("[pi-web] failed to send completion push:", error instanceof Error ? error.message : error);
         });
       },
-      suppressCompletionNotifications: Boolean(subagentResources) || jarvis || options.role === "insight",
+      suppressCompletionNotifications: Boolean(presentationRoot()) || Boolean(subagentResources) || jarvis || options.role === "insight",
       ...(options.role ? { role: options.role } : jarvis ? { role: "jarvis" as const } : {}),
     });
     const realSessionId = inner.sessionId as string;

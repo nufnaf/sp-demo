@@ -1,4 +1,39 @@
-export type BrowserController = "shared";
+import type { BrowserStartupTiming } from "./startup-timing";
+
+export type BrowserController = "shared" | "agent";
+
+export interface BrowserWarmupState {
+  status: "warming" | "ready" | "claimed" | "failed";
+  startedAt: string;
+  readyAt?: string;
+  claimedAt?: string;
+  durationMs: number;
+  timings: BrowserStartupTiming[];
+}
+
+export interface BrowserTaskState {
+  id: string;
+  cwd: string;
+  parentSessionId: string;
+  pageId?: string;
+  task: string;
+  status: "starting" | "running" | "stopping" | "completed" | "failed" | "stopped";
+  provider: string;
+  modelId: string;
+  thinkingLevel: string;
+  progress: string;
+  steps: number;
+  turns: number;
+  startedAt: string;
+  elapsedMs: number;
+  timings?: { phase: "auth" | "browser-start" | "navigate" | "snapshot" | "session" | "model" | "action" | "cleanup"; durationMs: number }[];
+  /** Children of browser-start; do not add these to the top-level timings. */
+  startupTimings?: BrowserStartupTiming[];
+  warmup?: BrowserWarmupState;
+  modelUsage?: { turn: number; input: number; cacheRead: number; output: number; durationMs: number }[];
+  result?: string;
+  error?: string;
+}
 
 export interface BrowserFocusState {
   editable: true;
@@ -17,9 +52,11 @@ export interface BrowserPageState {
   viewport: { width: number; height: number };
   focus: BrowserFocusState | null;
   updatedAt: string;
+  task?: BrowserTaskState;
 }
 
 export type BrowserSystemEvent =
+  | { type: "browser.task"; task: BrowserTaskState }
   | { type: "browser.opened"; page: BrowserPageState; foreground: boolean }
   | { type: "browser.updated"; page: BrowserPageState }
   | { type: "browser.closed"; pageId: string; cwd: string };

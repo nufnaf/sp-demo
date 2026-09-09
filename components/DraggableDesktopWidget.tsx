@@ -62,7 +62,9 @@ export function DraggableDesktopWidget({ children, className, defaultPosition, w
   }, [widgetId]);
 
   const storePosition = (next: Point) => {
-    window.localStorage.setItem(`${STORAGE_PREFIX}${widgetId}`, JSON.stringify(next));
+    try {
+      window.localStorage.setItem(`${STORAGE_PREFIX}${widgetId}`, JSON.stringify(next));
+    } catch { /* Dragging still works when optional UI storage is unavailable. */ }
   };
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -75,11 +77,11 @@ export function DraggableDesktopWidget({ children, className, defaultPosition, w
     const rootRect = root.getBoundingClientRect();
     const desktopRect = desktop.getBoundingClientRect();
     const current = {
-      x: rootRect.left - desktopRect.left,
-      y: rootRect.top - desktopRect.top,
+      x: rootRect.left - desktopRect.left + desktop.scrollLeft,
+      y: rootRect.top - desktopRect.top + desktop.scrollTop,
     };
     const maxX = Math.max(8, desktopRect.width - rootRect.width - 8);
-    const maxY = Math.max(8, desktopRect.height - rootRect.height - 8);
+    const maxY = Math.max(8, desktop.scrollHeight - rootRect.height - 8);
     dragRef.current = {
       pointerId: event.pointerId,
       pointerX: event.clientX,
@@ -106,6 +108,7 @@ export function DraggableDesktopWidget({ children, className, defaultPosition, w
     };
     positionRef.current = next;
     setPosition(next);
+    storePosition(next);
   };
 
   const finishDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -129,6 +132,7 @@ export function DraggableDesktopWidget({ children, className, defaultPosition, w
       onPointerMove={handlePointerMove}
       onPointerUp={finishDrag}
       onPointerCancel={finishDrag}
+      onLostPointerCapture={finishDrag}
     >
       {children}
     </div>

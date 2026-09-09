@@ -1,0 +1,14 @@
+{
+  "name": "novaflow-recruiting-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "node local.mjs",
+    "start": "node local.mjs",
+    "test": "node --test test/*.test.mjs",
+    "db:init": "node scripts/init-db.mjs"
+  },
+  "dependencies": { "@neondatabase/serverless": "1.0.2" }
+}

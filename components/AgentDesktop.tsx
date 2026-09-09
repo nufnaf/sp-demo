@@ -1,7 +1,14 @@
 "use client";
+import { FeishuDemoApp, FeishuDemoDocument } from "./FeishuDemoApp";
+import { PresentationSchedule } from "./RecruitingPipeline";
 
 import { SyntropicMark } from "./SyntropicMark";
+import { DesktopDesignIcon } from "./DesktopDesignIcon";
 import { DesktopStartStage } from "./DesktopStartStage";
+import { DesktopComposerInput } from "./DesktopComposerInput";
+import { DesktopDock } from "./DesktopDock";
+import { isJdDemoArtifact } from "@/lib/recruiting-publication";
+import { DesktopWorkspaceWidgets, workspaceReference, type WorkspaceWidgetItem } from "./DesktopWorkspaceWidgets";
 import { DesktopCollaboration } from "./DesktopCollaboration";
 import { compactDesktopTurns } from "@/lib/desktop-conversation";
 
@@ -10,6 +17,7 @@ import Image from "next/image";
 import {
   useCallback,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -31,14 +39,19 @@ import type { AppConnectResponse, AppConnectionStatus, AppDataResponse, Connecte
 import type { PluginsResponse } from "@/lib/api-types";
 import type { AgentMessage, SessionContext, SessionInfo, ToolResultMessage } from "@/lib/types";
 import { useRealtimeVoice } from "@/hooks/useRealtimeVoice";
+import { useDesktopNotice } from "@/hooks/useDesktopNotice";
 import { useJarvis, type JarvisTask } from "@/hooks/useJarvis";
 import { useDictation } from "@/hooks/useDictation";
 import { VoiceOrb } from "./VoiceOrb";
 import { BrowserApp } from "./BrowserApp";
 import { SalesCRMApp } from "./SalesCRMApp";
 import { HRRecruitingApp } from "./HRRecruitingApp";
+import { RecruitingPublication } from "./RecruitingPublication";
+import { DesktopNotification } from "./DesktopNotification";
+import { subscribeBrowserEvents } from "@/lib/browser/client-events";
 import { InvestmentWorkspaceApp } from "./InvestmentWorkspaceApp";
-import type { BrowserSystemEvent } from "@/lib/browser/types";
+import type { BrowserSystemEvent, BrowserTaskState } from "@/lib/browser/types";
+import { captureBrowserOrigin, isBrowserOriginCurrent, browserReturnDestination, type BrowserReturnOrigin } from "@/lib/browser/return-to-origin";
 import type { FileOpenRequest } from "@/lib/files-app/types";
 import {
   isInsightTaskSession,
@@ -76,7 +89,7 @@ type IconName =
   | "eye" | "file" | "folder" | "grid" | "insight" | "list" | "maximize" | "mic" | "minimize" | "waveform"
   | "sales" | "files" | "investment" | "plus" | "recruiting" | "search" | "settings" | "tasks" | "terminal" | "tiles";
 
-type SystemDockAppId = "system:crm" | "system:tasks" | "system:library" | "system:hr" | "system:investment" | "system:browser" | "system:files" | "system:terminal" | "system:store" | "system:settings";
+type SystemDockAppId = "system:calendar" | "system:crm" | "system:tasks" | "system:library" | "system:hr" | "system:investment" | "system:browser" | "system:files" | "system:terminal" | "system:store" | "system:settings";
 
 interface SystemDockApp {
   kind: "system";
@@ -99,7 +112,7 @@ const SYSTEM_DOCK_APPS: SystemDockApp[] = [
   { kind: "system", id: "system:browser", name: "浏览器", description: "和 Agent 共同浏览并操作网页", category: "知识办公", icon: "browser", rank: 5 },
   { kind: "system", id: "system:files", name: "文件", description: "浏览、预览和轻量编辑工作台文件", category: "产品开发", icon: "folder", rank: 6 },
   { kind: "system", id: "system:terminal", name: "终端", description: "在当前工作台运行开发命令", category: "产品开发", icon: "terminal", rank: 7 },
-  { kind: "system", id: "system:store", name: "应用商店", description: "发现和管理 Syntropic 应用", category: "其他", icon: "grid", rank: 8 },
+  { kind: "system", id: "system:store", name: "应用市场", description: "发现和管理 Syntropic 应用", category: "其他", icon: "grid", rank: 8 },
   { kind: "system", id: "system:settings", name: "设置", description: "配置模型、技能与 Agent", category: "其他", icon: "settings", rank: 9 },
 ];
 
@@ -231,6 +244,8 @@ function AppLogo({ app, compact = false }: { app: LaunchpadApp; compact?: boolea
 
 function DockItemIcon({ item, launchpad = false }: { item: DockItem; launchpad?: boolean }) {
   if (item.kind !== "system") return launchpad ? <BrandAppIcon app={item}/> : <AppLogo app={item} compact/>;
+  if (item.id === "system:calendar") return <DesktopDesignIcon name="calendar" size={launchpad ? 46 : 28}/>;
+  if (item.id === "system:hr") return <DesktopDesignIcon name="people" size={launchpad ? 46 : 28}/>;
   if (item.id === "system:store") return <AppStoreBrandIcon className={launchpad ? "agent-os-launchpad-system-store" : "agent-store-dock-icon"}/>;
   return <Icon name={item.icon} size={launchpad ? 46 : 22}/>;
 }
@@ -676,6 +691,7 @@ interface CollaborationAuthFlow {
 }
 
 interface FeishuDocument {
+  source?: "feishu-demo";
   id: string;
   title: string;
   type: string;
@@ -719,6 +735,7 @@ function readPinnedDockApps(): DockItem[] {
   if (stored !== null) return parseDockItems(stored).flatMap<DockItem>((item): DockItem[] => {
     if (item.kind !== "system") return [item];
     const storedId = (item as { id: string }).id === "system:code" ? "system:files" : item.id;
+    if (storedId === "system:calendar") return [item];
     const currentSystemApp = SYSTEM_DOCK_APPS.find((systemApp) => systemApp.id === storedId);
     return currentSystemApp ? [currentSystemApp] : [];
   });
@@ -1381,11 +1398,34 @@ function DesktopWindow({
   );
 }
 
-export function AgentDesktop() {
+export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } = {}) {
+  useEffect(() => {
+    if (!presentationCwd) return;
+    let frame = 0;
+    let sent = false;
+    const prepare = () => {
+      if (sent || document.visibilityState !== "visible") return;
+      // Give the mounted desktop a paint before starting background Chromium.
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => {
+          if (document.visibilityState !== "visible" || sent) return;
+          sent = true;
+          void fetch("/api/browser/prepare", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {});
+        });
+      });
+    };
+    prepare();
+    document.addEventListener("visibilitychange", prepare);
+    return () => { cancelAnimationFrame(frame); document.removeEventListener("visibilitychange", prepare); };
+  }, [presentationCwd]);
   const now = useClock();
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [runningIds, setRunningIds] = useState<Set<string>>(() => new Set());
-  const [activeCwd, setActiveCwd] = useState<string | null>(null);
+  const [activeCwd, setActiveCwd] = useState<string | null>(presentationCwd ?? null);
+  useEffect(() => {
+    if (!presentationCwd) return;
+    try { const saved = localStorage.getItem(`syntropic:active-workspace:${presentationCwd}`); if (saved && (saved === presentationCwd || saved.startsWith(presentationCwd.replace(/workspace$/, "workspaces/")))) setActiveCwd(saved); } catch { /* Optional UI persistence. */ }
+  }, [presentationCwd]);
   const [engagedWorkspaces, setEngagedWorkspaces] = useState<Set<string>>(() => new Set());
   const markWorkspaceEngaged = useCallback((cwd: string | null) => {
     if (!cwd) return;
@@ -1412,9 +1452,9 @@ export function AgentDesktop() {
     setStartMode(null);
     setGuideOpen(false);
     setReminderCount(0);
-    try { setGuideDismissed(localStorage.getItem(`pi-web:desktop-start:${activeCwd ?? "default"}`) === "dismissed"); }
+    try { setGuideDismissed(Boolean(presentationCwd) || localStorage.getItem(`pi-web:desktop-start:${activeCwd ?? "default"}`) === "dismissed"); }
     catch { setGuideDismissed(false); }
-  }, [activeCwd]);
+  }, [activeCwd, presentationCwd]);
   const handleReminderHistory = useCallback((items: { completed: boolean }[]) => setReminderCount(items.length), []);
   const dismissGuide = () => {
     setGuideOpen(false);
@@ -1422,11 +1462,13 @@ export function AgentDesktop() {
     try { localStorage.setItem(`pi-web:desktop-start:${activeCwd ?? "default"}`, "dismissed"); } catch { /* Optional preference. */ }
   };
   const [submitting, setSubmitting] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useDesktopNotice();
+  const refreshInsightsRef = useRef<() => void>(() => {});
   const [taskSessionId, setTaskSessionId] = useState<string | null>(null);
   const [jarvisSessionId, setJarvisSessionId] = useState<string | null>(null);
   const [openArtifacts, setOpenArtifacts] = useState<Artifact[]>([]);
   const [openFeishuDocuments, setOpenFeishuDocuments] = useState<FeishuDocument[]>([]);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [artifactLibraryOpen, setArtifactLibraryOpen] = useState(false);
   const [selectedLibraryArtifactId, setSelectedLibraryArtifactId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1435,6 +1477,7 @@ export function AgentDesktop() {
   const [hrRecruitingOpen, setHrRecruitingOpen] = useState(false);
   const [investmentWorkspaceOpen, setInvestmentWorkspaceOpen] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(false);
+  const [jarvisPanelOpen, setJarvisPanelOpen] = useState(false);
   const [browserPageId, setBrowserPageId] = useState<string | null>(null);
   const [filesOpen, setFilesOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
@@ -1446,38 +1489,93 @@ export function AgentDesktop() {
   const [pinnedDockAppIds, setPinnedDockAppIds] = useState<Set<string>>(() => new Set());
   const [dockPinsLoaded, setDockPinsLoaded] = useState(false);
   const [dockContextMenu, setDockContextMenu] = useState<{ appId: string; x: number; y: number } | null>(null);
+  const [browserTasks, setBrowserTasks] = useState<BrowserTaskState[]>([]);
+  const [taskOutcomes, setTaskOutcomes] = useState<Record<string, string>>({});
+  const [pendingRequest, setPendingRequest] = useState<string | null>(null);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const knownArtifactIdsRef = useRef<Set<string> | null>(null);
-  const [frontWindow, setFrontWindow] = useState<string>("tasks");
+  const [frontWindow, setFrontWindowState] = useState<string>("tasks");
+  // A delayed background read must not overtake a newer window activation.
+  const windowFocusRevision = useRef(0);
+  const setFrontWindow = useCallback((windowId: string) => {
+    windowFocusRevision.current += 1;
+    setFrontWindowState(windowId);
+  }, []);
   const [insightResults, setInsightResults] = useState<InsightResult[]>([]);
   const [insightRunning, setInsightRunning] = useState(false);
   const [insightNotification, setInsightNotification] = useState<InsightResult | null>(null);
   const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
   const knownInsightIdsRef = useRef<Set<string> | null>(null);
 
+  const publicationSessionRef = useRef<string | null>(null);
+  const [publishedDraft, setPublishedDraft] = useState<string | undefined>();
+  useEffect(() => { publicationSessionRef.current = null; setPublishedDraft(undefined); }, [activeCwd]);
+
+  const browserReturnOriginRef = useRef<BrowserReturnOrigin | null>(null);
+  const cancelBrowserReturn = useCallback(() => { browserReturnOriginRef.current = null; }, []);
   useEffect(() => {
-    const stream = new EventSource("/api/browser/events");
-    stream.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data) as BrowserSystemEvent | { type: "browser.ready" };
-        if (message.type !== "browser.opened" || !message.foreground) return;
-        if (activeCwd && message.page.cwd !== activeCwd) {
-          setNotice(`浏览器已在其他工作台打开：${message.page.title || message.page.url}`);
-          return;
-        }
-        setBrowserPageId(message.page.pageId);
-        setBrowserOpen(true);
-        setFrontWindow("browser");
-      } catch { /* ignore malformed browser events */ }
-    };
-    return () => stream.close();
-  }, [activeCwd]);
+    const origin = browserReturnOriginRef.current;
+    if (origin && !isBrowserOriginCurrent(origin, { cwd: activeCwd, taskSessionId, publicationSessionId: publicationSessionRef.current, browserOpen, frontWindow })) {
+      browserReturnOriginRef.current = null;
+    }
+  }, [activeCwd, taskSessionId, browserOpen, frontWindow]);
+
+  const handleBrowserEvent = useEffectEvent((message: BrowserSystemEvent | { type: "browser.ready" }) => {
+    const context = { cwd: activeCwd, taskSessionId, publicationSessionId: publicationSessionRef.current, browserOpen, frontWindow };
+    if (message.type === "browser.task") {
+      setBrowserTasks((current) => [...current.filter((task) => task.id !== message.task.id), message.task]);
+      if (message.task.cwd === activeCwd) setPendingRequest(null);
+      // The JD action returns to the native recruiting result window after it
+      // has loaded the actual published record. Other tasks keep normal return.
+      if (publicationSessionRef.current === message.task.parentSessionId) return;
+      const origin = browserReturnOriginRef.current;
+      if (!origin || message.task.pageId !== origin.pageId
+          || !["completed", "failed", "stopped"].includes(message.task.status)) return;
+      // Consume once, including cancellation; reconnection must not steal focus later.
+      browserReturnOriginRef.current = null;
+      const destination = browserReturnDestination(origin, message.task, context);
+      if (destination === "tasks") {
+        setJarvisPanelOpen(false);
+        setFrontWindow("tasks");
+      }
+      return;
+    }
+    if (message.type !== "browser.opened" || !message.foreground) return;
+    if (activeCwd && message.page.cwd !== activeCwd) {
+      setNotice(`浏览器已在其他工作台打开：${message.page.title || message.page.url}`);
+      return;
+    }
+    browserReturnOriginRef.current = captureBrowserOrigin(message.page, context);
+    setBrowserPageId(message.page.pageId);
+    setBrowserOpen(true);
+    setFrontWindow("browser");
+    if (message.page.controller === "agent") setJarvisPanelOpen(false);
+  });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const unsubscribe = subscribeBrowserEvents({ message: (event) => {
+      try { handleBrowserEvent(JSON.parse(event.data) as BrowserSystemEvent | { type: "browser.ready" }); }
+      catch { /* ignore malformed browser events */ }
+    },
+    // Recover a completion missed during a short SSE interruption, only for
+    // the task whose browser this UI actually followed into the foreground.
+    open: () => {
+      if (!browserReturnOriginRef.current) return;
+      void fetch("/api/browser/state", { cache: "no-store", signal: controller.signal })
+        .then(async (response) => response.ok ? await response.json() as { tasks: BrowserTaskState[] } : null)
+        .then((state) => { if (!controller.signal.aborted) state?.tasks.forEach((task) => handleBrowserEvent({ type: "browser.task", task })); })
+        .catch(() => { /* The stream remains the primary delivery path. */ });
+    } });
+    return () => { controller.abort(); unsubscribe(); };
+  }, []);
 
   useEffect(() => {
     const stream = new EventSource("/api/file-app/events");
     stream.onmessage = (event) => {
       try {
-        const message = JSON.parse(event.data) as FileOpenRequest | { type: "file.ready" };
+        const message = JSON.parse(event.data) as FileOpenRequest | { type: "file.ready" } | { type: "insight.updated"; cwd: string };
+        if (message.type === "insight.updated" && message.cwd === activeCwd) refreshInsightsRef.current();
         if (message.type !== "file.open") return;
         if (activeCwd && message.cwd !== activeCwd) {
           setNotice(`文件已在其他工作台打开：${getFileName(message.filePath)}`);
@@ -1489,6 +1587,16 @@ export function AgentDesktop() {
       } catch { /* ignore malformed file events */ }
     };
     return () => stream.close();
+  }, [activeCwd, setNotice, setFrontWindow]);
+
+  useEffect(() => {
+    if (!activeCwd) return;
+    const controller = new AbortController();
+    const refresh = async () => {
+      try { const r = await fetch(`/api/browser/state?cwd=${encodeURIComponent(activeCwd)}`, { cache: "no-store", signal: controller.signal }); const data = await r.json(); if (r.ok && !controller.signal.aborted) setBrowserTasks(data.tasks ?? []); } catch { /* Live events continue independently. */ }
+    };
+    void refresh(); const timer = setInterval(() => void refresh(), 2500);
+    return () => { controller.abort(); clearInterval(timer); };
   }, [activeCwd]);
 
   const refreshSessions = useCallback(async () => {
@@ -1551,8 +1659,9 @@ export function AgentDesktop() {
       }
     };
     void refresh();
+    refreshInsightsRef.current = refresh;
     const timer = window.setInterval(() => void refresh(), 5_000);
-    return () => { controller.abort(); window.clearInterval(timer); };
+    return () => { refreshInsightsRef.current = () => {}; controller.abort(); window.clearInterval(timer); };
   }, [activeCwd]);
 
   const workspaceSessions = useMemo(
@@ -1567,9 +1676,13 @@ export function AgentDesktop() {
     [activeCwd, jarvisSessionId, sessions],
   );
   const artifactRefreshKey = `${activeCwd ?? ""}|${workspaceSessions.map((session) => `${session.id}:${session.modified}`).join("|")}`;
+  const canRevealArtifact = useEffectEvent(() => !(browserOpen && frontWindow === "browser"));
   useEffect(() => {
+    const focusAtRequest = windowFocusRevision.current;
+    const reference = presentationCwd && activeCwd ? workspaceReference(activeCwd) : undefined;
+    const presetArtifacts: Artifact[] = reference && activeCwd ? [{ filePath: `${activeCwd}/${reference}`, sessionId: `preset:${activeCwd}`, cwd: activeCwd, taskTitle: "工作台资料", modified: new Date(0).toISOString() }] : [];
     if (!activeCwd || workspaceSessions.length === 0) {
-      setArtifacts([]);
+      setArtifacts(presetArtifacts);
       // Keep the sentinel uninitialized. On refresh, sessions arrive after the
       // first render; treating that gap as an empty baseline makes every
       // historical artifact look newly generated and opens a window for each.
@@ -1584,13 +1697,18 @@ export function AgentDesktop() {
           signal: controller.signal,
         });
         const data = await response.json() as SessionDetailResponse;
-        return response.ok && data.context ? extractArtifacts(session, data.context.messages) : [];
+        if (response.ok && data.context) {
+          const lastAssistant = data.context.messages.filter((message) => message.role === "assistant").at(-1);
+          if (!controller.signal.aborted) setTaskOutcomes((current) => ({ ...current, [session.id]: lastAssistant?.role === "assistant" && lastAssistant.stopReason === "error" ? "执行失败" : lastAssistant?.role === "assistant" && lastAssistant.stopReason === "aborted" ? "已停止" : "已完成" }));
+          return extractArtifacts(session, data.context.messages);
+        }
+        return [];
       } catch {
         return [];
       }
     })).then((groups) => {
       if (controller.signal.aborted) return;
-      const nextArtifacts = groups.flat().sort((a, b) => Date.parse(b.modified) - Date.parse(a.modified));
+      const nextArtifacts = [...groups.flat(), ...presetArtifacts].sort((a, b) => Date.parse(b.modified) - Date.parse(a.modified));
       const nextIds = new Set(nextArtifacts.map(artifactIdentity));
       const knownIds = knownArtifactIdsRef.current;
       setArtifacts(nextArtifacts);
@@ -1602,14 +1720,14 @@ export function AgentDesktop() {
           workspaceSessions.filter(isInsightTaskSession).map((session) => session.id),
         );
         const desktopArtifacts = newlyGenerated.filter((artifact) => !insightSessionIds.has(artifact.sessionId));
-        if (desktopArtifacts.length) {
+        const activeElement = document.activeElement;
+        const composerIsActive = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
+        if (desktopArtifacts.length && !composerIsActive && windowFocusRevision.current === focusAtRequest && canRevealArtifact()) {
           setOpenArtifacts((current) => {
             const openIds = new Set(current.map(artifactIdentity));
             return [...current, ...desktopArtifacts.filter((artifact) => !openIds.has(artifactIdentity(artifact)))];
           });
-          const activeElement = document.activeElement;
-          const composerIsActive = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
-          if (!composerIsActive) setFrontWindow(`file:${artifactIdentity(desktopArtifacts.at(-1)!)}`);
+          setFrontWindow(`file:${artifactIdentity(desktopArtifacts.at(-1)!)}`);
         }
       }
       knownArtifactIdsRef.current = nextIds;
@@ -1625,11 +1743,15 @@ export function AgentDesktop() {
   }, []);
 
   useEffect(() => {
-    const pinnedApps = readPinnedDockApps();
+    const preferredIds = new Set(["system:tasks", "system:library", "system:hr", "system:browser", "system:files", "system:settings", "system:store"]);
+    const pinnedApps: DockItem[] = presentationCwd && localStorage.getItem(PINNED_DOCK_APPS_KEY) === null
+      ? [...SYSTEM_DOCK_APPS.filter((app) => preferredIds.has(app.id)), { kind: "system", id: "system:calendar", name: "团队日程", description: "查看团队会议安排", category: "团队协作", icon: "clock", rank: 6 }]
+      : readPinnedDockApps();
+    if (presentationCwd && !pinnedApps.some((app) => app.id === "builtin:feishu")) pinnedApps.push(BUILTIN_LAUNCHPAD_APPS.find((app) => app.id === "builtin:feishu")!);
     setDockApps(pinnedApps);
     setPinnedDockAppIds(new Set(pinnedApps.map((app) => app.id)));
     setDockPinsLoaded(true);
-  }, []);
+  }, [presentationCwd]);
 
   useEffect(() => {
     if (!dockPinsLoaded) return;
@@ -1675,12 +1797,6 @@ export function AgentDesktop() {
     };
   }, [workspaceOpen]);
 
-  useEffect(() => {
-    if (!notice) return;
-    const timer = window.setTimeout(() => setNotice(null), 3_200);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
-
   const workspaces = useMemo(() => {
     const map = new Map<string, WorkspaceOption>();
     for (const workspace of managedWorkspaces) map.set(workspace.cwd, workspace);
@@ -1711,6 +1827,14 @@ export function AgentDesktop() {
       setWorkspaceOpen(false);
       return;
     }
+    if (filesHaveUnsavedChanges) { setNotice("请先保存文件修改，再切换工作台"); return; }
+    setNotice(null);
+    if (presentationCwd) {
+      try { localStorage.setItem(`syntropic:active-workspace:${presentationCwd}`, cwd); } catch { /* Optional UI persistence. */ }
+      setScheduleOpen(false); setHrRecruitingOpen(false); setFilesOpen(false); setBrowserOpen(false); setAppStoreOpen(false);
+      setSalesCrmOpen(false); setInvestmentWorkspaceOpen(false); setSettingsOpen(false); setTerminalOpen(false); setLaunchpadOpen(false);
+      setOpenApps([]); setOpenFeishuDocuments([]); setArtifactLibraryOpen(false); setJarvisPanelOpen(false); setPendingRequest(null); setPrompt("");
+    }
     setActiveCwd(cwd);
     setWorkspaceOpen(false);
     setTaskSessionId(null);
@@ -1721,7 +1845,7 @@ export function AgentDesktop() {
     setNotificationCenterOpen(false);
     knownArtifactIdsRef.current = null;
     window.history.replaceState(null, "", "/");
-  }, [activeCwd]);
+  }, [activeCwd, presentationCwd, filesHaveUnsavedChanges, setNotice]);
 
   const createWorkspace = useCallback(async () => {
     const nextNumber = workspaces.filter((workspace) => workspace.name.startsWith("新工作台")).length + 1;
@@ -1743,7 +1867,7 @@ export function AgentDesktop() {
     } finally {
       setWorkspaceBusy(false);
     }
-  }, [switchWorkspace, workspaces]);
+  }, [switchWorkspace, workspaces, setNotice]);
 
   const deleteWorkspace = useCallback(async (workspace: WorkspaceOption) => {
     const taskCount = sessions.filter((session) => session.cwd === workspace.cwd).length;
@@ -1786,20 +1910,20 @@ export function AgentDesktop() {
     } finally {
       setWorkspaceBusy(false);
     }
-  }, [activeCwd, refreshSessions, sessions, switchWorkspace, workspaces]);
+  }, [activeCwd, refreshSessions, sessions, switchWorkspace, workspaces, setNotice]);
 
   const visibleTasks = useMemo(() => {
     const userSessions = workspaceSessions.filter((session) => !isInsightTaskSession(session));
     const running = userSessions.filter((session) => runningIds.has(session.id));
     const recent = userSessions.filter((session) => !runningIds.has(session.id));
-    return [...running, ...recent].slice(0, 4);
+    return [...running, ...recent];
   }, [runningIds, workspaceSessions]);
 
   const openTask = useCallback((sessionId: string) => {
     setTaskSessionId(sessionId);
     setFrontWindow("tasks");
     window.history.replaceState(null, "", `?session=${encodeURIComponent(sessionId)}`);
-  }, []);
+  }, [setFrontWindow]);
 
   useEffect(() => {
     if (!taskSessionId) return;
@@ -1817,7 +1941,7 @@ export function AgentDesktop() {
       ? current.map((item) => artifactIdentity(item) === identity ? artifact : item)
       : [...current, artifact]);
     setFrontWindow(`file:${identity}`);
-  }, []);
+  }, [setFrontWindow]);
 
   const openInsightResult = useCallback((result: InsightResult) => {
     openArtifact({
@@ -1842,13 +1966,13 @@ export function AgentDesktop() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ cwd: activeCwd, activity: "document.opened", document }),
     }).catch(() => undefined);
-  }, [activeCwd]);
+  }, [activeCwd, setFrontWindow]);
 
   const openArtifactLibrary = useCallback(() => {
     setArtifactLibraryOpen(true);
     setSelectedLibraryArtifactId((current) => current ?? (artifacts[0] ? artifactIdentity(artifacts[0]) : null));
     setFrontWindow("library");
-  }, [artifacts]);
+  }, [artifacts, setFrontWindow]);
 
   const closeLaunchpad = useCallback(() => setLaunchpadOpen(false), []);
 
@@ -1866,7 +1990,7 @@ export function AgentDesktop() {
     rememberDockItem(app);
     setDockContextMenu(null);
     setFrontWindow(`app:${app.id}`);
-  }, [rememberDockItem]);
+  }, [rememberDockItem, setFrontWindow]);
 
   const openInvestmentSource = useCallback(async (sourceId: "feishu" | "google" | "qichacha") => {
     if (sourceId === "feishu") {
@@ -1899,7 +2023,7 @@ export function AgentDesktop() {
     } catch (error) {
       setNotice(error instanceof Error ? error.message : String(error));
     }
-  }, [activeCwd, openApps, openLaunchpadApp]);
+  }, [activeCwd, openApps, openLaunchpadApp, setNotice, setFrontWindow]);
 
   const openDockItem = useCallback((item: DockItem) => {
     if (item.kind !== "system") {
@@ -1909,7 +2033,10 @@ export function AgentDesktop() {
     setLaunchpadOpen(false);
     setDockContextMenu(null);
     rememberDockItem(item);
-    if (item.id === "system:tasks") {
+    if (item.id === "system:calendar") {
+      setScheduleOpen(true);
+      setFrontWindow("schedule");
+    } else if (item.id === "system:tasks") {
       if (sessions[0]) openTask(sessions[0].id);
     } else if (item.id === "system:library") {
       openArtifactLibrary();
@@ -1938,10 +2065,11 @@ export function AgentDesktop() {
       setSettingsOpen(true);
       setFrontWindow("settings");
     }
-  }, [openArtifactLibrary, openLaunchpadApp, openTask, rememberDockItem, sessions]);
+  }, [openArtifactLibrary, openLaunchpadApp, openTask, rememberDockItem, sessions, setFrontWindow]);
 
   const isDockItemOpen = useCallback((item: DockItem) => {
     if (item.kind !== "system") return openApps.some((openApp) => openApp.id === item.id);
+    if (item.id === "system:calendar") return scheduleOpen;
     if (item.id === "system:tasks") return Boolean(taskSessionId) && frontWindow === "tasks";
     if (item.id === "system:library") return artifactLibraryOpen;
     if (item.id === "system:crm") return salesCrmOpen;
@@ -1952,7 +2080,7 @@ export function AgentDesktop() {
     if (item.id === "system:terminal") return terminalOpen;
     if (item.id === "system:store") return appStoreOpen;
     return settingsOpen;
-  }, [appStoreOpen, artifactLibraryOpen, browserOpen, filesOpen, frontWindow, hrRecruitingOpen, salesCrmOpen, investmentWorkspaceOpen, openApps, settingsOpen, taskSessionId, terminalOpen]);
+  }, [appStoreOpen, artifactLibraryOpen, browserOpen, filesOpen, frontWindow, hrRecruitingOpen, salesCrmOpen, investmentWorkspaceOpen, openApps, settingsOpen, taskSessionId, terminalOpen, scheduleOpen]);
 
   const toggleDockAppPin = useCallback((app: DockItem) => {
     setPinnedDockAppIds((current) => {
@@ -1999,7 +2127,7 @@ export function AgentDesktop() {
     return data.cwd;
   }, [activeCwd]);
 
-  const startTask = useCallback(async (message: string) => {
+  const startTask = useCallback(async (message: string, recruitingTask?: "publication") => {
     const normalizedMessage = message.trim();
     if (!normalizedMessage) return null;
     setSubmitting(true);
@@ -2008,7 +2136,7 @@ export function AgentDesktop() {
       const response = await fetch("/api/agent/new", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cwd, type: "prompt", message: normalizedMessage }),
+        body: JSON.stringify({ cwd, type: "prompt", message: normalizedMessage, ...(recruitingTask ? { recruitingTask } : {}) }),
       });
       const data = await response.json() as { sessionId?: string; error?: string };
       if (!response.ok || !data.sessionId) throw new Error(data.error ?? "任务创建失败");
@@ -2028,28 +2156,36 @@ export function AgentDesktop() {
     } finally {
       setSubmitting(false);
     }
-  }, [ensureCwd, refreshSessions, markWorkspaceEngaged]);
+  }, [ensureCwd, refreshSessions, markWorkspaceEngaged, setNotice]);
 
   // Jarvis is the desktop's conversation partner. It only talks and delegates;
   // real work runs in background Pi sessions that show up as tasks here.
   const handleJarvisTaskStarted = useCallback((task: JarvisTask) => {
+    setPendingRequest(null);
     if (liveVoiceActiveRef.current) setLiveDispatches((current) => [...current.filter((item) => item.task.sessionId !== task.sessionId), { task, expiresAt: Date.now() + 12_000 }]);
     markWorkspaceEngaged(activeCwd);
     if (activeCwd) setSessions((current) => current.some((session) => session.id === task.sessionId) ? current : [{ id: task.sessionId, path: "", cwd: activeCwd, created: task.createdAt, modified: task.createdAt, messageCount: 1, firstMessage: task.description, transient: true }, ...current]);
     setNotice(`Syntropic 已派出任务：${task.description}`);
     setRunningIds((current) => new Set(current).add(task.sessionId));
     window.setTimeout(() => void refreshSessions(), 450);
-  }, [activeCwd, markWorkspaceEngaged, refreshSessions]);
+  }, [activeCwd, markWorkspaceEngaged, refreshSessions, setNotice]);
   const handleJarvisTaskSettled = useCallback((task: JarvisTask) => {
-    setNotice(`任务「${task.description}」${task.status === "aborted" ? "已停止" : "已完成"}`);
+    setNotice(`任务「${task.description}」${task.status === "aborted" ? "已停止" : task.status === "failed" ? "未完成，请查看详情" : "已完成"}`);
     setRunningIds((current) => {
       const next = new Set(current);
       next.delete(task.sessionId);
       return next;
     });
     window.setTimeout(() => void refreshSessions(), 450);
-  }, [refreshSessions]);
+  }, [refreshSessions, setNotice]);
   const jarvis = useJarvis({ cwd: activeCwd, onTaskStarted: handleJarvisTaskStarted, onTaskSettled: handleJarvisTaskSettled });
+  const sentAfterReplyRef = useRef(0);
+  useEffect(() => {
+    // Replies settle the task indicator; transcript visibility is user-owned.
+    if (pendingRequest && !jarvis.running && jarvis.latestReplyTurnId > sentAfterReplyRef.current) {
+      setPendingRequest(null);
+    }
+  }, [pendingRequest, jarvis.running, jarvis.latestReplyTurnId]);
 
   // Outranks the task window's ChatWindow so the voice conversation stays with
   // Jarvis even while a task window is open.
@@ -2065,14 +2201,15 @@ export function AgentDesktop() {
   });
 
   useEffect(() => {
-    if (jarvis.error) setNotice(jarvis.error);
-  }, [jarvis.error]);
+    if (jarvis.error) {
+      setNotice(jarvis.error);
+      setPendingRequest(null);
+    }
+  }, [jarvis.error, setNotice]);
   useEffect(() => {
     setJarvisSessionId(jarvis.sessionId);
   }, [jarvis.sessionId]);
-  // The Jarvis panel opens itself when the conversation is active and stays
-  // closed once the user dismisses it, until the next exchange.
-  const [jarvisPanelOpen, setJarvisPanelOpen] = useState(false);
+  // Conversation history is available on demand without interrupting work.
   const compactTurns = useMemo(() => compactDesktopTurns(jarvis.turns, jarvis.tasks), [jarvis.turns, jarvis.tasks]);
   const followConversationRef = useRef(true);
   const latestJarvisTurnId = jarvis.turns.length ? jarvis.turns[jarvis.turns.length - 1].id : 0;
@@ -2100,15 +2237,18 @@ export function AgentDesktop() {
 
   useEffect(() => {
     if (desktopVoice.error) setNotice(desktopVoice.error);
-  }, [desktopVoice.error]);
+  }, [desktopVoice.error, setNotice]);
 
   const sendDesktopMessage = async (text: string) => {
     const message = text.trim();
     if (!message || !jarvis.sessionId) return;
+    sentAfterReplyRef.current = jarvis.latestReplyTurnId;
     markWorkspaceEngaged(activeCwd);
+    setPendingRequest(message);
     dismissGuide();
     followConversationRef.current = true;
-    setJarvisPanelOpen(true);
+    setJarvisPanelOpen(false);
+    composerInputRef.current?.blur();
     setPrompt("");
     desktopVoice.noteUserInput();
     await jarvis.send(message);
@@ -2191,7 +2331,7 @@ export function AgentDesktop() {
   const formatDate = new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", weekday: "short" }).format(now);
   const formatTime = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
   const runningCount = workspaceSessions.filter((session) => runningIds.has(session.id) && !isInsightTaskSession(session)).length;
-  const hasOpenWindow = Boolean(taskSessionId || artifactLibraryOpen || settingsOpen || appStoreOpen || salesCrmOpen || hrRecruitingOpen || investmentWorkspaceOpen || browserOpen || filesOpen || terminalOpen || launchpadOpen || openApps.length || openArtifacts.length || openFeishuDocuments.length);
+  const hasOpenWindow = Boolean(scheduleOpen || taskSessionId || artifactLibraryOpen || settingsOpen || appStoreOpen || salesCrmOpen || hrRecruitingOpen || investmentWorkspaceOpen || browserOpen || filesOpen || terminalOpen || launchpadOpen || openApps.length || openArtifacts.length || openFeishuDocuments.length);
   const hasStartedWork = Boolean(activeCwd && engagedWorkspaces.has(activeCwd)) || visibleTasks.length > 0 || artifacts.length > 0;
   useEffect(() => {
     if (visibleTasks.length > 0 || artifacts.length > 0 || jarvis.running) markWorkspaceEngaged(activeCwd);
@@ -2225,9 +2365,21 @@ export function AgentDesktop() {
     </button>;
   };
 
+  const widgetTasks: WorkspaceWidgetItem[] = visibleTasks.map((session) => {
+    const browserTask = browserTasks.filter((task) => task.parentSessionId === session.id).at(-1);
+    const running = browserTask ? ["starting", "running", "stopping"].includes(browserTask.status) : runningIds.has(session.id);
+    const status = browserTask ? ({ completed: "已完成", failed: "执行失败", stopped: "已停止", starting: "正在准备", running: "进行中", stopping: "正在停止" })[browserTask.status] : running ? "进行中" : jarvis.tasks.find((task) => task.sessionId === session.id)?.status === "aborted" ? "已停止" : taskOutcomes[session.id] ?? "查看任务进展";
+    return { id: session.id, title: taskTitle(session), detail: status, running, onOpen: () => openTask(session.id) };
+  });
+  for (const task of browserTasks.filter((task) => task.cwd === activeCwd && !workspaceSessions.some((session) => session.id === task.parentSessionId))) {
+    widgetTasks.push({ id: task.id, title: /发布/.test(task.task) ? "发布 AI Agent 工程师岗位" : "查询招聘进展", detail: ({ completed: "已完成", failed: "执行失败", stopped: "已停止", starting: "正在准备", running: "进行中", stopping: "正在停止" })[task.status], running: ["starting", "running", "stopping"].includes(task.status), onOpen: () => { if (task.pageId) { setBrowserPageId(task.pageId); setBrowserOpen(true); setFrontWindow("browser"); } } });
+  }
+  if (pendingRequest && jarvis.running) widgetTasks.unshift({ id: "pending-request", title: pendingRequest, detail: "正在准备", running: true, onOpen: () => setJarvisPanelOpen(true) });
+  widgetTasks.sort((a, b) => Number(Boolean(b.running)) - Number(Boolean(a.running)));
+
   return (
     <main className={`agent-os${showStart ? " has-start-guide" : ""}`}>
-      <div className="agent-os-wallpaper" aria-hidden="true"><i/><i/><span/></div>
+      <div className="agent-os-wallpaper" aria-hidden="true"/>
 
       <header className="agent-os-menu-bar">
         <button className="agent-os-brand" type="button" onClick={() => { setTaskSessionId(null); setOpenArtifacts([]); setArtifactLibraryOpen(false); window.history.replaceState(null, "", "/"); }}>
@@ -2246,7 +2398,7 @@ export function AgentDesktop() {
               const stats = workspaceStats.get(workspace.cwd) ?? { taskCount: 0, runningCount: 0, latest: null };
               const active = workspace.cwd === activeCwd;
               return <article className={`agent-os-workspace-tile tone-${index % 4}${active ? " active" : ""}`} role="listitem" key={workspace.cwd}>
-                {workspace.managed && <button className="delete" type="button" aria-label={`删除 ${workspace.name}`} title="删除工作台" disabled={workspaceBusy} onClick={() => void deleteWorkspace(workspace)}><Icon name="close" size={10}/></button>}
+                {workspace.managed && (!presentationCwd || workspace.cwd !== presentationCwd) && <button className="delete" type="button" aria-label={`删除 ${workspace.name}`} title="删除工作台" disabled={workspaceBusy} onClick={() => void deleteWorkspace(workspace)}><Icon name="close" size={10}/></button>}
                 <button className="select" type="button" onClick={() => switchWorkspace(workspace.cwd)} aria-current={active ? "true" : undefined} aria-label={`切换到${workspace.name}，${stats.taskCount} 个任务，${stats.runningCount} 个运行中`}>
                   <span className="agent-os-workspace-preview" aria-hidden="true"><i className="one"/><i className="two"/><i className="three"/></span>
                   <span className="agent-os-workspace-copy"><strong>{workspace.name}</strong></span>
@@ -2263,10 +2415,10 @@ export function AgentDesktop() {
             aria-expanded={notificationCenterOpen}
             onClick={() => setNotificationCenterOpen((value) => !value)}
           >
-            <Icon name="bell" size={18}/>
+            <DesktopDesignIcon name="bell" size={20}/>
             {(runningCount > 0 || insightNotification) && <i className={insightNotification ? "is-insight" : ""}/>}
           </button>
-          <span>{formatDate}</span><span>{formatTime}</span><button className="agent-os-avatar" type="button" aria-label="Syntropic"><SyntropicMark size={16}/></button>
+          <span suppressHydrationWarning>{formatDate}</span><span suppressHydrationWarning>{formatTime}</span><button className="agent-os-avatar" type="button" aria-label="Syntropic"><SyntropicMark size={16}/></button>
           {notificationCenterOpen && (
             <section className="agent-os-notification-center" aria-label="通知中心">
               <header><strong>通知</strong><small>{insightResults.length ? `${insightResults.length} 条洞察` : "暂无新通知"}</small></header>
@@ -2299,7 +2451,14 @@ export function AgentDesktop() {
           />
         </DraggableDesktopWidget>
 
-        {hasStartedWork && <DraggableDesktopWidget className="collaboration-shelf" widgetId="collaboration-shelf-v1" defaultPosition={{ left: "24px", top: "32px" }}>
+        {presentationCwd && activeCwd && <DesktopWorkspaceWidgets key={activeCwd} cwd={activeCwd} recruiting={activeCwd === presentationCwd}
+          working={widgetTasks.some(task => task.running)} tasks={widgetTasks}
+          artifacts={artifacts.map(artifact => ({ id: artifactIdentity(artifact), title: getFileName(artifact.filePath), detail: artifact.taskTitle, onOpen: () => openArtifact(artifact) }))}
+          insights={insightResults.map(result => ({ id: result.filePath, title: result.title, detail: formatInsightModified(result.modified), onOpen: () => openInsightResult(result) }))}
+          onOpenLibrary={openArtifactLibrary} onOpenRecruiting={() => { setHrRecruitingOpen(true); setFrontWindow("hr"); }}
+          onOpenSchedule={() => { setScheduleOpen(true); setFrontWindow("schedule"); }}
+          onOpenPreset={file => openArtifact({ filePath: `${activeCwd}/${file}`, sessionId: `preset:${activeCwd}`, cwd: activeCwd, taskTitle: "工作台资料", modified: new Date().toISOString() })}/> }
+        {!presentationCwd && hasStartedWork && <DraggableDesktopWidget className="collaboration-shelf" widgetId="collaboration-shelf-v1" defaultPosition={{ left: "24px", top: "32px" }}>
           <DesktopCollaboration
             working={runningCount > 0 || jarvis.running}
             analyzing={insightRunning}
@@ -2348,9 +2507,10 @@ export function AgentDesktop() {
               setFrontWindow(nextFront ? `file:${artifactIdentity(nextFront)}` : artifactLibraryOpen ? "library" : "tasks");
             }}
           >
-            <div className="agent-os-file-app"><FileViewer filePath={artifact.filePath} cwd={artifact.cwd} sourceSessionId={artifact.sessionId} initialDisplayMode={isHtmlArtifact(artifact) ? "preview" : undefined} watchEnabled/></div>
+            <div className="agent-os-file-app"><FileViewer filePath={artifact.filePath} cwd={artifact.cwd} sourceSessionId={artifact.sessionId} initialDisplayMode={isHtmlArtifact(artifact) ? "preview" : undefined} watchEnabled={frontWindow === windowId}/></div>
           </DesktopWindow>;
         })}
+        {scheduleOpen && <DesktopWindow kind="app" title="团队日程" front={frontWindow === "schedule"} onFocus={() => setFrontWindow("schedule")} onClose={() => setScheduleOpen(false)}><PresentationSchedule recruiting={!presentationCwd || activeCwd === presentationCwd} demoAppointments={!!presentationCwd && activeCwd === presentationCwd}/></DesktopWindow>}
         {openFeishuDocuments.map((document, index) => {
           const windowId = `feishu-document:${document.id}`;
           return <DesktopWindow
@@ -2365,14 +2525,14 @@ export function AgentDesktop() {
               const remaining = openFeishuDocuments.filter((item) => item.id !== document.id);
               const nextDocument = remaining.at(-1);
               setOpenFeishuDocuments(remaining);
-              setFrontWindow(nextDocument ? `feishu-document:${nextDocument.id}` : openApps.some((app) => app.id === "feishu") ? "app:feishu" : "tasks");
+              setFrontWindow(nextDocument ? `feishu-document:${nextDocument.id}` : openApps.some((app) => app.id === "builtin:feishu") ? "app:builtin:feishu" : "tasks");
             }}
-          ><FeishuDocumentEditor document={document}/></DesktopWindow>;
+          ><>{document.source === "feishu-demo" ? <FeishuDemoDocument id={document.id}/> : <FeishuDocumentEditor document={document}/>}</></DesktopWindow>;
         })}
         {settingsOpen && <DesktopWindow title="设置" kind="settings" front={frontWindow === "settings"} onFocus={() => setFrontWindow("settings")} onClose={closeSettings}>
           <AgentSettingsApp cwd={activeCwd} sessionId={taskSessionId} onClose={closeSettings} onSessionReloaded={() => void refreshSessions()}/>
         </DesktopWindow>}
-        {appStoreOpen && <DesktopWindow title="应用商店" kind="store" front={frontWindow === "store"} onFocus={() => setFrontWindow("store")} onClose={closeAppStore} titleIcon={<AppStoreBrandIcon className="agent-store-title-icon"/>}>
+        {appStoreOpen && <DesktopWindow title="应用市场" kind="store" front={frontWindow === "store"} onFocus={() => setFrontWindow("store")} onClose={closeAppStore} titleIcon={<AppStoreBrandIcon className="agent-store-title-icon"/>}>
           <AppStore onOpenApp={openLaunchpadApp} onNotice={setNotice}/>
         </DesktopWindow>}
         {salesCrmOpen && <DesktopWindow className="agent-os-window-crm" title="销售 CRM" kind="app" front={frontWindow === "crm"} onFocus={() => setFrontWindow("crm")} onClose={() => {
@@ -2386,7 +2546,16 @@ export function AgentDesktop() {
           releaseTemporaryDockItem("system:hr");
         }} titleIcon={<span className="agent-os-hr-title-icon"><Icon name="recruiting" size={13}/></span>}>
           <HRRecruitingApp
+              presentation={Boolean(presentationCwd)}
+              onOpenInsight={openInsightResult}
             cwd={activeCwd}
+            publishedDraft={publishedDraft}
+            onOpenPublishedJob={(url) => {
+              if (!activeCwd) return;
+              void fetch("/api/browser/pages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cwd: activeCwd, url, foreground: true }) })
+                .then(async (response) => { if (!response.ok) throw new Error("无法打开职位网页"); })
+                .catch(() => setNotice("无法打开职位网页，请稍后重试。"));
+            }}
             onStartTask={startTask}
             onOpenSource={(sourceId) => {
               if (sourceId === "feishu") {
@@ -2409,7 +2578,7 @@ export function AgentDesktop() {
           setBrowserOpen(false);
           releaseTemporaryDockItem("system:browser");
         }} titleIcon={<Icon name="browser" size={16}/> }>
-          <BrowserApp key={activeCwd} cwd={activeCwd} initialPageId={browserPageId}/>
+          <BrowserApp key={activeCwd} onUserInteraction={cancelBrowserReturn} cwd={activeCwd} initialPageId={browserPageId} onOpenSettings={() => { setSettingsOpen(true); setFrontWindow("settings"); }}/>
         </DesktopWindow>}
         {filesOpen && activeCwd && <DesktopWindow title="文件" kind="app" front={frontWindow === "files"} onFocus={() => setFrontWindow("files")} onClose={() => {
           if (filesHaveUnsavedChanges && !window.confirm("文件应用中有未保存的修改，确定关闭吗？")) return;
@@ -2417,7 +2586,7 @@ export function AgentDesktop() {
           setFilesHaveUnsavedChanges(false);
           releaseTemporaryDockItem("system:files");
         }} titleIcon={<Icon name="folder" size={16}/> }>
-          <FilesApp key={activeCwd} cwd={activeCwd} openRequest={fileOpenRequest} onDirtyChange={setFilesHaveUnsavedChanges}/>
+          <FilesApp key={activeCwd} cwd={activeCwd} openRequest={fileOpenRequest} onDirtyChange={setFilesHaveUnsavedChanges} watchEnabled={frontWindow === "files"}/>
         </DesktopWindow>}
         {terminalOpen && activeCwd && <DesktopWindow className="agent-os-window-terminal" title="终端" kind="app" front={frontWindow === "terminal"} onFocus={() => setFrontWindow("terminal")} onClose={() => {
           setTerminalOpen(false);
@@ -2435,7 +2604,7 @@ export function AgentDesktop() {
             setFrontWindow(nextApp ? `app:${nextApp.id}` : "tasks");
           }}>
             {app.kind === "builtin" ? (
-              <FeishuAppView app={app} onNotice={setNotice} onOpenDocument={openFeishuDocument}/>
+              <>{presentationCwd ? <FeishuDemoApp recruiting={activeCwd === presentationCwd} onOpen={openFeishuDocument}/> : <FeishuAppView app={app} onNotice={setNotice} onOpenDocument={openFeishuDocument}/>}</>
             ) : (
               <ConnectedAppView app={app} onNotice={setNotice}/>
             )}
@@ -2465,7 +2634,7 @@ export function AgentDesktop() {
                   title="打开任务窗口查看细节"
                 >
                   <span className="conversation-task-icon"><Icon name={turn.task.status === "running" ? "clock" : "tasks"} size={16}/></span>
-                  <span className="conversation-task-copy"><small>后台任务 · {turn.task.status === "running" ? "正在执行" : turn.task.status === "aborted" ? "已停止" : "已完成"}</small><strong>{turn.task.description}</strong></span>
+                  <span className="conversation-task-copy"><small>后台任务 · {turn.task.status === "running" ? "正在执行" : turn.task.status === "aborted" ? "已停止" : turn.task.status === "failed" ? "未完成，请查看详情" : "已完成"}</small><strong>{turn.task.description}</strong></span>
                   <span className="conversation-task-open" aria-hidden="true">↗</span>
                 </button>
               ) : (
@@ -2532,8 +2701,11 @@ export function AgentDesktop() {
                 catch (error) { setNotice(error instanceof Error ? error.message : "无法打开工作台文件"); }
                 finally { setOpeningStartResource(false); }
               }}>{openingStartResource ? "打开中…" : startMode === "files" ? "浏览文件" : "选择应用"}</button>}
-              <input ref={composerInputRef} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={showStart ? startPlaceholder : jarvis.ready ? "和 Syntropic 说点什么" : "Syntropic 正在启动…"} aria-label="和 Syntropic 对话"/>
-              <button className="voice dictate" type="button" aria-label="语音输入" onClick={() => { dictationCompletionRef.current = "draft"; dictation.toggle(); }}><Icon name="mic" size={19}/></button>
+              <DesktopComposerInput key={activeCwd} inputRef={composerInputRef} value={prompt} onChange={setPrompt}
+                recruiting={!!presentationCwd && activeCwd === presentationCwd} hasJd={artifacts.some(isJdDemoArtifact)}
+                busy={jarvis.running || widgetTasks.some(task => task.running)} viewingRecruiting={hrRecruitingOpen && frontWindow === "hr"}
+                placeholder={showStart ? startPlaceholder : jarvis.ready ? hasStartedWork ? "和 Syntropic 说点什么" : "发布今天的第一项任务吧～" : "Syntropic 正在启动…"}/>
+              <button className="voice dictate" type="button" aria-label="语音输入" onClick={() => { dictationCompletionRef.current = "draft"; dictation.toggle(); }}><DesktopDesignIcon name="microphone" size={20}/></button>
               {prompt.trim() ? (
                 <button className="send" type="submit" aria-label="发送给 Syntropic" disabled={!jarvis.sessionId}>{submitting ? <span className="agent-os-spinner"/> : <Icon name="arrow-up" size={19}/>}</button>
               ) : (
@@ -2549,15 +2721,12 @@ export function AgentDesktop() {
         </div>}
       </section>
 
-      <nav
-        className="agent-os-dock"
-        aria-label="应用程序 Dock"
-      >
+      <DesktopDock>
         <button className={`dock-launchpad${launchpadOpen ? " is-open" : ""}`} type="button" aria-label="启动台" aria-pressed={launchpadOpen} data-label="启动台" onClick={() => { setWorkspaceOpen(false); setLaunchpadOpen((value) => !value); }}><Icon name="grid" size={22}/></button><i/>
         {pinnedDockItems.map(renderDockItem)}
         {temporaryDockItems.length ? <i className="agent-os-dock-app-divider"/> : null}
         {temporaryDockItems.map(renderDockItem)}
-      </nav>
+      </DesktopDock>
 
       {dockContextApp && dockContextMenu ? <div
         className="agent-os-dock-context-menu"
@@ -2573,14 +2742,39 @@ export function AgentDesktop() {
         </button>
       </div> : null}
 
-      {notice && <div className="agent-os-toast" role="status"><BrandMark compact/><span>{notice}</span></div>}
-      {insightNotification && (
-        <button className="agent-os-insight-notification" type="button" title={insightNotification.title} onClick={() => openInsightResult(insightNotification)}>
-          <span><Icon name="insight" size={17}/></span>
-          <span><small className="label">AI 洞察已生成</small><strong>{insightNotification.title}</strong></span>
-          <em>查看</em>
-        </button>
-      )}
+      {activeCwd && <RecruitingPublication
+        key={activeCwd}
+        notice={notice}
+        onDismissNotice={() => setNotice(null)}
+        insights={insightResults}
+        browserTasks={browserTasks}
+        onOpenInsight={openInsightResult}
+        cwd={activeCwd}
+        viewedArtifact={openArtifacts.find((artifact) => `file:${artifactIdentity(artifact)}` === frontWindow) ?? null}
+        onStartTask={(message) => startTask(message, "publication")}
+        onTaskStarted={(sessionId) => { publicationSessionRef.current = sessionId; }}
+        onPublished={(job, sessionId) => {
+          setPublishedDraft(job.draft);
+          const origin = browserReturnOriginRef.current;
+          if (origin?.sessionId === sessionId && isBrowserOriginCurrent(origin, { cwd: activeCwd, taskSessionId, publicationSessionId: publicationSessionRef.current, browserOpen, frontWindow })) {
+            browserReturnOriginRef.current = null;
+            setJarvisPanelOpen(false);
+            setHrRecruitingOpen(true);
+            setFrontWindow("hr");
+          }
+          setNotice(`「${job.title}」已发布到内部招聘系统`);
+        }}
+        onSettled={(sessionId) => {
+          if (publicationSessionRef.current === sessionId) publicationSessionRef.current = null;
+          if (browserReturnOriginRef.current?.sessionId === sessionId) browserReturnOriginRef.current = null;
+        }}
+        onNotice={setNotice}
+      />}
+      {!activeCwd && notice && <DesktopNotification
+        ariaLabel="工作台通知" label="工作台动态" title={notice} autoDismiss
+        dismissLabel="关闭通知" onDismiss={() => setNotice(null)}
+      />}
+
     </main>
   );
 }
