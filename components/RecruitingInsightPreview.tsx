@@ -80,11 +80,11 @@ export function RecruitingInsightPreview({ content }: { content: string }) {
     const element = frame.current;
     element?.addEventListener("load", syncMeeting);
     void syncMeeting();
-    const timer = isPresentation ? window.setInterval(() => void syncMeeting(), 3000) : undefined;
+    window.addEventListener("agent-os:presentation-changed", syncMeeting);
     window.addEventListener("message", receive);
     return () => {
       live = false;
-      if (timer !== undefined) window.clearInterval(timer);
+      window.removeEventListener("agent-os:presentation-changed", syncMeeting);
       element?.removeEventListener("load", syncMeeting);
       window.removeEventListener("message", receive);
     };

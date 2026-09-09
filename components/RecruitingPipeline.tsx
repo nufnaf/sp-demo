@@ -19,12 +19,14 @@ export function PresentationSchedule({ recruiting = true, demoAppointments = fal
     if (!recruiting) return;
     let live = true;
     const read = async () => { try { const r = await fetch("/api/desktop/scenario", { cache: "no-store" }); if (!r.ok) throw new Error(); const data = await r.json(); if (live) { setMeeting(data.meeting ?? null); setError(""); } } catch { if (live) setError("暂时无法读取日程，请稍后重试"); } };
-    void read(); const timer = setInterval(() => void read(), 2500); return () => { live = false; clearInterval(timer); };
+    void read();
+    window.addEventListener("agent-os:presentation-changed", read);
+    return () => { live = false; window.removeEventListener("agent-os:presentation-changed", read); };
   }, [recruiting]);
   const events = recruiting && now ? demoAppointments ? recruitingHomeSchedule(now, meeting) : meeting ? [meeting] : [] : [];
   return <section className="presentation-schedule"><small>星流科技 · 团队协作</small><h1>团队日程</h1>{error && <p role="alert">{error}</p>}{!events.length ? <p>当前工作台暂无已安排的会议。</p> : events.map(event => <article key={event.id}><em>已安排</em><h2>{event.title}</h2><p>{new Date(event.startsAt).toLocaleString("zh-CN")} · 30 分钟</p><h3>参会人</h3><p>{event.attendees.join(" · ")}</p><h3>会议议程</h3><ol>{event.agenda.map((a) => <li key={a}>{a}</li>)}</ol></article>)}</section>;
 }
-export function RecruitingPipeline({ scene, cwd, onOpenWebsite, onOpenInsight }: { scene: RecruitingScene; cwd: string; onOpenWebsite?: (url: string) => void; onOpenInsight: (result: InsightResult) => void }) {
+export function RecruitingPipeline({ scene, cwd, onOpenWebsite, onOpenInsight }: { scene: RecruitingScene | null; cwd: string; onOpenWebsite?: (url: string) => void; onOpenInsight: (result: InsightResult) => void }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -32,7 +34,7 @@ export function RecruitingPipeline({ scene, cwd, onOpenWebsite, onOpenInsight }:
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  const jobId = scene.job?.id;
+  const jobId = scene?.job?.id;
   useEffect(() => {
     if (!jobId) return;
     let live = true;
@@ -42,15 +44,18 @@ export function RecruitingPipeline({ scene, cwd, onOpenWebsite, onOpenInsight }:
         const data = await r.json(); if (!r.ok) throw new Error(data.error || "暂时无法读取洞察"); if (live) { setProgress(data); setError(""); }
       } catch (e) { if (live) setError(e instanceof Error ? e.message : "洞察暂时不可用"); }
     };
-    void load(); const timer = setTimeout(() => void load(true), 7000); const poll = setInterval(() => void load(), 3000);
-    return () => { live = false; clearTimeout(timer); clearInterval(poll); };
+    const refresh = () => void load();
+    void load();
+    const timer = setTimeout(() => void load(true), 7000);
+    window.addEventListener("agent-os:presentation-changed", refresh);
+    return () => { live = false; clearTimeout(timer); window.removeEventListener("agent-os:presentation-changed", refresh); };
   }, [jobId]);
   const schedule = async () => {
     setBusy(true);
     try { const r = await fetch("/api/desktop/scenario", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "meeting" }) }); const data = await r.json(); if (!r.ok) throw new Error(data.error); setProgress(data); setScheduleOpen(true); }
     catch (e) { setError(e instanceof Error ? e.message : "会议暂时无法安排"); } finally { setBusy(false); }
   };
-  if (!scene.job) return <section className="presentation-pipeline"><small>星流科技 · 招聘目标</small><h1>高级 AI Agent 研发工程师</h1><p>Agent Platform · 北京 / 上海 · 招聘 6 人</p><article><h2>从团队资料开始</h2><p>根据团队业务资料准备岗位 JD，确认后即可发布岗位。</p></article></section>;
+  if (!scene?.job) return <section className="presentation-pipeline"><small>星流科技 · 招聘目标</small><h1>高级 AI Agent 研发工程师</h1><p>Agent Platform · 北京 / 上海 · 招聘 6 人</p><article><h2>从团队资料开始</h2><p>根据团队业务资料准备岗位 JD，确认后即可发布岗位。</p></article></section>;
   const visible = filterRecruitingCandidates(scene.candidates, filter, query);
   const candidate = scene.candidates.find(c => c.id === selected);
   const cumulative = recruitingMetrics(scene);

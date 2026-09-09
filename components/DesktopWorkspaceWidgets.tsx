@@ -32,16 +32,16 @@ export function DesktopWorkspaceWidgets({ cwd, recruiting, tasks, artifacts, ins
     if (!recruiting) return;
     let live = true;
     const refresh = async () => {
-      const results = await Promise.allSettled([
-        fetch("/api/desktop/scenario", { cache: "no-store" }).then(r => r.ok ? r.json() : null),
-        fetch("/api/apps/internal-recruiting", { cache: "no-store" }).then(r => r.ok ? r.json() : null),
-      ]);
-      if (!live) return;
-      if (results[0].status === "fulfilled" && results[0].value) setMeeting(results[0].value.meeting ?? null);
-      if (results[1].status === "fulfilled" && results[1].value) setScene(results[1].value.scene ?? null);
+      try {
+        const response = await fetch("/api/desktop/scenario", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (live) { setMeeting(data.meeting ?? null); setScene(data.recruiting?.scene ?? null); }
+      } catch { /* Keep the last local result if the local service is unavailable. */ }
     };
-    void refresh(); const timer = setInterval(() => void refresh(), 2500);
-    return () => { live = false; clearInterval(timer); };
+    void refresh();
+    window.addEventListener("agent-os:presentation-changed", refresh);
+    return () => { live = false; window.removeEventListener("agent-os:presentation-changed", refresh); };
   }, [recruiting]);
   const openProfile = () => { if (profile) onOpenPreset(profile.file); };
   const fileItems = [...artifacts, ...(profile && !artifacts.some(item => item.title === profile.file) ? [{ id: "reference", title: profile.file, detail: "工作台资料", onOpen: openProfile }] : [])];
@@ -61,7 +61,7 @@ export function DesktopWorkspaceWidgets({ cwd, recruiting, tasks, artifacts, ins
     {card("goal", "业务目标", <span className="workspace-eyebrow">核心业务目标</span>, hasGoal ? <>
       <button type="button" className="workspace-goal" onClick={recruiting ? onOpenRecruiting : openProfile}>
         <strong>{recruiting ? <><em>{target}位</em>高级 AI Agent 研发工程师<span className="workspace-goal-outcome">到岗</span></> : profile?.goal}</strong>
-        <p>{recruiting ? "Agent Platform · 北京 / 上海" : profile?.note}</p>
+        <p>{recruiting ? scene?.job ? `已发布岗位 · ${scene.metrics.applied} 人投递 · ${scene.metrics.passed} 人面试通过` : "Agent Platform · 北京 / 上海" : profile?.note}</p>
       </button>
       {recruiting && <div className="workspace-goal-progress">
         <div><span>当前进度</span><strong>0 / {target} · 0%</strong></div>
@@ -69,7 +69,6 @@ export function DesktopWorkspaceWidgets({ cwd, recruiting, tasks, artifacts, ins
           {Array.from({ length: Math.min(target, 12) }, (_, index) => <i key={index}/>)}
         </div>
         <div className="workspace-deadline"><span>截止日期</span><span>10月31日</span></div>
-        {scene?.job && <small>已发布岗位 · {scene.metrics.applied} 人投递 · {scene.metrics.passed} 人面试通过</small>}
       </div>}
     </> : emptyState("把意图变成可追踪的目标", "在对话中梳理工作方向，组织结果、期限和验收标准"),
     hasGoal ? <button className="workspace-outline-action" type="button" onClick={recruiting ? onOpenRecruiting : openProfile}>查看目标 <span aria-hidden="true">↗</span></button> : <small>未设定</small>)}

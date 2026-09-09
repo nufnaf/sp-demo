@@ -61,3 +61,25 @@ test("cloud storage rejects a competing write instead of reporting a save", asyn
     Conflict,
   );
 });
+
+test('cloud run rows initialize once and writes never address another run', async () => {
+  const rows = new Map();
+  const sql = async (parts, ...values) => {
+    const query = parts.join('?');
+    if (query.startsWith('SELECT')) return rows.has(values[0]) ? [rows.get(values[0])] : [];
+    if (query.startsWith('INSERT')) {
+      const [id,revision,data] = values;
+      if (rows.has(id)) return [];
+      const row = {revision,data:JSON.parse(data)}; rows.set(id,row); return [row];
+    }
+    const [data,revision,id,previous] = values;
+    if (rows.get(id)?.revision !== previous) return [];
+    const row = {revision,data:JSON.parse(data)}; rows.set(id,row); return [row];
+  };
+  const a = new NeonStore(sql,'a'.repeat(32)), b = new NeonStore(sql,'b'.repeat(32));
+  const [one,two] = await Promise.all([a.read(),a.read()]); assert.equal(one.revision,two.revision);
+  const other = await b.read();
+  await a.update(one.revision,data=>({...data,marker:'only-a'}));
+  assert.equal((await a.read()).data.marker,'only-a'); assert.deepEqual(await b.read(),other);
+  assert.equal(rows.size,2); await assert.rejects(new NeonStore(sql).read(),/未初始化/);
+});

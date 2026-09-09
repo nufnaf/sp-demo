@@ -14,6 +14,10 @@ const require = createRequire(import.meta.url);
 function harness(saved = {}) {
   const slots = [], storage = new Map(), timers = new Map();
   const publishedJobs = [];
+  const browserTasks = [];
+  const runningSessionIds = [];
+  const listeners = new Map();
+  let intervalCalls = 0;
   let cursor = 0, dirty = false, effects = [], output;
   const react = {
     useState(initial) {
@@ -42,8 +46,9 @@ function harness(saved = {}) {
   vm.runInNewContext(compiled, { module: testModule, exports: testModule.exports, TextEncoder, crypto: webcrypto, URL, AbortSignal,
     localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) },
     setTimeout: (fn, delay) => { const id = {}; timers.set(id, { fn, delay }); return id; }, clearTimeout: id => timers.delete(id),
-    setInterval: () => ({}), clearInterval() {},
-    fetch: async url => ({ ok: true, json: async () => String(url).includes("/api/files/") ? { content: "# AI Agent 工程师\n岗位说明" } : String(url).includes("internal-recruiting") ? { baseUrl: "http://localhost", jobs: publishedJobs } : { tasks: [] } }),
+    setInterval: () => { intervalCalls++; return {}; }, clearInterval() {},
+    window: { addEventListener: (name, fn) => { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name).add(fn); }, removeEventListener: (name, fn) => listeners.get(name)?.delete(fn) },
+    fetch: async url => ({ ok: true, json: async () => String(url).includes("/api/files/") ? { content: "# AI Agent 工程师\n岗位说明" } : String(url).includes("internal-recruiting") ? { baseUrl: "http://localhost", jobs: publishedJobs } : String(url).includes("/api/agent/running") ? { runningSessionIds } : { tasks: browserTasks } }),
     require: id => id === "react" ? react : id === "react/jsx-runtime" ? require(id) : id === "./DesktopNotification" ? { DesktopNotification() {} } : id.includes("file-paths") ? { encodeFilePathForApi: encodeURIComponent } : { isJdDemoArtifact: item => item.filePath.endsWith("jd.md"), publicationPrompt: (url, title, path) => `${url} ${title} ${path}` },
   });
   const render = () => {
@@ -55,7 +60,10 @@ function harness(saved = {}) {
     } while (dirty);
     return output;
   };
-  return { props, artifact, report, calls, storage, render, publishedJobs,
+  return { props, artifact, report, calls, storage, render, publishedJobs, browserTasks, runningSessionIds,
+    emitChange() { for (const fn of listeners.get("agent-os:presentation-changed") ?? []) fn(); },
+    intervalCalls: () => intervalCalls,
+    tick() { const ready = [...timers]; for (const [id, timer] of ready) if (timer.delay === 750) { timers.delete(id); timer.fn(); } },
     recognize() { props.viewedArtifact = artifact; render(); for (const [id, timer] of timers) if (timer.delay === 1400) { timers.delete(id); timer.fn(); } return render(); },
     async settle() { for (let i = 0; i < 10; i++) { await new Promise(resolve => setImmediate(resolve)); render(); } return output; },
   };
@@ -96,12 +104,12 @@ test("the dismissed widget can publish and becomes disabled while that same publ
   assert.equal(surfaces.publicationInsight.actionLabel, "正在发布…");
 });
 
-test("a saved publication clears the suggestion after reload or publication from the composer", async () => {
+test("a saved publication marks the insight completed after reload or publication from the composer", async () => {
   const h = harness();
   const hash = await webcrypto.subtle.digest("SHA-256",new TextEncoder().encode(`${h.artifact.cwd}\n${h.artifact.filePath}`));
   h.publishedJobs.push({draft:Buffer.from(hash).toString('hex').slice(0,32)});
   h.recognize();
-  assert.equal((await h.settle()).publicationInsight,null);
+  assert.equal((await h.settle()).publicationInsight.actionLabel,"已发布");
   assert.equal(h.calls.length,0,"reconciliation never dispatches or submits a job");
 });
 
@@ -109,4 +117,50 @@ test("standalone Web publishing retains the artifact reference", async () => {
   const h=harness();h.props.presentation=false;
   h.recognize().publicationInsight.onOpen();await h.settle();
   assert.ok(h.calls[0].includes(h.artifact.filePath));
+});
+
+
+test("a completed composer publication updates a visible suggestion on an event without periodic reads", async () => {
+  const h = harness(); h.recognize(); await h.settle();
+  assert.equal(h.intervalCalls(), 0);
+  const hash = await webcrypto.subtle.digest("SHA-256", new TextEncoder().encode(`${h.artifact.cwd}\n${h.artifact.filePath}`));
+  h.publishedJobs.push({ draft: Buffer.from(hash).toString('hex').slice(0, 32) });
+  h.emitChange();
+  assert.equal((await h.settle()).publicationInsight.actionLabel, "已发布");
+});
+
+test("browser completion waits for the parent verification and local save before announcing success", async () => {
+  const h = harness(); const outcomes = [];
+  h.props.onPublished = job => outcomes.push(job.draft);
+  h.runningSessionIds.push('publication-session');
+  h.browserTasks.push({ parentSessionId: 'publication-session', status: 'completed' });
+  h.recognize().publicationInsight.onOpen(); await h.settle();
+  assert.deepEqual(outcomes, []);
+  const hash = await webcrypto.subtle.digest("SHA-256", new TextEncoder().encode(`${h.artifact.cwd}\n${h.artifact.filePath}`));
+  const draft = Buffer.from(hash).toString('hex').slice(0, 32);
+  h.publishedJobs.push({ draft }); h.runningSessionIds.length = 0;
+  h.tick(); await h.settle();
+  assert.deepEqual(outcomes, [draft]);
+});
+
+
+test("a verified publication remains in the insight card after reload without a new publication toast", async () => {
+  const h = harness(); h.runningSessionIds.push('publication-session');
+  h.browserTasks.push({ parentSessionId:'publication-session',status:'completed' });
+  h.recognize().publicationInsight.onOpen(); await h.settle();
+  const digest=await webcrypto.subtle.digest('SHA-256',new TextEncoder().encode(`${h.artifact.cwd}\n${h.artifact.filePath}`));
+  const job={draft:Buffer.from(digest).toString('hex').slice(0,32),title:'AI Agent 工程师'};
+  h.publishedJobs.push(job); h.runningSessionIds.length=0; h.tick();
+  const done=await h.settle(); assert.equal(done.publicationInsight.disabled,true); assert.equal(done.notification,null);
+  const restored=harness(JSON.parse(h.storage.get('syntropic:notifications:/fixture'))); restored.publishedJobs.push(job);
+  assert.equal(restored.render().publicationInsight.actionLabel,'已发布'); assert.equal(restored.render().notification,null);
+  restored.emitChange(); assert.equal((await restored.settle()).notification,null);
+});
+
+test("failed final verification shows the failure once and does not rediscover the same JD", async () => {
+  const h=harness(); const notices=[]; h.props.onNotice=message=>notices.push(message);
+  h.browserTasks.push({parentSessionId:'publication-session',status:'completed'});
+  h.recognize().publicationInsight.onOpen(); const done=await h.settle();
+  assert.equal(notices.length,1); assert.match(notices[0],/没有找到/);
+  assert.ok(done.publicationInsight); assert.equal(done.notification,null);
 });

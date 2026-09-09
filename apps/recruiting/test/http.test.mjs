@@ -123,3 +123,39 @@ test("publishing a JD persists one job, verifies it on the page, and projects th
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("two demo runs publish the same JD independently and keep every link, form and redirect scoped", async () => {
+  const { seedData } = await import('../src/seed.mjs');
+  const dir = await mkdtemp(join(tmpdir(), 'recruiting-scopes-'));
+  const stores = new Map();
+  const provider = async scope => {
+    const key = scope ?? 'legacy';
+    if (!stores.has(key)) stores.set(key, new FileStore(join(dir, key + '.json'), () => seedData(true)));
+    return stores.get(key);
+  };
+  const server = createServer(createHandler(provider));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const scopes = ['a'.repeat(32), 'b'.repeat(32)];
+  try {
+    const ids = [];
+    for (const scope of scopes) {
+      const prefix = `/demo/${scope}`;
+      const read = () => fetch(origin + prefix + '/desktop/published-jobs').then(r => r.json());
+      assert.deepEqual((await read()).jobs, []);
+      const form = await fetch(origin + prefix + '/jobs/new?draft=same-jd-test').then(r => r.text());
+      for (const [, path] of form.matchAll(/(?:href|action)="(\/[^"]*)"/g)) assert.ok(path.startsWith(prefix + '/'), path);
+      const revision = (await (await provider(scope)).read()).revision;
+      const response = await fetch(origin + prefix + '/jobs/publish', { method: 'POST', redirect: 'manual', headers: {Origin:origin,'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({revision,draft:'same-jd-test',title:'AI Agent 工程师',description:'完整 JD',target:'6',location:'北京',department:'研发',owner:'陈晓'}) });
+      assert.equal(response.status,303); assert.ok(response.headers.get('location').startsWith(prefix+'/jobs/'));
+      const data = await read(); assert.equal(data.jobs.length,1); assert.equal(data.scene.job.id,data.jobs[0].id);
+      assert.equal(data.scene.metrics.applied,30); assert.equal(data.scene.insight.disagreementCount,3); ids.push(data.jobs[0].id);
+      assert.equal((await fetch(origin + response.headers.get('location'))).status,200);
+    }
+    assert.notEqual(ids[0],ids[1]);
+    const reloaded = await fetch(origin+'/demo/'+scopes[0]+'/desktop/published-jobs').then(r=>r.json());
+    assert.equal(reloaded.jobs[0].id,ids[0]);
+    assert.deepEqual((await fetch(origin+'/desktop/published-jobs').then(r=>r.json())).jobs,[],'legacy records unchanged');
+    assert.equal((await fetch(origin+'/demo/invalid/jobs/new')).status,404);
+  } finally { await new Promise(resolve=>server.close(resolve)); await rm(dir,{recursive:true,force:true}); }
+});
