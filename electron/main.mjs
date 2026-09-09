@@ -1,10 +1,11 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from 'electron';
 import { fork } from 'node:child_process';
-import { cp, mkdir, readFile, rename, rm } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createPresentationRun } from './presentation.mjs';
+import { preparePackagedRuntime, removeOldPackagedRuntimes } from './packaged-runtime.mjs';
 import { APP_ORIGIN, isAppUrl, isExternalUrl } from './policy.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -18,6 +19,7 @@ let supervisor = null;
 let presentation = null;
 let quitting = false;
 let ready = false;
+let packagedBuildId;
 let status = { title: '正在启动本机后台…', detail: '正在准备工作空间，请稍候。服务就绪后将自动打开工作台。' };
 let supervisorStopped = Promise.resolve();
 
@@ -84,15 +86,8 @@ async function startSupervisor() {
   if (packaged) {
     try {
       const manifest = JSON.parse(await readFile(join(process.resourcesPath, 'desktop-runtime.json'), 'utf8'));
-      root = join(app.getPath('userData'), 'runtimes', manifest.buildId);
-      // Runtime caches are writable and upgrades never replace recruitment/Pi data.
-      if (!existsSync(join(root, 'package.json'))) {
-        const pending = `${root}.pending`;
-        await mkdir(dirname(root), { recursive: true });
-        await rm(pending, { recursive: true, force: true });
-        await cp(join(process.resourcesPath, 'runtime'), pending, { recursive: true, verbatimSymlinks: true });
-        await rename(pending, root);
-      }
+      packagedBuildId = manifest.buildId;
+      root = await preparePackagedRuntime(process.resourcesPath, app.getPath('userData'), manifest.buildId);
       node = join(process.resourcesPath, 'node/bin/node');
       Object.assign(env, {
         SYNTROPIC_PACKAGED: '1',
@@ -100,6 +95,7 @@ async function startSupervisor() {
         SYNTROPIC_FEISHU_CONFIG: join(process.resourcesPath, 'feishu-demo.json'),
         SYNTROPIC_RECRUITING_URL: 'http://127.0.0.1:30143/',
         PI_WEB_BROWSER_EXECUTABLE: join(process.resourcesPath, manifest.browserExecutable),
+        PI_WEB_BROWSER_HEADLESS: 'true',
         PATH: `${join(process.resourcesPath, 'node/bin')}:/usr/bin:/bin:/usr/sbin:/sbin`,
       });
     } catch {
@@ -128,6 +124,8 @@ async function startSupervisor() {
     if (quitting) return;
     if (message.type === 'ready') {
       ready = true;
+      if (packagedBuildId) void removeOldPackagedRuntimes(app.getPath('userData'), packagedBuildId)
+        .catch(() => console.warn('[desktop] 旧运行文件清理未完成，下次启动将重试。'));
       console.info(`[desktop] 后台已就绪（${message.owned ? '由 App 管理' : '复用外部服务'}）。`);
       if (window) void window.loadURL(APP_ORIGIN).catch(() => {});
     } else if (message.type === 'status') {

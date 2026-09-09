@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { cp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pruneUnsupportedPackages } from './desktop-package-files.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new Error('此安装包构建目前仅支持 macOS Apple Silicon。');
@@ -21,7 +22,7 @@ const nodeArchive = `node-v${nodeVersion}-darwin-arm64.tar.gz`;
 const nodeSha256 = '40e5607e5ecb3db9192723776da2d75d966260fc74a7a9e731c1bd67dda96bc8';
 const nodeHome = join(cache, `node-v${nodeVersion}-darwin-arm64`);
 const node = join(nodeHome, 'bin/node');
-const browserHome = join(cache, 'browsers');
+const browserHome = join(cache, 'browsers-headless');
 const run = (command, args, options = {}) => new Promise((resolve, reject) => {
   const child = spawn(command, args, { cwd: root, stdio: 'inherit', ...options });
   child.once('error', reject);
@@ -32,12 +33,15 @@ console.log('准备已固定版本的 Node 运行时…');
 if (!existsSync(join(cache, nodeArchive))) await run('/usr/bin/curl', ['-fL', '--retry', '2', '-o', join(cache, nodeArchive), `https://nodejs.org/dist/v${nodeVersion}/${nodeArchive}`]);
 if (createHash('sha256').update(await readFile(join(cache, nodeArchive))).digest('hex') !== nodeSha256) throw new Error('Node 下载校验失败，请移除缓存压缩包后重试。');
 if (!existsSync(node)) await run('/usr/bin/tar', ['-xzf', join(cache, nodeArchive), '-C', cache]);
-const env = { ...process.env, PATH: `${join(nodeHome, 'bin')}:${process.env.PATH}`, NEXT_TELEMETRY_DISABLED: '1', PLAYWRIGHT_BROWSERS_PATH: browserHome };
+const env = { ...process.env, PATH: `${join(nodeHome, 'bin')}:${process.env.PATH}`, NEXT_TELEMETRY_DISABLED: '1', PLAYWRIGHT_BROWSERS_PATH: browserHome, SYNTROPIC_DESKTOP_BUILD: '1' };
 delete env.ELECTRON_RUN_AS_NODE;
 console.log('准备随包浏览器…');
-await run(node, [join(root, 'node_modules/playwright-core/cli.js'), 'install', 'chromium', '--no-shell'], { env });
-await run(node, ['--input-type=module', '-e', `import {chromium} from 'playwright-core'; import{writeFileSync}from'node:fs';writeFileSync(${JSON.stringify(join(cache, 'browser-path.txt'))},chromium.executablePath())`], { env });
-const browserExecutable = relative(cache, (await readFile(join(cache, 'browser-path.txt'), 'utf8')).trim());
+await run(node, [join(root, 'node_modules/playwright-core/cli.js'), 'install', 'chromium', '--only-shell'], { env });
+// Use the locked Playwright registry's platform/revision paths, not a scan of
+// accumulated download caches. Ship only this build's browser and FFmpeg.
+await run(node, ['--input-type=commonjs', '-e', `const {registry}=require('playwright-core/lib/coreBundle').registry;const {writeFileSync}=require('node:fs');const browser=registry.findExecutable('chromium-headless-shell');writeFileSync(${JSON.stringify(join(cache, 'browser-paths.json'))},JSON.stringify({executable:browser.executablePath(),directories:[browser.directory,registry.findExecutable('ffmpeg').directory]}))`], { env });
+const browserPaths = JSON.parse(await readFile(join(cache, 'browser-paths.json'), 'utf8'));
+const browserExecutable = join('browsers', relative(browserHome, browserPaths.executable));
 console.log('在独立暂存目录构建，不修改开发目录的 .next…');
 await rm(source, { recursive: true, force: true });
 await mkdir(source, { recursive: true });
@@ -59,16 +63,41 @@ await writeFile(join(resources, 'feishu-demo.json'), feishuConfig, { mode: 0o600
 await cp(join(root, 'electron'), join(resources, 'app/electron'), { recursive: true });
 await writeFile(join(resources, 'app/package.json'), JSON.stringify({ name: 'syntropic-desktop', productName: 'Syntropic', version: '0.8.11', main: 'electron/main.mjs' }, null, 2));
 const runtime = join(resources, 'runtime');
-await mkdir(runtime, { recursive: true });
-for (const entry of ['.next', 'public', 'bin', 'next.config.ts', 'package.json']) await cp(join(source, entry), join(runtime, entry), { recursive: true, verbatimSymlinks: true });
+await cp(join(source, '.next/standalone'), runtime, { recursive: true, verbatimSymlinks: true });
+for (const entry of ['public', '.next/static']) await cp(join(source, entry), join(runtime, entry), { recursive: true, verbatimSymlinks: true });
 await rm(join(runtime, '.next/cache'), { recursive: true, force: true });
-await run('/bin/cp', ['-cR', join(source, 'node_modules'), join(runtime, 'node_modules')]);
+// Source maps and other platforms' native executables are not used by this
+// macOS arm64 package. Keep runtime JS, assets, licenses and dynamic Pi loaders.
+async function removeBuildMetadata(directory) {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) await removeBuildMetadata(path);
+    else if (entry.isFile() && (/\.(?:[cm]?js|css|ts)\.map$/.test(entry.name) || entry.name.endsWith('.nft.json'))) await rm(path);
+  }
+}
+// .nft.json files are build-time copy manifests, not runtime configuration.
+await removeBuildMetadata(runtime);
+await pruneUnsupportedPackages(join(runtime, 'node_modules'), process.platform, process.arch);
+for (const [directory, keep] of [
+  ['node_modules/agent-browser/bin', new Set(['agent-browser-darwin-arm64', 'agent-browser.js'])],
+  ['node_modules/node-pty/prebuilds', new Set(['darwin-arm64'])],
+]) {
+  const path = join(runtime, directory);
+  for (const entry of await readdir(path)) if (!keep.has(entry)) await rm(join(path, entry), { recursive: true, force: true });
+}
 const recruiting = join(runtime, 'apps/recruiting');
 await mkdir(recruiting, { recursive: true });
 for (const entry of ['local.mjs', 'src', 'public', 'package.json']) await cp(join(root, 'apps/recruiting', entry), join(recruiting, entry), { recursive: true });
-await cp(nodeHome, join(resources, 'node'), { recursive: true, verbatimSymlinks: true });
-await cp(browserHome, join(resources, 'browsers'), { recursive: true, verbatimSymlinks: true });
-await rm(join(resources, 'browsers/.links'), { recursive: true, force: true });
+// npm/npx are used by skills/plugins; headers, manpages and Corepack are not.
+for (const entry of ['bin/node', 'lib/node_modules/npm', 'LICENSE']) {
+  await mkdir(dirname(join(resources, 'node', entry)), { recursive: true });
+  await cp(join(nodeHome, entry), join(resources, 'node', entry), { recursive: true, verbatimSymlinks: true });
+}
+for (const entry of ['npm', 'npx']) await cp(join(nodeHome, 'bin', entry), join(resources, 'node/bin', entry), { verbatimSymlinks: true });
+await mkdir(join(resources, 'browsers'), { recursive: true });
+for (const directory of browserPaths.directories) {
+  await cp(directory, join(resources, 'browsers', relative(browserHome, directory)), { recursive: true, verbatimSymlinks: true });
+}
 // Correct PTY executable permissions before signing; the app never mutates its bundle.
 await run(node, ['--input-type=module', '-e', `import {prepareNativeHost} from ${JSON.stringify(new URL('../electron/native-host.mjs', import.meta.url).href)}; prepareNativeHost(${JSON.stringify(runtime)})`]);
 await writeFile(join(resources, 'desktop-runtime.json'), JSON.stringify({ buildId: randomUUID(), nodeVersion, browserExecutable, builtAt: new Date().toISOString() }, null, 2));
@@ -80,5 +109,7 @@ for (const [key, value] of Object.entries({ CFBundleExecutable: 'Syntropic', CFB
 // Preserve framework symlinks and perform the final ad-hoc signature after all copies.
 await run('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', app]);
 await run('/usr/bin/codesign', ['--verify', '--deep', '--strict', app]);
-await writeFile(join(release, '使用说明.txt'), '双击 Syntropic.app 即可启动工作台和招聘系统。首次启动会准备本地运行文件。\n需要联网及 Pi 中有效的 ChatGPT 授权才能执行 Agent 任务。\n本轮演示数据保存于 App 专属运行目录；刷新保留，完全退出后下次恢复预设。飞书演示资料通过随包专用应用配置读取。\n⌘Q 退出并停止本 App 启动的服务。\n此包为本机签名的 macOS Apple Silicon 内部演示版本，未做 Apple 公证。\n');
+// The source snapshot is disposable build input, not another installed runtime.
+await rm(source, { recursive: true, force: true });
+await writeFile(join(release, '使用说明.txt'), '双击 Syntropic.app 即可启动工作台和招聘系统。运行代码直接引用 App 内文件，只在用户目录保存清单和缓存；新版本启动成功后自动删除旧运行目录。内置网页通过 Chromium Headless Shell 显示和操作，无需预装 Chrome。\n需要联网及 Pi 中有效的 ChatGPT 授权才能执行 Agent 任务。\n本轮演示数据保存于 App 专属运行目录；刷新保留，完全退出后下次恢复预设。飞书演示资料通过随包专用应用配置读取。\n⌘Q 退出并停止本 App 启动的服务。\n此包为本机签名的 macOS Apple Silicon 内部演示版本，未做 Apple 公证。\n');
 console.log(`完成：${app}`);
