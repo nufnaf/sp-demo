@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import "./HRRecruitingApp.css";
+import "./RecruitingDesign.css";
 import { RecruitingPipeline } from "./RecruitingPipeline";
 import type { RecruitingScene } from "@/lib/recruiting-scene";
 import type { InsightResult } from "@/lib/insight-automation";
@@ -486,14 +487,14 @@ export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice, publ
 
   return <div className="hr-recruiting-app os-workspace">
     <aside className="hr-recruiting-sidebar">
-      <header><span className="hr-recruiting-mark"><WorkspaceAppIcon name="recruiting" size={20}/></span><span><strong>人才招聘</strong><small>Recruiting Hub</small></span></header>
+      <header><span className="hr-recruiting-mark"><WorkspaceAppIcon name="recruiting" size={20}/></span><span><strong>人才招聘</strong></span></header>
       <nav aria-label="人才招聘功能">
         {([
           ["overview", "招聘进展", icons.overview],
           ["candidates", "候选人", icons.candidates],
           ["jobs", "岗位管理", icons.jobs],
           ["sources", "招聘应用", icons.sources],
-        ] as Array<[HRSection, string, ReactNode]>).map(([id, label, icon]) => <button type="button" key={id} aria-label={label} title={label} className={section === id ? "selected" : ""} aria-current={section === id ? "page" : undefined} onClick={() => setSection(id)}>{icon}<span>{label}</span>{id === "sources" ? <em>{connectedCount}</em> : null}</button>)}
+        ] as Array<[HRSection, string, ReactNode]>).map(([id, label, icon]) => <button type="button" key={id} aria-label={label} title={label} className={section === id ? "selected" : ""} aria-current={section === id ? "page" : undefined} onClick={() => setSection(id)}>{icon}<span><strong>{label}</strong><small>{id === "overview" ? "候选人管道" : id === "jobs" ? `${internalJobs.length + jobs.length} 个岗位` : id === "candidates" ? "搜索与查看档案" : "管理数据连接"}</small></span>{id === "sources" ? <em>{connectedCount}</em> : null}</button>)}
       </nav>
       <div className="hr-recruiting-roles">
         <span>在招岗位</span>

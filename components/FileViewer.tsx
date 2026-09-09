@@ -49,6 +49,8 @@ interface Props {
   initialState?: FileViewerState;
   onStateChange?: (state: FileViewerState) => void;
   watchEnabled?: boolean;
+  /** Embedded reports expose the full file in a separate window. */
+  showToolbar?: boolean;
 }
 
 interface FileData {
@@ -934,6 +936,7 @@ export function FileViewer({
   initialState,
   onStateChange,
   watchEnabled = true,
+  showToolbar = true,
 }: Props) {
   if (isImagePath(filePath)) {
     return <ImageViewer filePath={filePath} cwd={cwd} sourceSessionId={sourceSessionId} watchEnabled={watchEnabled} />;
@@ -957,6 +960,7 @@ export function FileViewer({
       initialState={initialState}
       onStateChange={onStateChange}
       watchEnabled={watchEnabled}
+      showToolbar={showToolbar}
     />
   );
 }
@@ -973,6 +977,7 @@ function TextFileViewer({
   initialState,
   onStateChange,
   watchEnabled = true,
+  showToolbar = true,
 }: Props) {
   const { isDark } = useTheme();
   const { t } = useI18n();
@@ -1311,7 +1316,7 @@ function TextFileViewer({
       <div
         className="file-viewer-toolbar"
         style={{
-          display: "flex",
+          display: showToolbar ? "flex" : "none",
           alignItems: "center",
           gap: 8,
           padding: "5px 12px",
