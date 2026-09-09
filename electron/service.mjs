@@ -33,7 +33,9 @@ export class LocalService {
     this.customCommand = Boolean(command);
     this.command = command ?? (kind === 'recruiting'
       ? [process.execPath, join(root, 'local.mjs')]
-      : [process.execPath, join(root, 'node_modules/next/dist/bin/next'), production ? 'start' : 'dev', '-H', '127.0.0.1', '-p', '30141']);
+      : production
+        ? [process.execPath, '--preserve-symlinks-main', join(root, 'server.js')]
+        : [process.execPath, join(root, 'node_modules/next/dist/bin/next'), 'dev', '-H', '127.0.0.1', '-p', '30141']);
     this.env = env;
     this.owned = false;
     this.stopped = false;
@@ -56,7 +58,13 @@ export class LocalService {
       this.onStatus(this.kind === 'recruiting' ? '正在准备招聘系统…' : '正在准备工作台…', this.production ? '正在启动内置服务，请稍候。' : '正在启动本机服务，请稍候。');
       const env = { ...this.env };
       delete env.ELECTRON_RUN_AS_NODE;
-      if (this.production) env.NODE_ENV = 'production';
+      if (this.production) {
+        env.NODE_ENV = 'production';
+        if (this.kind === 'workbench') {
+          env.HOSTNAME = new URL(this.origin).hostname;
+          env.PORT = new URL(this.origin).port;
+        }
+      }
       else delete env.NODE_ENV;
       // This launcher does not relay raw backend output: SDKs/extensions may log
       // authorization URLs or tool output. Status messages below contain no secrets.

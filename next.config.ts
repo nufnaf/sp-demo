@@ -12,6 +12,24 @@ try {
 } catch { /* package not found, use default */ }
 
 const nextConfig: NextConfig = {
+  ...(process.env.SYNTROPIC_DESKTOP_BUILD === "1" ? {
+    output: "standalone" as const,
+    // Packaged server code is read-only. ISR and optimized images use Next's
+    // memory caches without writing into linked build directories.
+    experimental: { isrFlushToDisk: false },
+    // Pi loads providers, extensions and export assets dynamically; these are
+    // runtime resources that static tracing alone cannot reliably discover.
+    outputFileTracingIncludes: {
+      "/*": [
+        "node_modules/@earendil-works/pi-*/**/*",
+        "node_modules/playwright-core/**/*",
+        "node_modules/agent-browser/package.json",
+        "node_modules/agent-browser/bin/agent-browser-darwin-arm64",
+        "node_modules/node-pty/lib/**/*",
+        "node_modules/node-pty/prebuilds/darwin-arm64/**/*",
+      ],
+    },
+  } : {}),
   outputFileTracingRoot: configDir,
   serverExternalPackages: [
     "node-pty",
