@@ -8,6 +8,7 @@ export interface InsightResult {
   cwd: string;
   fileName: string;
   title: string;
+  summary?: string;
   modified: string;
 }
 
@@ -30,13 +31,17 @@ function truncateInsightText(value: string, max: number): string {
   return value.length > max ? `${value.slice(0, max).trimEnd()}…` : value;
 }
 
-export function extractInsightMetadata(html: string, fileName: string): Pick<InsightResult, "fileName" | "title"> {
+export function extractInsightMetadata(html: string, fileName: string): Pick<InsightResult, "fileName" | "title" | "summary"> {
   const insightStart = html.search(/<[^>]+class=["'][^"']*\binsight\b[^"']*["'][^>]*>/i);
   const insightBlock = insightStart >= 0 ? html.slice(insightStart, insightStart + 6_000) : "";
   const insightTitle = insightBlock.match(/<[^>]+class=["'][^"']*\btitle\b[^"']*["'][^>]*>([\s\S]*?)<\/[^>]+>/i)?.[1];
   const documentTitle = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1];
   const title = truncateInsightText(decodeHtmlText(insightTitle ?? documentTitle ?? fileName), 68);
-  return { fileName, title };
+  const readable = (insightBlock || html)
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, "");
+  const paragraph = readable.match(/<p\b[^>]*>([\s\S]*?)<\/p>/i)?.[1];
+  const summary = paragraph ? truncateInsightText(decodeHtmlText(paragraph), 180) : undefined;
+  return { fileName, title, ...(summary ? { summary } : {}) };
 }
 
 export function isInsightTaskSession(session: Pick<SessionInfo, "firstMessage">): boolean {

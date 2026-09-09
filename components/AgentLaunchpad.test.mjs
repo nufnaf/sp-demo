@@ -84,7 +84,7 @@ test("global apps can load before a workspace exists without weakening cwd check
 test("the launchpad keeps the menu bar and Dock visible and honors accessibility settings", () => {
   assert.match(cssSource, /\.agent-os-launchpad \{[^}]*z-index:155[^}]*inset:44px 0 0/);
   assert.match(cssSource, /\.agent-os-dock \{[^}]*z-index: 160/);
-  assert.match(desktopSource, /role="dialog" aria-modal="true" aria-label="启动台"/);
+  assert.match(desktopSource, /role="dialog" aria-label="启动台"/);
   assert.match(desktopSource, /<div role="listitem" key=\{app\.id\}>[\s\S]*?<button className="agent-os-launchpad-app"/);
   assert.doesNotMatch(desktopSource, /agent-os-launchpad-app[\s\S]{0,500}<small>/);
   assert.match(cssSource, /\.agent-os-launchpad-grid \{[^}]*display:flex[^}]*justify-content:flex-start/);

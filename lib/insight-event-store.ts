@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { applicationDataDir } from "./presentation-runtime";
 import { writePrivateFileAtomicSync } from "./atomic-file";
-import type { InsightResult } from "./insight-automation";
+import { extractInsightMetadata, type InsightResult } from "./insight-automation";
 
 export type InsightEventSource = "feishu" | "task" | "crm";
 
@@ -131,7 +131,13 @@ export function addInsightResult(result: InsightResult): void {
 }
 
 export function listInsightResults(cwd: string): InsightResult[] {
-  return loadState().results.filter((result) => result.cwd === cwd && existsSync(result.filePath));
+  return loadState().results.filter((result) => result.cwd === cwd && existsSync(result.filePath)).map(result => {
+    if (result.summary) return result;
+    try {
+      const { summary } = extractInsightMetadata(readFileSync(result.filePath, "utf8"), result.fileName);
+      return { ...result, summary };
+    } catch { return result; }
+  });
 }
 
 export function setInsightSourceStatus(source: string, status: InsightSourceStatus): void {

@@ -14,13 +14,21 @@ function zIndexFor(selector) {
   return Number(zIndex[1]);
 }
 
-test("the open workspace manager floats above every desktop interaction layer", () => {
-  const workspaceLayer = zIndexFor(".agent-os-menu-bar:has(.agent-os-workspace-menu)");
+test("the AI entry stays above every desktop window, menu and notification", () => {
+  const aiLayer = zIndexFor(".agent-os-ai-surface");
+  for (const selector of [
+    ".agent-os-window-layer", ".agent-os-menu-bar:has(.agent-os-workspace-menu)",
+    ".agent-os-launchpad", ".agent-os-dock", ".agent-os-dock-context-menu",
+    ".agent-os-notification-center", ".agent-os-insight-notification", ".agent-os-jd-notification",
+  ]) assert.ok(aiLayer > zIndexFor(selector), `AI entry must stay above ${selector}`);
+});
 
-  assert.ok(workspaceLayer > zIndexFor(".agent-os-ai-surface"));
+test("workspace management stays above apps while leaving the AI entry accessible", () => {
+  const workspaceLayer = zIndexFor(".agent-os-menu-bar:has(.agent-os-workspace-menu)");
   assert.ok(workspaceLayer > zIndexFor(".agent-os-dock"));
   assert.ok(workspaceLayer > zIndexFor(".agent-os-launchpad"));
-  assert.ok(workspaceLayer < zIndexFor(".agent-os-toast"));
+  assert.ok(workspaceLayer < zIndexFor(".agent-os-ai-surface"));
+  assert.doesNotMatch(desktopSource, /className="agent-os-launchpad"[^>]*aria-modal="true"/);
 });
 
 test("the workspace disclosure icon rotates inside a stable SVG box", () => {
