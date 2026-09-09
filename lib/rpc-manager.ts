@@ -1,4 +1,5 @@
-import { recruitingTaskPrompt } from "./recruiting-jd-contract";
+import { recruitingTaskPrompt, recruitingJdContract } from "./recruiting-jd-contract";
+import { createRecruitingJdDemoTask, demoAssistant, isRecruitingJdDemoRequest } from "./recruiting-jd-demo";
 import { recruitingTaskKind, readRecruitingTaskKind, recruitingProfile, RECRUITING_TASK_PROFILE, type RecruitingTaskKind } from "./recruiting-task-profile";
 import { createRecruitingJdExtension } from "./recruiting-jd-extension";
 import { createFeishuDemoExtension } from "./feishu-demo-extension";
@@ -302,7 +303,7 @@ export class AgentSessionWrapper {
   }
 
   get isStreaming(): boolean {
-    return this.inner.isStreaming;
+    return this.inner.isStreaming || !!this.jdDemoRun;
   }
 
   isAlive(): boolean {
@@ -494,6 +495,56 @@ export class AgentSessionWrapper {
     this.emit({ type: "jarvis_task_update", task: jarvisTaskDetails(task), occurredAt: new Date().toISOString() });
   }
 
+  private jdDemoRun?: { controller: AbortController; taskId: string };
+
+  get runningJdDemoTaskId(): string | undefined {
+    return this.jdDemoRun?.taskId;
+  }
+
+  private appendDemoMessage(message: Parameters<AgentSessionLike["sessionManager"]["appendMessage"]>[0]): void {
+    this.inner.sessionManager.appendMessage(message);
+    this.inner.agent.state?.messages?.push(message);
+    this.emit({ type: "message_end", message });
+  }
+
+  cancelJdDemo(taskId: string): boolean {
+    if (this.jdDemoRun?.taskId !== taskId) return false;
+    this.jdDemoRun.controller.abort();
+    return true;
+  }
+
+  /** The recruiting demo dispatches locally, before any model preflight. */
+  private startJdDemo(message: string): void {
+    if (this.isRunning()) throw new Error("请等待当前任务结束后再生成 JD。");
+    const demo = createRecruitingJdDemoTask(this.cwd, this.sessionId, message);
+    const controller = new AbortController();
+    this.jdDemoRun = { controller, taskId: demo.task.sessionId };
+    this.pendingPromptCount += 1;
+    getJarvisTaskStore().set(demo.task.sessionId, { ...demo.task, abortRequested: false });
+    cacheSessionPath(demo.task.sessionId, demo.manager.getSessionFile()!);
+    allowFileRoot(this.cwd);
+    invalidateSessionListCache();
+    this.emit({ type: "agent_start" });
+    this.appendDemoMessage({ role: "user", content: message, timestamp: Date.now() });
+    this.notifyJarvisTask(demo.task);
+    void demo.run(controller.signal).then(task => {
+      getJarvisTaskStore().set(task.sessionId, { ...task, abortRequested: task.status === "aborted" });
+      // Persist the task result without scheduling a model-written report.
+      this.appendDemoMessage({ role: "custom", customType: JARVIS_TASK_NOTIFICATION_TYPE, content: task.summary ?? "", display: true, details: jarvisTaskDetails(task), timestamp: Date.now() });
+      this.notifyJarvisTask(task);
+      this.appendDemoMessage(demoAssistant(task.summary ?? ""));
+    }).catch(error => {
+      this.emit({ type: "prompt_error", errorMessage: error instanceof Error ? error.message : String(error) });
+    }).finally(() => {
+      this.jdDemoRun = undefined;
+      this.pendingPromptCount = Math.max(0, this.pendingPromptCount - 1);
+      invalidateSessionListCache();
+      this.emit({ type: "agent_end", messages: [] });
+      this.emit({ type: "prompt_done" });
+      this.resetIdleTimer();
+    });
+  }
+
   private emit(event: AgentEvent): void {
     for (const listener of this.listeners) {
       try {
@@ -629,6 +680,11 @@ export class AgentSessionWrapper {
         // this submission starts a run or joins its streaming queue.
         const releaseAdmission = await this.acquirePromptAdmission();
         try {
+          if (this.isJarvis() && isRecruitingJdDemoRequest(this.cwd, String(command.message ?? ""))) {
+            this.startJdDemo(String(command.message));
+            return null;
+          }
+          if (this.jdDemoRun) throw new Error("正在准备 JD，请稍候。");
           if (this.inner.isBashRunning) {
             throw new Error("Cannot send a prompt while a shell command is running");
           }
@@ -726,6 +782,7 @@ export class AgentSessionWrapper {
       }
 
       case "abort":
+        if (this.jdDemoRun) { this.jdDemoRun.controller.abort(); return null; }
         // The task-window stop button shares the same outcome as abort_task.
         if (getJarvisTaskStore().has(this.sessionId)) getJarvisTaskStore().get(this.sessionId)!.abortRequested = true;
         if (this.shouldObserveTaskInsights()) {
@@ -751,7 +808,7 @@ export class AgentSessionWrapper {
         return {
           sessionId: this.inner.sessionId,
           sessionFile: this.inner.sessionFile ?? "",
-          isStreaming: this.inner.isStreaming,
+          isStreaming: this.inner.isStreaming || !!this.jdDemoRun,
           isPromptRunning: this.pendingPromptCount > 0,
           isBashRunning: this.inner.isBashRunning,
           isCompacting: this.inner.isCompacting,
@@ -917,6 +974,7 @@ export class AgentSessionWrapper {
       }
 
       case "steer": {
+        if (this.jdDemoRun) throw new Error("正在准备固定岗位 JD，请完成后再发送新指令。");
         const steerImages = command.images as Array<{ type: "image"; data: string; mimeType: string }> | undefined;
         await this.inner.steer(command.message as string, steerImages?.length ? steerImages : undefined);
         if (this.shouldObserveTaskInsights()) {
@@ -1058,6 +1116,7 @@ export class AgentSessionWrapper {
 
   destroy(): void {
     if (!this._alive) return;
+    this.jdDemoRun?.controller.abort();
     this._alive = false;
     if (this.idleTimer) clearTimeout(this.idleTimer);
     if (this.inner.isBashRunning) this.inner.abortBash();
@@ -1925,6 +1984,7 @@ function createJarvisTaskRuntime(): JarvisRuntime & {
 
     async abortTask(jarvisSessionId, taskId) {
       const task = requireTask(jarvisSessionId, taskId);
+      if (getRegistry().get(jarvisSessionId)?.cancelJdDemo(taskId)) return;
       const wrapper = getRegistry().get(taskId);
       if (!wrapper?.isAlive() || !wrapper.isRunning()) throw new Error("Task is not running");
       task.abortRequested = true;
@@ -2194,8 +2254,14 @@ export function getRunningRpcSessionIds(): string[] {
   const ids = new Set<string>();
   for (const [sessionId, session] of getRegistry()) {
     if (session.isRunning()) ids.add(session.sessionId || sessionId);
+    if (session.runningJdDemoTaskId) ids.add(session.runningJdDemoTaskId);
   }
   return [...ids];
+}
+
+export function abortRecruitingJdDemoTask(sessionId: string): boolean {
+  const task = getJarvisTaskStore().get(sessionId);
+  return !!task && !!getRegistry().get(task.jarvisSessionId)?.cancelJdDemo(sessionId);
 }
 
 export function getCompletionNotificationSuppressedRpcSessionIds(): string[] {
@@ -2203,6 +2269,7 @@ export function getCompletionNotificationSuppressedRpcSessionIds(): string[] {
   for (const [sessionId, session] of getRegistry()) {
     if (session.isRunning() && session.hasSuppressedCompletionNotifications()) {
       ids.add(session.sessionId || sessionId);
+      if (session.runningJdDemoTaskId) ids.add(session.runningJdDemoTaskId);
     }
   }
   return [...ids];
@@ -2382,7 +2449,12 @@ export async function startRpcSession(
       : undefined;
     const defaultProvider = services.settingsManager.getDefaultProvider();
     const defaultModelId = services.settingsManager.getDefaultModel();
-    const requestedInitialModel = effectiveInitialModel ?? appModelDefaults;
+    // An unconfigured recruiting desktop can still deliver the local JD demo.
+    // If the packaged default is unavailable, allow the SDK's normal default
+    // selection for this conversation; publishing still uses its own profile.
+    const unavailableRecruitingDefault = jarvis && recruitingJdContract(sessionCwd)
+      && !scope.visible.some(model => model.provider === appModelDefaults?.provider && model.id === appModelDefaults?.modelId);
+    const requestedInitialModel = effectiveInitialModel ?? (unavailableRecruitingDefault ? undefined : appModelDefaults);
     const requestedThinkingLevel = thinkingLevel ?? appModelDefaults?.thinkingLevel;
     const hasExistingMessages = sessionManager.getBranch().some((entry) => entry.type === "message");
     const initial = hasExistingMessages

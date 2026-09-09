@@ -1238,6 +1238,7 @@ function DesktopWindow({
   className,
   title,
   titleIcon,
+  headerAccessory,
   kind,
   front,
   onFocus,
@@ -1248,6 +1249,7 @@ function DesktopWindow({
   className?: string;
   title: string;
   titleIcon?: ReactNode;
+  headerAccessory?: ReactNode;
   kind: "tasks" | "file" | "document" | "library" | "settings" | "app" | "store";
   front: boolean;
   onFocus: () => void;
@@ -1387,7 +1389,7 @@ function DesktopWindow({
           <button className="maximize" type="button" aria-label={maximized ? "还原" : "最大化"} onClick={() => setMaximized((value) => !value)}/>
         </span>
         <strong>{kind === "store" ? <Image src="/design/app-store/window-sidebar.svg" width={20} height={20} alt="" unoptimized/> : <>{titleIcon ?? <Icon name={kind === "tasks" ? "tasks" : kind === "settings" ? "settings" : kind === "app" ? "grid" : "file"} size={15}/>} {title}</>}</strong>
-        <span />
+        <span>{headerAccessory}</span>
       </header>
       <div className="agent-os-window-body">{children}</div>
       {!maximized && (["n", "e", "s", "w", "ne", "se", "sw", "nw"] as ResizeEdge[]).map((edge) => (
@@ -1421,6 +1423,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   }, [presentationCwd]);
   const now = useClock();
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const [runningIds, setRunningIds] = useState<Set<string>>(() => new Set());
   const [activeCwd, setActiveCwd] = useState<string | null>(presentationCwd ?? null);
   useEffect(() => {
@@ -1615,6 +1618,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
         .sort((a, b) => Date.parse(b.modified) - Date.parse(a.modified));
       const nextWorkspaces = workspaceResponse.ok ? workspaceData.workspaces ?? [] : [];
       setSessions(nextSessions);
+      setSessionsLoaded(true);
       setManagedWorkspaces(nextWorkspaces);
       setRunningIds(new Set(data.runningSessionIds ?? []));
       setActiveCwd((current) => current ?? nextWorkspaces[0]?.cwd ?? nextSessions[0]?.cwd ?? null);
@@ -1685,10 +1689,11 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     const presetArtifacts: Artifact[] = reference && activeCwd ? [{ filePath: `${activeCwd}/${reference}`, sessionId: `preset:${activeCwd}`, cwd: activeCwd, taskTitle: "工作台资料", modified: new Date(0).toISOString() }] : [];
     if (!activeCwd || workspaceSessions.length === 0) {
       setArtifacts(presetArtifacts);
-      // Keep the sentinel uninitialized. On refresh, sessions arrive after the
-      // first render; treating that gap as an empty baseline makes every
-      // historical artifact look newly generated and opens a window for each.
-      knownArtifactIdsRef.current = null;
+      // Before the first list arrives, existing results must remain historical.
+      // A loaded, empty workspace is a real baseline: its first result is new,
+      // even when the task finishes before the first detail request returns.
+      knownArtifactIdsRef.current = activeCwd && sessionsLoaded
+        ? new Set(presetArtifacts.map(artifactIdentity)) : null;
       return;
     }
     const controller = new AbortController();
@@ -1737,7 +1742,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     return () => controller.abort();
     // session metadata is intentionally represented by this stable string.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artifactRefreshKey]);
+  }, [artifactRefreshKey, sessionsLoaded]);
 
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get("session");
@@ -2533,9 +2538,13 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
         {openArtifacts.map((artifact, index) => {
           const identity = artifactIdentity(artifact);
           const windowId = `file:${identity}`;
+          const isDemoJd = artifact.cwd === presentationCwd && getFileName(artifact.filePath) === "ai-agent-engineer-jd.html";
           return <DesktopWindow
             key={identity}
-            title={getFileName(artifact.filePath)}
+            title={isDemoJd ? "岗位 JD" : getFileName(artifact.filePath)}
+            className={isDemoJd ? "agent-os-window-jd" : undefined}
+            titleIcon={isDemoJd ? <Image src="/design/jd/command-line.svg" width={20} height={20} alt="" unoptimized/> : undefined}
+            headerAccessory={isDemoJd ? <span className="jd-window-status">星流科技 正在招聘</span> : undefined}
             kind="file"
             cascadeIndex={index}
             front={frontWindow === windowId}

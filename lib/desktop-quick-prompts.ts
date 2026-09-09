@@ -12,5 +12,5 @@ export function recruitingQuickPrompts(context: {
       ? [`帮我看看 ${context.publishedJob}岗位，面试结束了多少人，还有几人的评价没齐？`]
       : [];
   }
-  return context.hasJd ? [] : ["请根据飞书中的《星流科技业务介绍》，生成 AI Agent 工程师的岗位 JD，作为可打开的文件放在工作台中。"];
+  return context.hasJd ? [] : ["请根据飞书中的《星流科技业务介绍》，生成 高级 AI Agent 研发工程师的岗位 JD，作为可打开的文件放在工作台中。"];
 }

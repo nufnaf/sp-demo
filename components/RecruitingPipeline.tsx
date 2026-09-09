@@ -50,7 +50,7 @@ export function RecruitingPipeline({ scene, cwd, onOpenWebsite, onOpenInsight }:
     try { const r = await fetch("/api/desktop/scenario", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "meeting" }) }); const data = await r.json(); if (!r.ok) throw new Error(data.error); setProgress(data); setScheduleOpen(true); }
     catch (e) { setError(e instanceof Error ? e.message : "会议暂时无法安排"); } finally { setBusy(false); }
   };
-  if (!scene.job) return <section className="presentation-pipeline"><small>星流科技 · 招聘目标</small><h1>AI Agent 工程师</h1><p>Agent 研发 · 杭州 / 上海 · 招聘 6 人</p><article><h2>从团队资料开始</h2><p>根据团队业务资料准备岗位 JD，确认后即可发布岗位。</p></article></section>;
+  if (!scene.job) return <section className="presentation-pipeline"><small>星流科技 · 招聘目标</small><h1>高级 AI Agent 研发工程师</h1><p>Agent Platform · 北京 / 上海 · 招聘 6 人</p><article><h2>从团队资料开始</h2><p>根据团队业务资料准备岗位 JD，确认后即可发布岗位。</p></article></section>;
   const visible = filterRecruitingCandidates(scene.candidates, filter, query);
   const candidate = scene.candidates.find(c => c.id === selected);
   const cumulative = recruitingMetrics(scene);

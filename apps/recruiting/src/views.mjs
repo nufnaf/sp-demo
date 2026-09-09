@@ -232,8 +232,8 @@ export function publishJobPage(state, params) {
     ${heading("NEW OPPORTUNITY", "发布新职位", "完善岗位信息，让合适的人找到我们。")}
     <form class="panel publish-job-form" method="post" action="/jobs/publish">
       ${hidden(state.revision)}<input type="hidden" name="draft" value="${e(draft)}">
-      <label>岗位名称<input name="title" required maxlength="100" placeholder="例如：AI Agent 工程师"></label>
-      <div class="form-grid"><label>所属部门<input name="department" required maxlength="80" value="Agent 研发"></label><label>工作地点<input name="location" required maxlength="100" value="杭州 / 上海"></label><label>招聘目标（人）<input name="target" type="number" min="1" max="100" value="6" required></label><label>招聘负责人<input name="owner" required maxlength="40" value="陈晓"></label></div>
+      <label>岗位名称<input name="title" required maxlength="100" placeholder="例如：高级 AI Agent 研发工程师"></label>
+      <div class="form-grid"><label>所属部门<input name="department" required maxlength="80" value="Agent Platform"></label><label>工作地点<input name="location" required maxlength="100" value="北京 / 上海"></label><label>招聘目标（人）<input name="target" type="number" min="1" max="100" value="6" required></label><label>招聘负责人<input name="owner" required maxlength="40" value="陈晓"></label></div>
       <label>岗位 JD<textarea name="description" required maxlength="12000" rows="12" placeholder="填写岗位介绍、职责与任职要求"></textarea></label>
       <footer><span>发布后可在职位详情中查看和维护。</span><button type="submit">发布职位</button></footer>
     </form>`);
