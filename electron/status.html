@@ -2,9 +2,28 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'">
-<title>Syntropic 桌面启动</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; script-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Syntropic</title>
 <link rel="stylesheet" href="status.css">
 </head>
-<body><main><p class="brand">Syntropic</p><h1 id="title">正在启动本机后台…</h1><p id="detail">正在准备工作空间，请稍候。服务就绪后将自动打开工作台。</p><button id="retry" hidden>重试连接</button><p class="hint">退出应用：⌘Q（macOS）。</p></main><script src="status.js"></script></body>
+<body>
+  <main id="splash" data-phase="starting">
+    <div class="identity">
+      <div class="icon-motion" aria-hidden="true">
+        <img src="assets/syntropic-app.png" width="160" height="160" alt="">
+        <span class="star-glow"></span>
+      </div>
+      <h1 class="brand">Syntropic</h1>
+      <p class="tagline">智能工作空间</p>
+    </div>
+    <p id="loading" class="sr-only" role="status">正在打开 Syntropic</p>
+    <section id="error" hidden aria-live="assertive" aria-atomic="true">
+      <h2 id="title"></h2><p id="detail"></p>
+      <button id="retry" hidden>重新尝试</button>
+      <p class="hint">退出后可重新打开应用</p>
+    </section>
+  </main>
+  <script src="status.js"></script>
+</body>
 </html>

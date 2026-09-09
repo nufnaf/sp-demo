@@ -117,8 +117,9 @@ await run(agentBrowser, ['--version']);
 await run(node, ['--input-type=module', '-e', `import {prepareNativeHost} from ${JSON.stringify(new URL('../electron/native-host.mjs', import.meta.url).href)}; prepareNativeHost(${JSON.stringify(runtime)})`]);
 await writeFile(join(resources, 'desktop-runtime.json'), JSON.stringify({ buildId: randomUUID(), nodeVersion, browserExecutable, builtAt: new Date().toISOString(), demoAuth, recruitingUrl: recruitingUrl.href }, null, 2));
 await rename(join(app, 'Contents/MacOS/Electron'), join(app, 'Contents/MacOS/Syntropic'));
+await cp(join(root, 'electron/assets/Syntropic.icns'), join(resources, 'Syntropic.icns'));
 const plist = join(app, 'Contents/Info.plist');
-for (const [key, value] of Object.entries({ CFBundleExecutable: 'Syntropic', CFBundleIdentifier: 'com.syntropic.desktop', CFBundleName: 'Syntropic', CFBundleDisplayName: 'Syntropic', CFBundleShortVersionString: '0.8.11' })) {
+for (const [key, value] of Object.entries({ CFBundleIconFile: 'Syntropic.icns', CFBundleExecutable: 'Syntropic', CFBundleIdentifier: 'com.syntropic.desktop', CFBundleName: 'Syntropic', CFBundleDisplayName: 'Syntropic', CFBundleShortVersionString: '0.8.11' })) {
   await run('/usr/libexec/PlistBuddy', ['-c', `Set :${key} ${value}`, plist]);
 }
 // Preserve framework symlinks and perform the final ad-hoc signature after all copies.

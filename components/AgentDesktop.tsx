@@ -3,6 +3,7 @@ import { FeishuDemoApp, FeishuDemoDocument } from "./FeishuDemoApp";
 import { PresentationSchedule } from "./RecruitingPipeline";
 
 import { SyntropicMark } from "./SyntropicMark";
+import { useDesktopReady } from "@/hooks/useDesktopReady";
 import { DesktopDesignIcon } from "./DesktopDesignIcon";
 import { DesktopStartStage } from "./DesktopStartStage";
 import { DesktopComposerInput } from "./DesktopComposerInput";
@@ -1364,6 +1365,7 @@ function DesktopWindow({
 }
 
 export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } = {}) {
+  useDesktopReady();
   useEffect(() => {
     if (!presentationCwd) return;
     let frame = 0;

@@ -42,7 +42,9 @@
     "demo:browser": "node scripts/browser-demo.mjs",
     "demo:recruiting": "npm --prefix apps/recruiting start",
     "test:recruiting": "npm --prefix apps/recruiting test",
-    "package:desktop": "node scripts/package-desktop.mjs"
+    "package:desktop": "node scripts/package-desktop.mjs",
+    "icons:desktop": "node scripts/generate-desktop-icons.mjs",
+    "test:desktop-ui": "node --test scripts/desktop-startup.test.mjs"
   },
   "dependencies": {
     "@codemirror/lang-css": "^6.3.1",
@@ -102,6 +104,7 @@
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
+    "sharp": "0.35.3",
     "tailwindcss": "^4.2.2",
     "typescript": "^5"
   }

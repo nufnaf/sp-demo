@@ -1,5 +1,7 @@
 # Syntropic 双击启动版
 
+App 图标与品牌启动动画的资源、实现和验证见 [图标与启动画面](desktop-icon-splash.md)。
+
 当前安装的是 OpenRouter 预置 Key 版本 `ce612a01-2c6b-47ef-bf52-61a6f7cdcc2b`，已完成真实 JD、网页发布与查询验证，无需 ChatGPT 登录。本轮输入框常驻、隐藏聊天入口与洞察同步的实测见 [桌面交互验收](desktop-interaction-validation.md)；模型配置见 [预置 Key 演示包](openrouter-demo.md)。下文保留 OAuth 版本的使用方式与历史验收，授权说明仅适用于 OAuth 构建。
 
 当前体积优化验收包：`a288d94b-3dc9-4e6d-aa96-7f7dd1bea1d8`（2026-09-09）。安装后目录约 871 MB，用户运行目录仅 4 KiB；代码与资源直接引用 App，内置浏览器使用 Chromium Headless Shell。JD 生成、浏览器发布和查询、刷新及退出重启已实测，详见 [体积与验证记录](desktop-size-validation.md)。

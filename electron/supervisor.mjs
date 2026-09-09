@@ -8,7 +8,7 @@ let service;
 let starting;
 let stopping = false;
 const send = (message) => { if (process.connected) process.send(message); };
-const status = (title, detail, retry = false) => send({ type: 'status', status: { title, detail, retry } });
+const status = (title, detail, retry = false) => send({ type: 'status', status: { phase: retry ? 'error' : 'starting', title, detail, retry } });
 async function start() {
   if (starting || stopping) return;
   starting = (async () => {
