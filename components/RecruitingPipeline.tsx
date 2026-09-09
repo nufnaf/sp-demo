@@ -2,10 +2,17 @@
 import { useEffect, useState } from "react";
 import type { RecruitingScene, DemoMeeting } from "@/lib/recruiting-scene";
 import type { InsightResult } from "@/lib/insight-automation";
+import { recruitingHomeSchedule } from "@/lib/desktop-home";
 const stages: Record<string, string> = { applied: "待简历筛选", screened: "待安排面试", interviewing: "面试进行中", pending: "面试结束 · 待结论", passed: "面试通过", failed: "面试失败", rejected: "简历未通过" };
-export function PresentationSchedule({ recruiting = true }: { recruiting?: boolean } = {}) {
+export function PresentationSchedule({ recruiting = true, demoAppointments = false }: { recruiting?: boolean; demoAppointments?: boolean } = {}) {
   const [meeting, setMeeting] = useState<DemoMeeting | null>(null);
   const [error, setError] = useState("");
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
   useEffect(() => {
     setMeeting(null);
     if (!recruiting) return;
@@ -13,7 +20,8 @@ export function PresentationSchedule({ recruiting = true }: { recruiting?: boole
     const read = async () => { try { const r = await fetch("/api/desktop/scenario", { cache: "no-store" }); if (!r.ok) throw new Error(); const data = await r.json(); if (live) { setMeeting(data.meeting ?? null); setError(""); } } catch { if (live) setError("暂时无法读取日程，请稍后重试"); } };
     void read(); const timer = setInterval(() => void read(), 2500); return () => { live = false; clearInterval(timer); };
   }, [recruiting]);
-  return <section className="presentation-schedule"><small>星流科技 · 团队协作</small><h1>团队日程</h1>{error ? <p role="alert">{error}</p> : !meeting ? <p>当前工作台暂无已安排的会议。</p> : <article><em>已安排</em><h2>{meeting.title}</h2><p>{new Date(meeting.startsAt).toLocaleString("zh-CN")} · 30 分钟</p><h3>参会人</h3><p>{meeting.attendees.join(" · ")}</p><h3>会议议程</h3><ol>{meeting.agenda.map((a) => <li key={a}>{a}</li>)}</ol></article>}</section>;
+  const events = recruiting && now ? demoAppointments ? recruitingHomeSchedule(now, meeting) : meeting ? [meeting] : [] : [];
+  return <section className="presentation-schedule"><small>星流科技 · 团队协作</small><h1>团队日程</h1>{error && <p role="alert">{error}</p>}{!events.length ? <p>当前工作台暂无已安排的会议。</p> : events.map(event => <article key={event.id}><em>已安排</em><h2>{event.title}</h2><p>{new Date(event.startsAt).toLocaleString("zh-CN")} · 30 分钟</p><h3>参会人</h3><p>{event.attendees.join(" · ")}</p><h3>会议议程</h3><ol>{event.agenda.map((a) => <li key={a}>{a}</li>)}</ol></article>)}</section>;
 }
 export function RecruitingPipeline({ scene, cwd, onOpenWebsite, onOpenInsight }: { scene: RecruitingScene; cwd: string; onOpenWebsite?: (url: string) => void; onOpenInsight: (result: InsightResult) => void }) {
   const [query, setQuery] = useState("");
@@ -50,7 +58,7 @@ export function RecruitingPipeline({ scene, cwd, onOpenWebsite, onOpenInsight }:
     <article><header><h2>候选人管线</h2><small>以下为当前状态人数，每人只计入一个状态</small></header><div className="presentation-stage-filters"><button className={!filter ? "selected" : ""} onClick={() => setFilter("")}>全部 {scene.candidates.length}</button>{Object.entries(stages).map(([id, name]) => <button className={filter === id ? "selected" : ""} key={id} onClick={() => setFilter(id)}>{name} {scene.metrics.current[id]}</button>)}<button className={filter === "missing" ? "selected" : ""} onClick={() => setFilter("missing")}>面试结束且缺评价 {scene.metrics.missing}</button></div>
     <input aria-label="搜索候选人" placeholder="搜索姓名、编号、学校或能力" value={query} onChange={(e) => setQuery(e.target.value)}/><small>{cumulative.find(([, , value]) => value && value === filter)?.[0] ?? stages[filter] ?? "全部候选人"} · 找到 {visible.length} 人</small><div className="presentation-table-scroll"><table><thead><tr><th>候选人</th><th>当前阶段</th><th>评价提交情况</th><th>来源</th></tr></thead><tbody>{visible.map((c) => <tr key={c.id}><td><button onClick={() => setSelected(c.id)}><strong>{c.name}</strong><small>{c.id} · {c.years} 年经验</small></button></td><td>{c.currentStageLabel}</td><td>{c.interviews.length ? `${c.interviews.filter((r) => r.review?.status === "submitted").length} / ${c.interviews.length} 份已提交` : "尚未安排面试"}</td><td>{c.source}</td></tr>)}</tbody></table></div></article>
     {error && <p role="alert">{error}</p>}{progress.insight && <article className="presentation-insight"><small>SYNTROPIC INSIGHTS</small><h2>{progress.insight.title}</h2><p>在评价已齐的 {scene.insight?.pairedCount} 位候选人中，{scene.insight?.disagreementCount} 位存在推进判断分歧。建议对照生产交付证据，统一面试评分标准。</p><button onClick={() => onOpenInsight({ ...progress.insight!, cwd, fileName: "recruiting-interviewer-alignment-report.html", sessionId: `presentation:${scene.job!.id}` })}>查看完整洞察</button><button disabled={busy} onClick={() => void schedule()}>{progress.meeting ? "查看对齐会议" : "安排对齐会议"}</button></article>}
-    {scheduleOpen && <article><button onClick={() => setScheduleOpen(false)}>收起日程</button><PresentationSchedule/></article>}
+    {scheduleOpen && <article><button onClick={() => setScheduleOpen(false)}>收起日程</button><PresentationSchedule demoAppointments/></article>}
     {candidate && <div className="presentation-candidate-backdrop"><article role="dialog" aria-label={`${candidate.name}候选人档案`} aria-modal="true"><button className="presentation-close" onClick={() => setSelected(null)}>关闭档案</button><small>{candidate.id} · {scene.job.title}</small><h2>{candidate.name}</h2><p>{candidate.school} · {candidate.company}</p><p>{candidate.summary}</p><ul>{candidate.projects.map((project) => <li key={project}>{project}</li>)}</ul><h3>面试评价</h3>{candidate.interviews.map((r) => <section key={r.id}><strong>{r.name} · {r.interviewer}</strong><p>{r.endedAt ? "已结束" : "已安排，尚未结束"} · {r.review?.status === "submitted" ? "评价已提交" : r.review?.status === "draft" ? "评价草稿（未提交）" : "评价未提交"}</p>{r.review && <p>{r.review.score} 分 · {r.review.opinion}</p>}</section>)}<h3>流程记录</h3><ul>{candidate.history.map((event, i) => <li key={i}>{new Date(event.at).toLocaleDateString()} · {event.text}</li>)}</ul></article></div>}
   </section>;
 }

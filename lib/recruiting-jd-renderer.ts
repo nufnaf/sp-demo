@@ -24,7 +24,7 @@ export function renderRecruitingJd(input: RecruitingJdContent): string {
     || JSON.stringify(input).length > 18000) throw new Error("请提供完整岗位标题与 3–12 节纯文本正文。");
   const characters = countRecruitingJdCharacters(input);
   if (characters > RECRUITING_JD_MAX_CHARACTERS) {
-    throw new Error(`JD 当前共 ${characters} 字符，超过 ${RECRUITING_JD_MAX_CHARACTERS} 字符上限，尚未写入文件。请精简重复表述，将标题、各节标题与正文合计压缩到 900–1100 字符，保留公司背景、岗位信息、职责、要求与待确认事项，然后重新调用保存工具；不要截断正文。`);
+    throw new Error(`JD 当前共 ${characters} 字符，超过 ${RECRUITING_JD_MAX_CHARACTERS} 字符上限，尚未写入文件。请精简重复表述，将标题、各节标题与正文合计压缩到 900–1100 字符，保留公司背景、岗位信息、岗位职责和任职要求，然后重新调用保存工具；不要截断正文。`);
   }
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(input.title)} · 星流科技</title>

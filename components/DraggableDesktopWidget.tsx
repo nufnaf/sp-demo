@@ -77,11 +77,11 @@ export function DraggableDesktopWidget({ children, className, defaultPosition, w
     const rootRect = root.getBoundingClientRect();
     const desktopRect = desktop.getBoundingClientRect();
     const current = {
-      x: rootRect.left - desktopRect.left,
-      y: rootRect.top - desktopRect.top,
+      x: rootRect.left - desktopRect.left + desktop.scrollLeft,
+      y: rootRect.top - desktopRect.top + desktop.scrollTop,
     };
     const maxX = Math.max(8, desktopRect.width - rootRect.width - 8);
-    const maxY = Math.max(8, desktopRect.height - rootRect.height - 8);
+    const maxY = Math.max(8, desktop.scrollHeight - rootRect.height - 8);
     dragRef.current = {
       pointerId: event.pointerId,
       pointerX: event.clientX,

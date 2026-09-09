@@ -3,8 +3,10 @@ import { FeishuDemoApp, FeishuDemoDocument } from "./FeishuDemoApp";
 import { PresentationSchedule } from "./RecruitingPipeline";
 
 import { SyntropicMark } from "./SyntropicMark";
+import { DesktopDesignIcon } from "./DesktopDesignIcon";
 import { DesktopStartStage } from "./DesktopStartStage";
 import { DesktopComposerInput } from "./DesktopComposerInput";
+import { DesktopDock } from "./DesktopDock";
 import { isJdDemoArtifact } from "@/lib/recruiting-publication";
 import { DesktopWorkspaceWidgets, workspaceReference, type WorkspaceWidgetItem } from "./DesktopWorkspaceWidgets";
 import { DesktopCollaboration } from "./DesktopCollaboration";
@@ -242,6 +244,8 @@ function AppLogo({ app, compact = false }: { app: LaunchpadApp; compact?: boolea
 
 function DockItemIcon({ item, launchpad = false }: { item: DockItem; launchpad?: boolean }) {
   if (item.kind !== "system") return launchpad ? <BrandAppIcon app={item}/> : <AppLogo app={item} compact/>;
+  if (item.id === "system:calendar") return <DesktopDesignIcon name="calendar" size={launchpad ? 46 : 28}/>;
+  if (item.id === "system:hr") return <DesktopDesignIcon name="people" size={launchpad ? 46 : 28}/>;
   if (item.id === "system:store") return <AppStoreBrandIcon className={launchpad ? "agent-os-launchpad-system-store" : "agent-store-dock-icon"}/>;
   return <Icon name={item.icon} size={launchpad ? 46 : 22}/>;
 }
@@ -1439,11 +1443,6 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   const [liveDispatches, setLiveDispatches] = useState<Array<{ task: JarvisTask; expiresAt: number }>>([]);
   const [prompt, setPrompt] = useState("");
   const composerInputRef = useRef<HTMLInputElement>(null);
-  const [composerCollapsed, setComposerCollapsed] = useState(false);
-  const expandComposer = () => {
-    setComposerCollapsed(false);
-    requestAnimationFrame(() => composerInputRef.current?.focus());
-  };
   const [startMode, setStartMode] = useState<"research" | "files" | "apps" | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
   const [openingStartResource, setOpeningStartResource] = useState(false);
@@ -1829,7 +1828,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
       try { localStorage.setItem(`syntropic:active-workspace:${presentationCwd}`, cwd); } catch { /* Optional UI persistence. */ }
       setScheduleOpen(false); setHrRecruitingOpen(false); setFilesOpen(false); setBrowserOpen(false); setAppStoreOpen(false);
       setSalesCrmOpen(false); setInvestmentWorkspaceOpen(false); setSettingsOpen(false); setTerminalOpen(false); setLaunchpadOpen(false);
-      setOpenApps([]); setOpenFeishuDocuments([]); setArtifactLibraryOpen(false); setJarvisPanelOpen(false); setPendingRequest(null); setPrompt(""); setComposerCollapsed(false);
+      setOpenApps([]); setOpenFeishuDocuments([]); setArtifactLibraryOpen(false); setJarvisPanelOpen(false); setPendingRequest(null); setPrompt("");
     }
     setActiveCwd(cwd);
     setWorkspaceOpen(false);
@@ -2181,7 +2180,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     // readable. Old replies must not immediately reopen a newly sent request.
     if (pendingRequest && !jarvis.running && jarvis.latestReplyTurnId > sentAfterReplyRef.current) {
       setPendingRequest(null);
-      setComposerCollapsed(false);
+
       setJarvisPanelOpen(true);
     }
   }, [pendingRequest, jarvis.running, jarvis.latestReplyTurnId]);
@@ -2202,7 +2201,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   useEffect(() => {
     if (jarvis.error) {
       setNotice(jarvis.error);
-      setComposerCollapsed(false);
+
       setJarvisPanelOpen(true);
       setPendingRequest(null);
     }
@@ -2250,7 +2249,6 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     dismissGuide();
     followConversationRef.current = true;
     setJarvisPanelOpen(false);
-    setComposerCollapsed(true);
     composerInputRef.current?.blur();
     setPrompt("");
     desktopVoice.noteUserInput();
@@ -2382,7 +2380,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
 
   return (
     <main className={`agent-os${showStart ? " has-start-guide" : ""}`}>
-      <div className="agent-os-wallpaper" aria-hidden="true"><i/><i/><span/></div>
+      <div className="agent-os-wallpaper" aria-hidden="true"/>
 
       <header className="agent-os-menu-bar">
         <button className="agent-os-brand" type="button" onClick={() => { setTaskSessionId(null); setOpenArtifacts([]); setArtifactLibraryOpen(false); window.history.replaceState(null, "", "/"); }}>
@@ -2418,7 +2416,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
             aria-expanded={notificationCenterOpen}
             onClick={() => setNotificationCenterOpen((value) => !value)}
           >
-            <Icon name="bell" size={18}/>
+            <DesktopDesignIcon name="bell" size={20}/>
             {(runningCount > 0 || insightNotification) && <i className={insightNotification ? "is-insight" : ""}/>}
           </button>
           <span suppressHydrationWarning>{formatDate}</span><span suppressHydrationWarning>{formatTime}</span><button className="agent-os-avatar" type="button" aria-label="Syntropic"><SyntropicMark size={16}/></button>
@@ -2513,7 +2511,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
             <div className="agent-os-file-app"><FileViewer filePath={artifact.filePath} cwd={artifact.cwd} sourceSessionId={artifact.sessionId} initialDisplayMode={isHtmlArtifact(artifact) ? "preview" : undefined} watchEnabled={frontWindow === windowId}/></div>
           </DesktopWindow>;
         })}
-        {scheduleOpen && <DesktopWindow kind="app" title="团队日程" front={frontWindow === "schedule"} onFocus={() => setFrontWindow("schedule")} onClose={() => setScheduleOpen(false)}><PresentationSchedule recruiting={!presentationCwd || activeCwd === presentationCwd}/></DesktopWindow>}
+        {scheduleOpen && <DesktopWindow kind="app" title="团队日程" front={frontWindow === "schedule"} onFocus={() => setFrontWindow("schedule")} onClose={() => setScheduleOpen(false)}><PresentationSchedule recruiting={!presentationCwd || activeCwd === presentationCwd} demoAppointments={!!presentationCwd && activeCwd === presentationCwd}/></DesktopWindow>}
         {openFeishuDocuments.map((document, index) => {
           const windowId = `feishu-document:${document.id}`;
           return <DesktopWindow
@@ -2681,9 +2679,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
             </div>
           </div>
         ) : (
-        composerCollapsed && !jarvisPanelOpen && !prompt && !dictation.isRecording ? (
-          <button type="button" className="agent-os-composer-compact" aria-label="展开输入框" onClick={expandComposer}><BrandMark compact/><span>Syntropic</span><Icon name="chat" size={15}/></button>
-        ) : <form className={`agent-os-composer${dictation.isRecording ? " is-dictating" : ""}`} onSubmit={submitPrompt}>
+        <form className={`agent-os-composer${dictation.isRecording ? " is-dictating" : ""}`} onSubmit={submitPrompt}>
           {dictation.isRecording ? (
             <div className="agent-os-dictation" role="status" aria-live="polite">
               <button className="jarvis-toggle" type="button" aria-label={jarvisPanelOpen ? "收起 Syntropic 面板" : "打开 Syntropic 面板"} aria-pressed={jarvisPanelOpen} onClick={() => setJarvisPanelOpen((value) => !value)}><BrandMark compact/></button>
@@ -2709,8 +2705,8 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
               <DesktopComposerInput key={activeCwd} inputRef={composerInputRef} value={prompt} onChange={setPrompt}
                 recruiting={!!presentationCwd && activeCwd === presentationCwd} hasJd={artifacts.some(isJdDemoArtifact)}
                 busy={jarvis.running || widgetTasks.some(task => task.running)} viewingRecruiting={hrRecruitingOpen && frontWindow === "hr"}
-                placeholder={showStart ? startPlaceholder : jarvis.ready ? "和 Syntropic 说点什么" : "Syntropic 正在启动…"}/>
-              <button className="voice dictate" type="button" aria-label="语音输入" onClick={() => { dictationCompletionRef.current = "draft"; dictation.toggle(); }}><Icon name="mic" size={19}/></button>
+                placeholder={showStart ? startPlaceholder : jarvis.ready ? hasStartedWork ? "和 Syntropic 说点什么" : "发布今天的第一项任务吧～" : "Syntropic 正在启动…"}/>
+              <button className="voice dictate" type="button" aria-label="语音输入" onClick={() => { dictationCompletionRef.current = "draft"; dictation.toggle(); }}><DesktopDesignIcon name="microphone" size={20}/></button>
               {prompt.trim() ? (
                 <button className="send" type="submit" aria-label="发送给 Syntropic" disabled={!jarvis.sessionId}>{submitting ? <span className="agent-os-spinner"/> : <Icon name="arrow-up" size={19}/>}</button>
               ) : (
@@ -2726,15 +2722,12 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
         </div>}
       </section>
 
-      <nav
-        className="agent-os-dock"
-        aria-label="应用程序 Dock"
-      >
+      <DesktopDock>
         <button className={`dock-launchpad${launchpadOpen ? " is-open" : ""}`} type="button" aria-label="启动台" aria-pressed={launchpadOpen} data-label="启动台" onClick={() => { setWorkspaceOpen(false); setLaunchpadOpen((value) => !value); }}><Icon name="grid" size={22}/></button><i/>
         {pinnedDockItems.map(renderDockItem)}
         {temporaryDockItems.length ? <i className="agent-os-dock-app-divider"/> : null}
         {temporaryDockItems.map(renderDockItem)}
-      </nav>
+      </DesktopDock>
 
       {dockContextApp && dockContextMenu ? <div
         className="agent-os-dock-context-menu"
