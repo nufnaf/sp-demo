@@ -45,6 +45,7 @@ import { useDictation } from "@/hooks/useDictation";
 import { VoiceOrb } from "./VoiceOrb";
 import { BrowserApp } from "./BrowserApp";
 import { SalesCRMApp } from "./SalesCRMApp";
+import { InsightsApp } from "./InsightsApp";
 import { HRRecruitingApp } from "./HRRecruitingApp";
 import { RecruitingPublication } from "./RecruitingPublication";
 import { DesktopNotification } from "./DesktopNotification";
@@ -1470,6 +1471,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   const [taskSessionId, setTaskSessionId] = useState<string | null>(null);
   const [jarvisSessionId, setJarvisSessionId] = useState<string | null>(null);
   const [openArtifacts, setOpenArtifacts] = useState<Artifact[]>([]);
+  const [selectedInsight, setSelectedInsight] = useState<InsightResult | null>(null);
   const [openFeishuDocuments, setOpenFeishuDocuments] = useState<FeishuDocument[]>([]);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [artifactLibraryOpen, setArtifactLibraryOpen] = useState(false);
@@ -1844,7 +1846,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     setWorkspaceOpen(false);
     setTaskSessionId(null);
     setArtifacts([]);
-    setOpenArtifacts([]);
+    setOpenArtifacts([]); setSelectedInsight(null);
     setSelectedLibraryArtifactId(null);
     setInsightNotification(null);
     setNotificationCenterOpen(false);
@@ -1904,7 +1906,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
           setWorkspaceOpen(false);
           setTaskSessionId(null);
           setArtifacts([]);
-          setOpenArtifacts([]);
+          setOpenArtifacts([]); setSelectedInsight(null);
           window.history.replaceState(null, "", "/");
         }
       }
@@ -1950,7 +1952,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     if (!task || task.cwd === activeCwd) return;
     setActiveCwd(task.cwd);
     setArtifacts([]);
-    setOpenArtifacts([]);
+    setOpenArtifacts([]); setSelectedInsight(null);
     knownArtifactIdsRef.current = null;
   }, [activeCwd, sessions, taskSessionId]);
 
@@ -1963,16 +1965,11 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   }, [setFrontWindow]);
 
   const openInsightResult = useCallback((result: InsightResult) => {
-    openArtifact({
-      filePath: result.filePath,
-      sessionId: result.sessionId,
-      cwd: result.cwd,
-      taskTitle: "AI 洞察",
-      modified: result.modified,
-    });
+    setSelectedInsight(result);
+    setFrontWindow("insights");
     setInsightNotification(null);
     setNotificationCenterOpen(false);
-  }, [openArtifact]);
+  }, [setFrontWindow]);
 
   const openFeishuDocument = useCallback((document: FeishuDocument) => {
     if (!document.url) return;
@@ -2350,7 +2347,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   const formatDate = new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", weekday: "short" }).format(now);
   const formatTime = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
   const runningCount = workspaceSessions.filter((session) => runningIds.has(session.id) && !isInsightTaskSession(session)).length;
-  const hasOpenWindow = Boolean(scheduleOpen || taskSessionId || artifactLibraryOpen || settingsOpen || appStoreOpen || salesCrmOpen || hrRecruitingOpen || investmentWorkspaceOpen || browserOpen || filesOpen || terminalOpen || launchpadOpen || openApps.length || openArtifacts.length || openFeishuDocuments.length);
+  const hasOpenWindow = Boolean(selectedInsight || scheduleOpen || taskSessionId || artifactLibraryOpen || settingsOpen || appStoreOpen || salesCrmOpen || hrRecruitingOpen || investmentWorkspaceOpen || browserOpen || filesOpen || terminalOpen || launchpadOpen || openApps.length || openArtifacts.length || openFeishuDocuments.length);
   const hasStartedWork = Boolean(activeCwd && engagedWorkspaces.has(activeCwd)) || visibleTasks.length > 0 || artifacts.length > 0;
   useEffect(() => {
     if (visibleTasks.length > 0 || artifacts.length > 0 || jarvis.running) markWorkspaceEngaged(activeCwd);
@@ -2405,7 +2402,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
         browserTasks={browserTasks}
         onOpenInsight={openInsightResult}
         cwd={activeCwd}
-        viewedArtifact={openArtifacts.find((artifact) => `file:${artifactIdentity(artifact)}` === frontWindow) ?? null}
+        viewedArtifact={frontWindow === "insights" && selectedInsight ? { ...selectedInsight, taskTitle: "AI 洞察" } : openArtifacts.find((artifact) => `file:${artifactIdentity(artifact)}` === frontWindow) ?? null}
         onStartTask={(message) => startTask(message, "publication")}
         onTaskStarted={(sessionId) => { publicationSessionRef.current = sessionId; }}
         onPublished={(job, sessionId) => {
@@ -2430,7 +2427,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
       <div className="agent-os-wallpaper" aria-hidden="true"/>
 
       <header className="agent-os-menu-bar">
-        <button className="agent-os-brand" type="button" onClick={() => { setTaskSessionId(null); setOpenArtifacts([]); setArtifactLibraryOpen(false); window.history.replaceState(null, "", "/"); }}>
+        <button className="agent-os-brand" type="button" onClick={() => { setTaskSessionId(null); setOpenArtifacts([]); setSelectedInsight(null); setArtifactLibraryOpen(false); window.history.replaceState(null, "", "/"); }}>
           <BrandMark/><strong>Syntropic</strong>
         </button>
         <div className="agent-os-workspace-wrap">
@@ -2562,6 +2559,15 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
             <div className="agent-os-file-app"><FileViewer filePath={artifact.filePath} cwd={artifact.cwd} sourceSessionId={artifact.sessionId} initialDisplayMode={isHtmlArtifact(artifact) ? "preview" : undefined} watchEnabled={frontWindow === windowId}/></div>
           </DesktopWindow>;
         })}
+        {selectedInsight && selectedInsight.cwd === activeCwd && <DesktopWindow className="agent-os-window-insights" title="AI 洞察" kind="app" front={frontWindow === "insights"} onFocus={() => setFrontWindow("insights")} onClose={() => setSelectedInsight(null)}>
+          <InsightsApp
+            results={insightResults}
+            selected={insightResults.find(item => item.filePath === selectedInsight.filePath) ?? selectedInsight}
+            analyzing={insightRunning}
+            onSelect={openInsightResult}
+            onOpenFile={() => openArtifact({ ...selectedInsight, taskTitle: "AI 洞察" })}
+          />
+        </DesktopWindow>}
         {scheduleOpen && <DesktopWindow kind="app" title="团队日程" front={frontWindow === "schedule"} onFocus={() => setFrontWindow("schedule")} onClose={() => setScheduleOpen(false)}><PresentationSchedule recruiting={!presentationCwd || activeCwd === presentationCwd} demoAppointments={!!presentationCwd && activeCwd === presentationCwd}/></DesktopWindow>}
         {openFeishuDocuments.map((document, index) => {
           const windowId = `feishu-document:${document.id}`;

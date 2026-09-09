@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { recruitingReportStyle } from "@/lib/recruiting-insight-report";
 
 const LEGACY_FETCH_BRIDGE = String.raw`<script>
 (function(){
@@ -64,20 +65,54 @@ export function RecruitingInsightPreview({ content }: { content: string }) {
       }
     };
 
+    // Presentation meetings can be arranged from either window. Read the same
+    // server-owned state to keep an already-open report in sync.
+    const isPresentation = content.includes('data-recruiting-presentation') || content.includes('SYNTROPIC INSIGHTS · 星流科技');
+    const syncMeeting = async () => {
+      if (!isPresentation) return;
+      try {
+        const response = await fetch("/api/desktop/scenario", { cache: "no-store" });
+        if (!response.ok) return;
+        const result = await response.json();
+        if (live && result.meeting) frame.current?.contentWindow?.postMessage({ type: "recruiting-calendar-state", meeting: { title: result.meeting.title } }, "*");
+      } catch { /* The action itself retains its error feedback. */ }
+    };
+    const element = frame.current;
+    element?.addEventListener("load", syncMeeting);
+    void syncMeeting();
+    const timer = isPresentation ? window.setInterval(() => void syncMeeting(), 3000) : undefined;
     window.addEventListener("message", receive);
     return () => {
       live = false;
+      if (timer !== undefined) window.clearInterval(timer);
+      element?.removeEventListener("load", syncMeeting);
       window.removeEventListener("message", receive);
     };
-  }, []);
+  }, [content]);
 
   return (
     <iframe
       ref={frame}
-      srcDoc={bridgeLegacyInsight(content)}
+      srcDoc={presentRecruitingReport(bridgeLegacyInsight(content))}
       sandbox="allow-scripts"
       title="招聘洞察报告"
       style={{ width: "100%", height: "100%", border: "none", background: "var(--bg)" }}
     />
   );
+}
+
+function presentRecruitingReport(content: string): string {
+  if (!content.includes("data-recruiting-presentation") && !content.includes("SYNTROPIC INSIGHTS · 星流科技")) return content;
+  // Legacy saved reports keep their evidence and gain the same readable style.
+  const additions = `<style>${recruitingReportStyle}</style><script>
+window.addEventListener('message',function(event){
+  if(event.source!==window.parent||event.data?.type!=='recruiting-calendar-state')return;
+  var title=event.data.meeting?.title;
+  if(typeof title!=='string')return;
+  var button=document.getElementById('schedule'),result=document.getElementById('result');
+  if(button){button.disabled=true;button.textContent='会议已安排';}
+  if(result)result.textContent='已加入团队日程 · '+title;
+});
+</script>`;
+  return /<\/body>/i.test(content) ? content.replace(/<\/body>/i, `${additions}</body>`) : content + additions;
 }
