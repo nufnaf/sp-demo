@@ -1494,7 +1494,13 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   const [pendingRequest, setPendingRequest] = useState<string | null>(null);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const knownArtifactIdsRef = useRef<Set<string> | null>(null);
-  const [frontWindow, setFrontWindow] = useState<string>("tasks");
+  const [frontWindow, setFrontWindowState] = useState<string>("tasks");
+  // A delayed background read must not overtake a newer window activation.
+  const windowFocusRevision = useRef(0);
+  const setFrontWindow = useCallback((windowId: string) => {
+    windowFocusRevision.current += 1;
+    setFrontWindowState(windowId);
+  }, []);
   const [insightResults, setInsightResults] = useState<InsightResult[]>([]);
   const [insightRunning, setInsightRunning] = useState(false);
   const [insightNotification, setInsightNotification] = useState<InsightResult | null>(null);
@@ -1509,13 +1515,13 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   const cancelBrowserReturn = useCallback(() => { browserReturnOriginRef.current = null; }, []);
   useEffect(() => {
     const origin = browserReturnOriginRef.current;
-    if (origin && !isBrowserOriginCurrent(origin, { cwd: activeCwd, jarvisSessionId, taskSessionId, browserOpen, frontWindow })) {
+    if (origin && !isBrowserOriginCurrent(origin, { cwd: activeCwd, taskSessionId, publicationSessionId: publicationSessionRef.current, browserOpen, frontWindow })) {
       browserReturnOriginRef.current = null;
     }
-  }, [activeCwd, jarvisSessionId, taskSessionId, browserOpen, frontWindow]);
+  }, [activeCwd, taskSessionId, browserOpen, frontWindow]);
 
   const handleBrowserEvent = useEffectEvent((message: BrowserSystemEvent | { type: "browser.ready" }) => {
-    const context = { cwd: activeCwd, jarvisSessionId, taskSessionId, browserOpen, frontWindow };
+    const context = { cwd: activeCwd, taskSessionId, publicationSessionId: publicationSessionRef.current, browserOpen, frontWindow };
     if (message.type === "browser.task") {
       setBrowserTasks((current) => [...current.filter((task) => task.id !== message.task.id), message.task]);
       if (message.task.cwd === activeCwd) setPendingRequest(null);
@@ -1528,10 +1534,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
       // Consume once, including cancellation; reconnection must not steal focus later.
       browserReturnOriginRef.current = null;
       const destination = browserReturnDestination(origin, message.task, context);
-      if (destination === "jarvis") {
-        followConversationRef.current = true;
-        setJarvisPanelOpen(true);
-      } else if (destination === "tasks") {
+      if (destination === "tasks") {
         setJarvisPanelOpen(false);
         setFrontWindow("tasks");
       }
@@ -1584,7 +1587,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
       } catch { /* ignore malformed file events */ }
     };
     return () => stream.close();
-  }, [activeCwd, setNotice]);
+  }, [activeCwd, setNotice, setFrontWindow]);
 
   useEffect(() => {
     if (!activeCwd) return;
@@ -1673,7 +1676,9 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     [activeCwd, jarvisSessionId, sessions],
   );
   const artifactRefreshKey = `${activeCwd ?? ""}|${workspaceSessions.map((session) => `${session.id}:${session.modified}`).join("|")}`;
+  const canRevealArtifact = useEffectEvent(() => !(browserOpen && frontWindow === "browser"));
   useEffect(() => {
+    const focusAtRequest = windowFocusRevision.current;
     const reference = presentationCwd && activeCwd ? workspaceReference(activeCwd) : undefined;
     const presetArtifacts: Artifact[] = reference && activeCwd ? [{ filePath: `${activeCwd}/${reference}`, sessionId: `preset:${activeCwd}`, cwd: activeCwd, taskTitle: "工作台资料", modified: new Date(0).toISOString() }] : [];
     if (!activeCwd || workspaceSessions.length === 0) {
@@ -1715,14 +1720,14 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
           workspaceSessions.filter(isInsightTaskSession).map((session) => session.id),
         );
         const desktopArtifacts = newlyGenerated.filter((artifact) => !insightSessionIds.has(artifact.sessionId));
-        if (desktopArtifacts.length) {
+        const activeElement = document.activeElement;
+        const composerIsActive = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
+        if (desktopArtifacts.length && !composerIsActive && windowFocusRevision.current === focusAtRequest && canRevealArtifact()) {
           setOpenArtifacts((current) => {
             const openIds = new Set(current.map(artifactIdentity));
             return [...current, ...desktopArtifacts.filter((artifact) => !openIds.has(artifactIdentity(artifact)))];
           });
-          const activeElement = document.activeElement;
-          const composerIsActive = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
-          if (!composerIsActive) setFrontWindow(`file:${artifactIdentity(desktopArtifacts.at(-1)!)}`);
+          setFrontWindow(`file:${artifactIdentity(desktopArtifacts.at(-1)!)}`);
         }
       }
       knownArtifactIdsRef.current = nextIds;
@@ -1918,7 +1923,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     setTaskSessionId(sessionId);
     setFrontWindow("tasks");
     window.history.replaceState(null, "", `?session=${encodeURIComponent(sessionId)}`);
-  }, []);
+  }, [setFrontWindow]);
 
   useEffect(() => {
     if (!taskSessionId) return;
@@ -1936,7 +1941,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
       ? current.map((item) => artifactIdentity(item) === identity ? artifact : item)
       : [...current, artifact]);
     setFrontWindow(`file:${identity}`);
-  }, []);
+  }, [setFrontWindow]);
 
   const openInsightResult = useCallback((result: InsightResult) => {
     openArtifact({
@@ -1961,13 +1966,13 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ cwd: activeCwd, activity: "document.opened", document }),
     }).catch(() => undefined);
-  }, [activeCwd]);
+  }, [activeCwd, setFrontWindow]);
 
   const openArtifactLibrary = useCallback(() => {
     setArtifactLibraryOpen(true);
     setSelectedLibraryArtifactId((current) => current ?? (artifacts[0] ? artifactIdentity(artifacts[0]) : null));
     setFrontWindow("library");
-  }, [artifacts]);
+  }, [artifacts, setFrontWindow]);
 
   const closeLaunchpad = useCallback(() => setLaunchpadOpen(false), []);
 
@@ -1985,7 +1990,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     rememberDockItem(app);
     setDockContextMenu(null);
     setFrontWindow(`app:${app.id}`);
-  }, [rememberDockItem]);
+  }, [rememberDockItem, setFrontWindow]);
 
   const openInvestmentSource = useCallback(async (sourceId: "feishu" | "google" | "qichacha") => {
     if (sourceId === "feishu") {
@@ -2018,7 +2023,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     } catch (error) {
       setNotice(error instanceof Error ? error.message : String(error));
     }
-  }, [activeCwd, openApps, openLaunchpadApp, setNotice]);
+  }, [activeCwd, openApps, openLaunchpadApp, setNotice, setFrontWindow]);
 
   const openDockItem = useCallback((item: DockItem) => {
     if (item.kind !== "system") {
@@ -2060,7 +2065,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
       setSettingsOpen(true);
       setFrontWindow("settings");
     }
-  }, [openArtifactLibrary, openLaunchpadApp, openTask, rememberDockItem, sessions]);
+  }, [openArtifactLibrary, openLaunchpadApp, openTask, rememberDockItem, sessions, setFrontWindow]);
 
   const isDockItemOpen = useCallback((item: DockItem) => {
     if (item.kind !== "system") return openApps.some((openApp) => openApp.id === item.id);
@@ -2176,12 +2181,9 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   const jarvis = useJarvis({ cwd: activeCwd, onTaskStarted: handleJarvisTaskStarted, onTaskSettled: handleJarvisTaskSettled });
   const sentAfterReplyRef = useRef(0);
   useEffect(() => {
-    // A conversational answer (rather than a delegated task) should remain
-    // readable. Old replies must not immediately reopen a newly sent request.
+    // Replies settle the task indicator; transcript visibility is user-owned.
     if (pendingRequest && !jarvis.running && jarvis.latestReplyTurnId > sentAfterReplyRef.current) {
       setPendingRequest(null);
-
-      setJarvisPanelOpen(true);
     }
   }, [pendingRequest, jarvis.running, jarvis.latestReplyTurnId]);
 
@@ -2201,16 +2203,13 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   useEffect(() => {
     if (jarvis.error) {
       setNotice(jarvis.error);
-
-      setJarvisPanelOpen(true);
       setPendingRequest(null);
     }
   }, [jarvis.error, setNotice]);
   useEffect(() => {
     setJarvisSessionId(jarvis.sessionId);
   }, [jarvis.sessionId]);
-  // The Jarvis panel opens itself when the conversation is active and stays
-  // closed once the user dismisses it, until the next exchange.
+  // Conversation history is available on demand without interrupting work.
   const compactTurns = useMemo(() => compactDesktopTurns(jarvis.turns, jarvis.tasks), [jarvis.turns, jarvis.tasks]);
   const followConversationRef = useRef(true);
   const latestJarvisTurnId = jarvis.turns.length ? jarvis.turns[jarvis.turns.length - 1].id : 0;
@@ -2373,7 +2372,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     return { id: session.id, title: taskTitle(session), detail: status, running, onOpen: () => openTask(session.id) };
   });
   for (const task of browserTasks.filter((task) => task.cwd === activeCwd && !workspaceSessions.some((session) => session.id === task.parentSessionId))) {
-    widgetTasks.push({ id: task.id, title: /发布/.test(task.task) ? "发布 AI Agent 工程师岗位" : "查询招聘进展", detail: ({ completed: "已完成", failed: "执行失败", stopped: "已停止", starting: "正在准备", running: "进行中", stopping: "正在停止" })[task.status], running: ["starting", "running", "stopping"].includes(task.status), onOpen: () => { setJarvisPanelOpen(true); if (task.pageId) { setBrowserPageId(task.pageId); setBrowserOpen(true); setFrontWindow("browser"); } } });
+    widgetTasks.push({ id: task.id, title: /发布/.test(task.task) ? "发布 AI Agent 工程师岗位" : "查询招聘进展", detail: ({ completed: "已完成", failed: "执行失败", stopped: "已停止", starting: "正在准备", running: "进行中", stopping: "正在停止" })[task.status], running: ["starting", "running", "stopping"].includes(task.status), onOpen: () => { if (task.pageId) { setBrowserPageId(task.pageId); setBrowserOpen(true); setFrontWindow("browser"); } } });
   }
   if (pendingRequest && jarvis.running) widgetTasks.unshift({ id: "pending-request", title: pendingRequest, detail: "正在准备", running: true, onOpen: () => setJarvisPanelOpen(true) });
   widgetTasks.sort((a, b) => Number(Boolean(b.running)) - Number(Boolean(a.running)));
@@ -2753,11 +2752,11 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
         cwd={activeCwd}
         viewedArtifact={openArtifacts.find((artifact) => `file:${artifactIdentity(artifact)}` === frontWindow) ?? null}
         onStartTask={(message) => startTask(message, "publication")}
-        onTaskStarted={(sessionId) => { publicationSessionRef.current = sessionId; setTaskSessionId(sessionId); }}
+        onTaskStarted={(sessionId) => { publicationSessionRef.current = sessionId; }}
         onPublished={(job, sessionId) => {
           setPublishedDraft(job.draft);
           const origin = browserReturnOriginRef.current;
-          if (origin?.sessionId === sessionId && isBrowserOriginCurrent(origin, { cwd: activeCwd, jarvisSessionId, taskSessionId, browserOpen, frontWindow })) {
+          if (origin?.sessionId === sessionId && isBrowserOriginCurrent(origin, { cwd: activeCwd, taskSessionId, publicationSessionId: publicationSessionRef.current, browserOpen, frontWindow })) {
             browserReturnOriginRef.current = null;
             setJarvisPanelOpen(false);
             setHrRecruitingOpen(true);
