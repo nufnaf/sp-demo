@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveSessionPath } from "@/lib/session-reader";
-import { startRpcSession, getRpcSession, setRpcSessionTools, abortRecruitingJdDemoTask } from "@/lib/rpc-manager";
+import { startRpcSession, getRpcSession, setRpcSessionTools, abortPresentationTask } from "@/lib/rpc-manager";
 
 // POST /api/agent/[id] - Send a command to an existing session
 export async function POST(
@@ -14,7 +14,7 @@ export async function POST(
   try {
     const body = await req.json() as { type: string; [key: string]: unknown };
     commandType = typeof body.type === "string" ? body.type : undefined;
-    if (body.type === "abort" && abortRecruitingJdDemoTask(id)) {
+    if (body.type === "abort" && abortPresentationTask(id)) {
       return NextResponse.json({ success: true, data: null });
     }
     const requestedToolNames = body.toolNames;

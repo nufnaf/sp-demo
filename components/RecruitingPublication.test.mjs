@@ -13,6 +13,7 @@ const require = createRequire(import.meta.url);
 // Exercise the component's effects and event handlers without business services.
 function harness(saved = {}) {
   const slots = [], storage = new Map(), timers = new Map();
+  const publishedJobs = [];
   let cursor = 0, dirty = false, effects = [], output;
   const react = {
     useState(initial) {
@@ -32,7 +33,7 @@ function harness(saved = {}) {
   const report = { cwd: "/fixture", sessionId: "report", filePath: "/fixture/report.html", title: "面试官评价标准不一致", summary: "5 位候选人的推进判断存在分歧。", modified: "2026-09-09" };
   storage.set("syntropic:notifications:/fixture", JSON.stringify(saved));
   const calls = [];
-  const props = { cwd: "/fixture", notice: null, insights: [], browserTasks: [], viewedArtifact: null,
+  const props = { presentation: true, cwd: "/fixture", notice: null, insights: [], browserTasks: [], viewedArtifact: null,
     onStartTask: async message => { calls.push(message); return "publication-session"; },
     onTaskStarted() {}, onPublished() {}, onSettled() {}, onNotice() {}, onDismissNotice() {},
     onOpenInsight: insight => calls.push(insight.filePath), children: value => ({ ...value, publicationInsight: value.widgetInsights.find(item => item.id.startsWith("publication:")) ?? null }),
@@ -41,7 +42,8 @@ function harness(saved = {}) {
   vm.runInNewContext(compiled, { module: testModule, exports: testModule.exports, TextEncoder, crypto: webcrypto, URL, AbortSignal,
     localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) },
     setTimeout: (fn, delay) => { const id = {}; timers.set(id, { fn, delay }); return id; }, clearTimeout: id => timers.delete(id),
-    fetch: async url => ({ ok: true, json: async () => String(url).includes("/api/files/") ? { content: "# AI Agent 工程师\n岗位说明" } : String(url).includes("internal-recruiting") ? { baseUrl: "http://localhost" } : { tasks: [] } }),
+    setInterval: () => ({}), clearInterval() {},
+    fetch: async url => ({ ok: true, json: async () => String(url).includes("/api/files/") ? { content: "# AI Agent 工程师\n岗位说明" } : String(url).includes("internal-recruiting") ? { baseUrl: "http://localhost", jobs: publishedJobs } : { tasks: [] } }),
     require: id => id === "react" ? react : id === "react/jsx-runtime" ? require(id) : id === "./DesktopNotification" ? { DesktopNotification() {} } : id.includes("file-paths") ? { encodeFilePathForApi: encodeURIComponent } : { isJdDemoArtifact: item => item.filePath.endsWith("jd.md"), publicationPrompt: (url, title, path) => `${url} ${title} ${path}` },
   });
   const render = () => {
@@ -53,7 +55,7 @@ function harness(saved = {}) {
     } while (dirty);
     return output;
   };
-  return { props, artifact, report, calls, storage, render,
+  return { props, artifact, report, calls, storage, render, publishedJobs,
     recognize() { props.viewedArtifact = artifact; render(); for (const [id, timer] of timers) if (timer.delay === 1400) { timers.delete(id); timer.fn(); } return render(); },
     async settle() { for (let i = 0; i < 10; i++) { await new Promise(resolve => setImmediate(resolve)); render(); } return output; },
   };
@@ -89,7 +91,22 @@ test("the dismissed widget can publish and becomes disabled while that same publ
   h.render().publicationInsight.onOpen();
   const surfaces = await h.settle();
   assert.equal(h.calls.length, 1);
-  assert.ok(h.calls[0].includes(h.artifact.filePath));
+  assert.equal(h.calls[0], "发布岗位", "only an application action is dispatched; no model copies a file path");
   assert.equal(surfaces.publicationInsight.disabled, true);
   assert.equal(surfaces.publicationInsight.actionLabel, "正在发布…");
+});
+
+test("a saved publication clears the suggestion after reload or publication from the composer", async () => {
+  const h = harness();
+  const hash = await webcrypto.subtle.digest("SHA-256",new TextEncoder().encode(`${h.artifact.cwd}\n${h.artifact.filePath}`));
+  h.publishedJobs.push({draft:Buffer.from(hash).toString('hex').slice(0,32)});
+  h.recognize();
+  assert.equal((await h.settle()).publicationInsight,null);
+  assert.equal(h.calls.length,0,"reconciliation never dispatches or submits a job");
+});
+
+test("standalone Web publishing retains the artifact reference", async () => {
+  const h=harness();h.props.presentation=false;
+  h.recognize().publicationInsight.onOpen();await h.settle();
+  assert.ok(h.calls[0].includes(h.artifact.filePath));
 });
