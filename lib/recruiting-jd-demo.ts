@@ -1,3 +1,4 @@
+import { presentationAction } from "./presentation-actions";
 import { randomUUID } from "node:crypto";
 import { readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -12,9 +13,7 @@ import { RECRUITING_JD_DEMO } from "./recruiting-jd-fixture";
 export function isRecruitingJdDemoRequest(cwd: string, message: string): boolean {
   const expected = presentationCwd();
   return !!expected && resolve(cwd) === resolve(expected)
-    && /(?:\bJD\b|岗位描述|职位描述|招聘说明)/i.test(message)
-    && /生成|撰写|起草|制作|编写|写[一份个]|write|creat|draft/i.test(message)
-    && !/(?:不要|别|不用|先别|不需要)(?:再)?(?:生成|撰写|起草|制作|编写|写)[^，。；,;]{0,20}(?:\bJD\b|岗位描述|职位描述|招聘说明)|仅讨论|只讨论|如何|怎么|生成.{0,30}(?:了吗|了没)/i.test(message);
+    && presentationAction(message) === "generate-jd";
 }
 
 /** Explicit simulated provenance, zero model usage. The file operation is real. */

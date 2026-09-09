@@ -2152,9 +2152,10 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
       const response = await fetch("/api/agent/new", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cwd, type: "prompt", message: normalizedMessage, ...(recruitingTask ? { recruitingTask } : {}) }),
+        body: JSON.stringify({ cwd, type: "prompt", message: normalizedMessage, ...(recruitingTask ? { demoAction: "publish-jd" } : {}) }),
       });
-      const data = await response.json() as { sessionId?: string; error?: string };
+      const data = await response.json() as { sessionId?: string; data?: { taskId?: string }; error?: string };
+      if (data.data?.taskId) data.sessionId = data.data.taskId;
       if (!response.ok || !data.sessionId) throw new Error(data.error ?? "任务创建失败");
       setSessions((current) => [{
         id: data.sessionId!, path: "", cwd, created: new Date().toISOString(), modified: new Date().toISOString(),
@@ -2195,6 +2196,13 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     window.setTimeout(() => void refreshSessions(), 450);
   }, [refreshSessions, setNotice]);
   const jarvis = useJarvis({ cwd: activeCwd, onTaskStarted: handleJarvisTaskStarted, onTaskSettled: handleJarvisTaskSettled });
+  const presentedReply = useRef(0);
+  useEffect(() => {
+    if (presentationCwd && jarvis.latestReplyTurnId > presentedReply.current && jarvis.speechText) {
+      presentedReply.current = jarvis.latestReplyTurnId;
+      setNotice(jarvis.speechText);
+    }
+  }, [presentationCwd, jarvis.latestReplyTurnId, jarvis.speechText, setNotice]);
   const sentAfterReplyRef = useRef(0);
   useEffect(() => {
     // Replies settle the task indicator; transcript visibility is user-owned.
@@ -2391,11 +2399,27 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     widgetTasks.push({ id: task.id, title: /发布/.test(task.task) ? "发布 AI Agent 工程师岗位" : "查询招聘进展", detail: ({ completed: "已完成", failed: "执行失败", stopped: "已停止", starting: "正在准备", running: "进行中", stopping: "正在停止" })[task.status], running: ["starting", "running", "stopping"].includes(task.status), onOpen: () => { if (task.pageId) { setBrowserPageId(task.pageId); setBrowserOpen(true); setFrontWindow("browser"); } } });
   }
   if (pendingRequest && jarvis.running) widgetTasks.unshift({ id: "pending-request", title: pendingRequest, detail: "正在准备", running: true, onOpen: () => { if (presentationCwd) setNotice("正在准备任务，进展会显示在当前任务中"); else setJarvisPanelOpen(true); } });
+  const stopPresentationTasks = async () => {
+    const ids = new Set([
+      ...jarvis.tasks.filter(task => task.status === "running").map(task => task.sessionId),
+      ...browserTasks.filter(task => task.cwd === activeCwd && ["starting", "running", "stopping"].includes(task.status)).map(task => task.parentSessionId),
+      ...workspaceSessions.filter(session => runningIds.has(session.id)).map(session => session.id),
+    ]);
+    if (jarvis.running && jarvis.sessionId) ids.add(jarvis.sessionId);
+    try {
+      await Promise.all([...ids].map(async id => {
+        const response = await fetch(`/api/agent/${id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "abort" }) });
+        if (!response.ok) throw new Error("停止任务失败，请重试。");
+      }));
+    } catch (error) { setNotice(error instanceof Error ? error.message : String(error)); }
+  };
+
   widgetTasks.sort((a, b) => Number(Boolean(b.running)) - Number(Boolean(a.running)));
 
   return (
     <RecruitingPublication
         key={activeCwd ?? "no-workspace"}
+        presentation={!!presentationCwd}
         notice={notice}
         onDismissNotice={() => setNotice(null)}
         insights={insightResults}
@@ -2764,7 +2788,9 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
                 busy={jarvis.running || widgetTasks.some(task => task.running)} viewingRecruiting={hrRecruitingOpen && frontWindow === "hr"}
                 placeholder={showStart ? startPlaceholder : jarvis.ready ? hasStartedWork ? "和 Syntropic 说点什么" : "发布今天的第一项任务吧～" : "Syntropic 正在启动…"}/>
               <button className="voice dictate" type="button" aria-label="语音输入" onClick={() => { dictationCompletionRef.current = "draft"; dictation.toggle(); }}><DesktopDesignIcon name="microphone" size={20}/></button>
-              {prompt.trim() ? (
+              {presentationCwd && (jarvis.running || widgetTasks.some(task => task.running)) ? (
+                <button className="send" type="button" aria-label="停止当前任务" title="停止当前任务" onClick={() => void stopPresentationTasks()}><Icon name="close" size={19}/></button>
+              ) : prompt.trim() ? (
                 <button className="send" type="submit" aria-label="发送给 Syntropic" disabled={!jarvis.sessionId}>{submitting ? <span className="agent-os-spinner"/> : <Icon name="arrow-up" size={19}/>}</button>
               ) : (
                 <button className="voice realtime" type="button" aria-label="开始实时语音对话" onClick={startConversation}><Icon name="waveform" size={19}/></button>

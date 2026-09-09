@@ -1,9 +1,8 @@
-import { recruitingTaskPrompt, recruitingJdContract } from "./recruiting-jd-contract";
-import { createRecruitingJdDemoTask, demoAssistant, isRecruitingJdDemoRequest } from "./recruiting-jd-demo";
-import { recruitingTaskKind, readRecruitingTaskKind, recruitingProfile, RECRUITING_TASK_PROFILE, type RecruitingTaskKind } from "./recruiting-task-profile";
-import { createRecruitingJdExtension } from "./recruiting-jd-extension";
+import { demoAssistant } from "./recruiting-jd-demo";
+import { createPresentationTask } from "./presentation-tasks";
+import { presentationAction, PRESENTATION_HELP, type PresentationAction } from "./presentation-actions";
 import { createFeishuDemoExtension } from "./feishu-demo-extension";
-import { presentationSessionDir, presentationRoot, presentationModelDefaults } from "./presentation-runtime";
+import { presentationSessionDir, presentationRoot, presentationCwd, isPresentationCwd, presentationModelDefaults } from "./presentation-runtime";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { createAgentSessionFromServices, createAgentSessionServices, getAgentDir, initTheme, SessionManager, SettingsManager, Theme } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager as TuiKeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
@@ -175,7 +174,6 @@ const COMMANDS_ALLOWED_DURING_SESSION_REPLACEMENT = new Set([
 ]);
 
 export interface RpcSessionStartOptions {
-  recruitingTask?: RecruitingTaskKind;
   toolNames?: string[];
   initialModel?: { provider: string; modelId: string };
   allowInitialModelFallback?: boolean;
@@ -303,7 +301,7 @@ export class AgentSessionWrapper {
   }
 
   get isStreaming(): boolean {
-    return this.inner.isStreaming || !!this.jdDemoRun;
+    return this.inner.isStreaming || !!this.presentationRun;
   }
 
   isAlive(): boolean {
@@ -495,10 +493,10 @@ export class AgentSessionWrapper {
     this.emit({ type: "jarvis_task_update", task: jarvisTaskDetails(task), occurredAt: new Date().toISOString() });
   }
 
-  private jdDemoRun?: { controller: AbortController; taskId: string };
+  private presentationRun?: { controller: AbortController; taskId: string };
 
-  get runningJdDemoTaskId(): string | undefined {
-    return this.jdDemoRun?.taskId;
+  get runningPresentationTaskId(): string | undefined {
+    return this.presentationRun?.taskId;
   }
 
   private appendDemoMessage(message: Parameters<AgentSessionLike["sessionManager"]["appendMessage"]>[0]): void {
@@ -507,18 +505,18 @@ export class AgentSessionWrapper {
     this.emit({ type: "message_end", message });
   }
 
-  cancelJdDemo(taskId: string): boolean {
-    if (this.jdDemoRun?.taskId !== taskId) return false;
-    this.jdDemoRun.controller.abort();
+  cancelPresentationTask(taskId: string): boolean {
+    if (this.presentationRun?.taskId !== taskId) return false;
+    this.presentationRun.controller.abort();
     return true;
   }
 
   /** The recruiting demo dispatches locally, before any model preflight. */
-  private startJdDemo(message: string): void {
-    if (this.isRunning()) throw new Error("请等待当前任务结束后再生成 JD。");
-    const demo = createRecruitingJdDemoTask(this.cwd, this.sessionId, message);
+  private startPresentationTask(message: string, action: Exclude<PresentationAction, "help" | "cancel">): string {
+    if (this.isRunning() || [...getRegistry().values()].some(session => session.cwd === this.cwd && session.presentationRun)) throw new Error("当前任务正在执行，请等待完成或先停止任务。");
+    const demo = createPresentationTask(this.cwd, this.sessionId, message, action);
     const controller = new AbortController();
-    this.jdDemoRun = { controller, taskId: demo.task.sessionId };
+    this.presentationRun = { controller, taskId: demo.task.sessionId };
     this.pendingPromptCount += 1;
     getJarvisTaskStore().set(demo.task.sessionId, { ...demo.task, abortRequested: false });
     cacheSessionPath(demo.task.sessionId, demo.manager.getSessionFile()!);
@@ -536,13 +534,14 @@ export class AgentSessionWrapper {
     }).catch(error => {
       this.emit({ type: "prompt_error", errorMessage: error instanceof Error ? error.message : String(error) });
     }).finally(() => {
-      this.jdDemoRun = undefined;
+      this.presentationRun = undefined;
       this.pendingPromptCount = Math.max(0, this.pendingPromptCount - 1);
       invalidateSessionListCache();
       this.emit({ type: "agent_end", messages: [] });
       this.emit({ type: "prompt_done" });
       this.resetIdleTimer();
     });
+    return demo.task.sessionId;
   }
 
   private emit(event: AgentEvent): void {
@@ -648,7 +647,13 @@ export class AgentSessionWrapper {
   }
 
   async send(command: Record<string, unknown>): Promise<unknown> {
-    const type = command.type as string;
+    let type = command.type as string;
+    if (isPresentationCwd(this.cwd)) {
+      if (["steer", "follow_up"].includes(type)) type = "prompt";
+      if (["bash", "compact", "reload", "set_tools", "set_model", "navigate_tree"].includes(type)) {
+        throw new Error("演示工作台只支持固定业务流程，请使用工作台中的操作入口。");
+      }
+    }
     const allowedDuringReplacement = COMMANDS_ALLOWED_DURING_SESSION_REPLACEMENT.has(type);
     if (this.sessionReplacement && !allowedDuringReplacement) {
       throw new Error("Session is being copied to a new session");
@@ -663,7 +668,7 @@ export class AgentSessionWrapper {
     try {
       // Status reconciliation must not postpone forced cleanup after Stop.
       if (type !== "get_state") this.resetIdleTimer();
-      if (this.shouldWaitForExtensions(type)) await this.waitForExtensionsBound();
+      if (!isPresentationCwd(this.cwd) && this.shouldWaitForExtensions(type)) await this.waitForExtensionsBound();
       if (this.sessionReplacement && !allowedDuringReplacement) {
         throw new Error("Session is being copied to a new session");
       }
@@ -680,11 +685,27 @@ export class AgentSessionWrapper {
         // this submission starts a run or joins its streaming queue.
         const releaseAdmission = await this.acquirePromptAdmission();
         try {
-          if (this.isJarvis() && isRecruitingJdDemoRequest(this.cwd, String(command.message ?? ""))) {
-            this.startJdDemo(String(command.message));
+          if (isPresentationCwd(this.cwd)) {
+            const message = String(command.message ?? "");
+            // Only application-owned actions can be explicit; free text never
+            // falls through to a general model, including old saved sessions.
+            const action = command.demoAction === "publish-jd" ? "publish-jd" : presentationAction(message);
+            if (action === "cancel") {
+              const active = [...getRegistry().values()].find(session => session.cwd === this.cwd && session.presentationRun);
+              if (active?.presentationRun) { active.presentationRun.controller.abort(); return null; }
+            }
+            if (this.cwd === presentationCwd() && action !== "help" && action !== "cancel") {
+              return { taskId: this.startPresentationTask(message, action) };
+            }
+            if (this.isRunning()) throw new Error("当前任务正在执行，可以点击停止任务。");
+            this.emit({ type: "agent_start" });
+            this.appendDemoMessage({ role: "user", content: message, timestamp: Date.now() });
+            this.appendDemoMessage(demoAssistant(action === "cancel" ? "当前没有正在执行的任务。" : this.cwd === presentationCwd() ? PRESENTATION_HELP : "此演示工作台支持查看预置资料和成果；招聘流程请切换到招聘工作台。"));
+            this.emit({ type: "agent_end", messages: [] });
+            this.emit({ type: "prompt_done" });
             return null;
           }
-          if (this.jdDemoRun) throw new Error("正在准备 JD，请稍候。");
+          if (this.presentationRun) throw new Error("正在准备 JD，请稍候。");
           if (this.inner.isBashRunning) {
             throw new Error("Cannot send a prompt while a shell command is running");
           }
@@ -782,7 +803,7 @@ export class AgentSessionWrapper {
       }
 
       case "abort":
-        if (this.jdDemoRun) { this.jdDemoRun.controller.abort(); return null; }
+        if (this.presentationRun) { this.presentationRun.controller.abort(); return null; }
         // The task-window stop button shares the same outcome as abort_task.
         if (getJarvisTaskStore().has(this.sessionId)) getJarvisTaskStore().get(this.sessionId)!.abortRequested = true;
         if (this.shouldObserveTaskInsights()) {
@@ -808,7 +829,7 @@ export class AgentSessionWrapper {
         return {
           sessionId: this.inner.sessionId,
           sessionFile: this.inner.sessionFile ?? "",
-          isStreaming: this.inner.isStreaming || !!this.jdDemoRun,
+          isStreaming: this.inner.isStreaming || !!this.presentationRun,
           isPromptRunning: this.pendingPromptCount > 0,
           isBashRunning: this.inner.isBashRunning,
           isCompacting: this.inner.isCompacting,
@@ -974,7 +995,7 @@ export class AgentSessionWrapper {
       }
 
       case "steer": {
-        if (this.jdDemoRun) throw new Error("正在准备固定岗位 JD，请完成后再发送新指令。");
+        if (this.presentationRun) throw new Error("正在准备固定岗位 JD，请完成后再发送新指令。");
         const steerImages = command.images as Array<{ type: "image"; data: string; mimeType: string }> | undefined;
         await this.inner.steer(command.message as string, steerImages?.length ? steerImages : undefined);
         if (this.shouldObserveTaskInsights()) {
@@ -1116,7 +1137,7 @@ export class AgentSessionWrapper {
 
   destroy(): void {
     if (!this._alive) return;
-    this.jdDemoRun?.controller.abort();
+    this.presentationRun?.controller.abort();
     this._alive = false;
     if (this.idleTimer) clearTimeout(this.idleTimer);
     if (this.inner.isBashRunning) this.inner.abortBash();
@@ -1935,9 +1956,7 @@ function createJarvisTaskRuntime(): JarvisRuntime & {
       if (!message) throw new Error("Task prompt is required");
       const label = description.trim() || message.slice(0, 24);
       const cwd = jarvis.cwd;
-      const { session, realSessionId } = await startRpcSession(`__jarvis_task__${randomUUID()}`, "", cwd, {
-        ...(recruitingTaskPrompt(cwd, message) !== message ? { recruitingTask: "jd" as const } : {}),
-      });
+      const { session, realSessionId } = await startRpcSession(`__jarvis_task__${randomUUID()}`, "", cwd);
       const createdAt = new Date().toISOString();
       session.inner.sessionManager.appendCustomEntry(JARVIS_TASK_ORIGIN_TYPE, {
         version: 1,
@@ -1984,7 +2003,7 @@ function createJarvisTaskRuntime(): JarvisRuntime & {
 
     async abortTask(jarvisSessionId, taskId) {
       const task = requireTask(jarvisSessionId, taskId);
-      if (getRegistry().get(jarvisSessionId)?.cancelJdDemo(taskId)) return;
+      if (getRegistry().get(jarvisSessionId)?.cancelPresentationTask(taskId)) return;
       const wrapper = getRegistry().get(taskId);
       if (!wrapper?.isAlive() || !wrapper.isRunning()) throw new Error("Task is not running");
       task.abortRequested = true;
@@ -2254,14 +2273,14 @@ export function getRunningRpcSessionIds(): string[] {
   const ids = new Set<string>();
   for (const [sessionId, session] of getRegistry()) {
     if (session.isRunning()) ids.add(session.sessionId || sessionId);
-    if (session.runningJdDemoTaskId) ids.add(session.runningJdDemoTaskId);
+    if (session.runningPresentationTaskId) ids.add(session.runningPresentationTaskId);
   }
   return [...ids];
 }
 
-export function abortRecruitingJdDemoTask(sessionId: string): boolean {
+export function abortPresentationTask(sessionId: string): boolean {
   const task = getJarvisTaskStore().get(sessionId);
-  return !!task && !!getRegistry().get(task.jarvisSessionId)?.cancelJdDemo(sessionId);
+  return !!task && !!getRegistry().get(task.jarvisSessionId)?.cancelPresentationTask(sessionId);
 }
 
 export function getCompletionNotificationSuppressedRpcSessionIds(): string[] {
@@ -2269,7 +2288,7 @@ export function getCompletionNotificationSuppressedRpcSessionIds(): string[] {
   for (const [sessionId, session] of getRegistry()) {
     if (session.isRunning() && session.hasSuppressedCompletionNotifications()) {
       ids.add(session.sessionId || sessionId);
-      if (session.runningJdDemoTaskId) ids.add(session.runningJdDemoTaskId);
+      if (session.runningPresentationTaskId) ids.add(session.runningPresentationTaskId);
     }
   }
   return [...ids];
@@ -2311,11 +2330,7 @@ export async function startRpcSession(
   }
   const sessionCwd = sessionManager.getCwd();
   const appModelDefaults = presentationModelDefaults(sessionCwd);
-  const recruitingKind = sessionFile
-    ? readRecruitingTaskKind(sessionCwd, sessionManager.getEntries() as unknown as SessionEntry[])
-    : recruitingTaskKind(sessionCwd, options.recruitingTask);
-  const recruiting = recruitingKind ? recruitingProfile(recruitingKind) : undefined;
-  if (recruitingKind && !sessionFile) sessionManager.appendCustomEntry(RECRUITING_TASK_PROFILE, { version: 1, kind: recruitingKind });
+  const presentation = isPresentationCwd(sessionCwd);
   const subagentResources = sessionFile
     ? readSubagentSessionResources(
         sessionManager.getEntries() as unknown as SessionEntry[],
@@ -2331,7 +2346,7 @@ export async function startRpcSession(
   const subagentLoadsResources = Boolean(
     subagentResources?.loadExtensions || subagentResources?.loadSkills,
   );
-  const jarvis = options.role === "jarvis"
+  const jarvis = presentation || options.role === "jarvis"
     || isJarvisSession(sessionManager.getEntries() as unknown as SessionEntry[]);
   if (jarvis && !sessionFile) {
     sessionManager.appendCustomEntry(JARVIS_META_TYPE, {
@@ -2377,13 +2392,8 @@ export async function startRpcSession(
       cwd: sessionCwd,
       agentDir,
       settingsManager,
-      resourceLoaderOptions: recruiting
-        ? {
-            ...recruiting.resources,
-            extensionFactories: recruitingKind === "jd"
-              ? [createFeishuDemoExtension(), createRecruitingJdExtension(sessionCwd)]
-              : [createBrowserExtension(true)],
-          }
+      resourceLoaderOptions: presentation
+        ? { noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true, systemPrompt: "本会话仅保存演示流程记录，不调用模型。" }
         : subagentResources
         ? {
             noExtensions: !subagentResources.loadExtensions,
@@ -2420,7 +2430,6 @@ export async function startRpcSession(
             extensionFactories: [
               createBrowserExtension(),
               createFeishuDemoExtension(),
-              createRecruitingJdExtension(sessionCwd),
               createFilesAppExtension(),
               ...(presentationRoot() ? [] : [createAppConnectorExtension()]),
               createProjectCommandBashExtension({
@@ -2449,10 +2458,10 @@ export async function startRpcSession(
       : undefined;
     const defaultProvider = services.settingsManager.getDefaultProvider();
     const defaultModelId = services.settingsManager.getDefaultModel();
-    // An unconfigured recruiting desktop can still deliver the local JD demo.
-    // If the packaged default is unavailable, allow the SDK's normal default
-    // selection for this conversation; publishing still uses its own profile.
-    const unavailableRecruitingDefault = jarvis && recruitingJdContract(sessionCwd)
+    // This SDK session only stores demo history. A missing model must not
+    // prevent local work; it never receives prompt/steer/follow-up calls.
+    // Browser tasks resolve their own model in browser/tasks.ts.
+    const unavailableRecruitingDefault = presentation
       && !scope.visible.some(model => model.provider === appModelDefaults?.provider && model.id === appModelDefaults?.modelId);
     const requestedInitialModel = effectiveInitialModel ?? (unavailableRecruitingDefault ? undefined : appModelDefaults);
     const requestedThinkingLevel = thinkingLevel ?? appModelDefaults?.thinkingLevel;
@@ -2472,7 +2481,7 @@ export async function startRpcSession(
       ...(initial.model ? { model: initial.model } : {}),
       ...(initial.thinkingLevel ? { thinkingLevel: initial.thinkingLevel } : {}),
       ...(initial.scopedModels.length > 0 ? { scopedModels: initial.scopedModels } : {}),
-      ...(recruiting ? { tools: recruiting.tools } : jarvis ? { tools: [...JARVIS_TOOL_NAMES] } : toolsOption !== undefined ? { tools: toolsOption } : {}),
+      ...(presentation ? { tools: [] } : jarvis ? { tools: [...JARVIS_TOOL_NAMES] } : toolsOption !== undefined ? { tools: toolsOption } : {}),
       ...(subagentResources ? { excludeTools: [...SUBAGENT_CONTROL_TOOL_NAMES] } : {}),
     });
 
@@ -2495,8 +2504,9 @@ export async function startRpcSession(
     // If specific tool names were requested (non-empty), set the active tools to the
     // requested builtin coding tools PLUS all extension/package tools, so installed
     // extensions stay usable in Pi Web just like in the `pi` CLI.
-    if (recruiting) {
-      inner.setActiveToolsByName(recruiting.tools);
+    if (presentation) {
+      inner.setActiveToolsByName([]);
+      inner.setAutoCompactionEnabled(false);
     } else if (jarvis) {
       inner.setActiveToolsByName(inner.getAllTools().map((tool) => tool.name).filter((name) => (JARVIS_TOOL_NAMES as readonly string[]).includes(name)));
     } else if (!subagentResources && !chatOnly) {

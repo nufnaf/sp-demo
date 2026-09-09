@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -105,7 +105,13 @@ await mkdir(join(resources, 'browsers'), { recursive: true });
 for (const directory of browserPaths.directories) {
   await cp(directory, join(resources, 'browsers', relative(browserHome, directory)), { recursive: true, verbatimSymlinks: true });
 }
-// Correct PTY executable permissions before signing; the app never mutates its bundle.
+// The dependency snapshot can contain a non-executable agent-browser binary.
+// Normalize and actually launch it before signing so GUI publication cannot
+// ship with an EACCES failure. The app never mutates its signed bundle.
+const agentBrowser = join(runtime, 'node_modules/agent-browser/bin', `agent-browser-${process.platform}-${process.arch}`);
+await chmod(agentBrowser, 0o755);
+await run(agentBrowser, ['--version']);
+// Correct PTY executable permissions before signing.
 await run(node, ['--input-type=module', '-e', `import {prepareNativeHost} from ${JSON.stringify(new URL('../electron/native-host.mjs', import.meta.url).href)}; prepareNativeHost(${JSON.stringify(runtime)})`]);
 await writeFile(join(resources, 'desktop-runtime.json'), JSON.stringify({ buildId: randomUUID(), nodeVersion, browserExecutable, builtAt: new Date().toISOString(), demoAuth }, null, 2));
 await rename(join(app, 'Contents/MacOS/Electron'), join(app, 'Contents/MacOS/Syntropic'));

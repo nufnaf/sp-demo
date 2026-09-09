@@ -2,14 +2,15 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DesktopNotification } from "./DesktopNotification";
-import { encodeFilePathForApi } from "@/lib/file-paths";
 import { isJdDemoArtifact, publicationPrompt, type JdArtifact, type PublishedRecruitingJob } from "@/lib/recruiting-publication";
+import { encodeFilePathForApi } from "@/lib/file-paths";
 import type { BrowserTaskState } from "@/lib/browser/types";
 
 import type { WorkspaceWidgetItem } from "./DesktopWorkspaceWidgets";
 import type { InsightResult } from "@/lib/insight-automation";
 
 interface Props {
+  presentation?: boolean;
   notice: string | null;
   onDismissNotice: () => void;
   insights: InsightResult[];
@@ -76,6 +77,21 @@ export function RecruitingPublication(props: Props) {
     return () => clearTimeout(timer);
   }, [path, artifactTitle, props.cwd, pending, preparing, loaded]);
 
+  useEffect(() => {
+    if (!loaded || !suggestion || pending || preparing) return;
+    let cancelled = false;
+    const reconcile = async () => {
+      try {
+        const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${suggestion.cwd}\n${suggestion.filePath}`));
+        const draft = Array.from(new Uint8Array(bytes)).map(byte => byte.toString(16).padStart(2, "0")).join("").slice(0, 32);
+        const data = await readJson<{ jobs: PublishedRecruitingJob[] }>("/api/apps/internal-recruiting");
+        if (!cancelled && data.jobs.some(job => job.draft === draft)) setSuggestion(null);
+      } catch { /* Keep the actionable suggestion when the site is unavailable. */ }
+    };
+    void reconcile(); const timer = setInterval(() => void reconcile(), 2500);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [loaded, suggestion, pending, preparing]);
+
   const publicationStatus = props.browserTasks.filter((task) => task.parentSessionId === pending?.sessionId).at(-1)?.status;
   useEffect(() => {
     if (!pending) return;
@@ -107,7 +123,13 @@ export function RecruitingPublication(props: Props) {
         if (!task && Date.now() - pending.startedAt > 6000) {
           const agent = await readJson<{ running?: boolean; state?: { isStreaming?: boolean } }>(`/api/agent/${pending.sessionId}`);
           if (cancelled) return;
-          if (agent.running === false || agent.state?.isStreaming === false) return settled("任务已结束，但尚未完成网页发布，可以重试。");
+          if (agent.running === false || agent.state?.isStreaming === false) {
+            const published = await readJson<{ jobs: PublishedRecruitingJob[] }>("/api/apps/internal-recruiting");
+            const job = published.jobs.find(item => item.draft === pending.draft);
+            if (cancelled) return;
+            if (job) { setSuggestion(null); callbacks.current.onPublished(job, pending.sessionId); return settled(); }
+            return settled("发布未完成，请查看任务状态后重试。");
+          }
         }
       } catch {
         if (Date.now() - pending.startedAt > 210000) return settled("发布结果暂时无法确认，请查看任务和招聘网页。");
@@ -122,30 +144,26 @@ export function RecruitingPublication(props: Props) {
     if (!suggestion || pending || preparing) return;
     setPreparing(true);
     try {
-      const [file, site] = await Promise.all([
-        readJson<{ content: string }>(`/api/files/${encodeFilePathForApi(suggestion.filePath)}?type=read`),
-        readJson<{ baseUrl: string }>("/api/apps/internal-recruiting"),
-      ]);
-      if (!mounted.current) return;
-      const text = file.content.trim();
-      let title = text.match(/^#\s+(.+)$/m)?.[1] || "AI Agent 工程师";
-      if (/\.html?$/i.test(suggestion.filePath)) {
-        const document = new DOMParser().parseFromString(text, "text/html");
-        title = document.querySelector("h1")?.textContent?.trim() || document.title || title;
-      }
       const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${suggestion.cwd}\n${suggestion.filePath}`));
       const draft = Array.from(new Uint8Array(bytes)).map((byte) => byte.toString(16).padStart(2, "0")).join("").slice(0, 32);
-      const url = new URL("/jobs/new", site.baseUrl);
-      url.searchParams.set("draft", draft);
+      let message = "发布岗位";
+      // Standalone Web workspaces retain their existing general Agent flow.
+      // The installed demo sends only the fixed action above.
+      if (!props.presentation) {
+        const [file, site] = await Promise.all([
+          readJson<{ content: string }>(`/api/files/${encodeFilePathForApi(suggestion.filePath)}?type=read`),
+          readJson<{ baseUrl: string }>("/api/apps/internal-recruiting"),
+        ]);
+        const document = /\.html?$/i.test(suggestion.filePath) ? new DOMParser().parseFromString(file.content, "text/html") : null;
+        const title = document?.querySelector("h1")?.textContent?.trim() || document?.title || file.content.match(/^#\s+(.+)$/m)?.[1] || "AI Agent 工程师";
+        const url = new URL("/jobs/new", site.baseUrl); url.searchParams.set("draft", draft);
+        message = publicationPrompt(url.href, title, suggestion.filePath);
+      }
       if (!mounted.current) return;
-      const sessionId = await props.onStartTask(publicationPrompt(url.href, title, suggestion.filePath));
+      const sessionId = await props.onStartTask(message);
       if (sessionId && mounted.current) {
         props.onTaskStarted(sessionId);
         setPending({ sessionId, draft, startedAt: Date.now() });
-        void fetch(`/api/agent/${sessionId}`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "set_session_name", name: `发布岗位 · ${title}` }),
-        }).catch(() => { /* The task itself remains available if naming fails. */ });
       }
     } catch (error) {
       props.onNotice(error instanceof Error ? error.message : "无法启动发布任务");

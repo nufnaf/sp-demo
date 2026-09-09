@@ -36,7 +36,7 @@ export function DesktopComposerInput({ inputRef, value, onChange, placeholder, r
         if (!response.ok) throw new Error("Recruiting unavailable");
         const data = await response.json() as { jobs?: Array<{ title: string }> };
         if (!live) return;
-        setPublishedJob(data.jobs?.find(job => /AI\s*Agent\s*工程师/i.test(job.title))?.title ?? null);
+        setPublishedJob(data.jobs?.find(job => /AI\s*Agent.*工程师/i.test(job.title))?.title ?? null);
         setCheckedPublication(true);
       }).catch(() => { /* Keep suggestions hidden until the state is known. */ });
     return () => { live = false; };
