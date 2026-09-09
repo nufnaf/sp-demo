@@ -29,6 +29,8 @@ import { AppShell } from "./AppShell";
 import { fitWindow, resizeWindow, type ResizeEdge, type WindowFrame, type WindowArea } from "@/lib/window-geometry";
 import { APP_LOGO_GLYPHS } from "./AppLogoGlyphs";
 import { AppStore, AppStoreBrandIcon } from "./AppStore";
+import { AppBrandImage } from "./AppBrandImage";
+import { LaunchpadPanel } from "./LaunchpadPanel";
 import { clearDesktopReminders, DesktopReminders } from "./DesktopReminders";
 import { DraggableDesktopWidget } from "./DraggableDesktopWidget";
 import { FileViewer } from "./FileViewer";
@@ -222,14 +224,10 @@ function formatInsightModified(value: string): string {
 const LAUNCHPAD_CATEGORIES: Array<"全部" | LaunchpadCategory> = ["全部", "企业协同", "金融数据", "法律服务", "产品开发", "设计协作", "团队协作", "知识办公", "其他"];
 
 function BrandAppIcon({ app }: { app: LaunchpadApp }) {
-  if (app.kind === "connector") return <>
-    {/* Official connector brand assets are intentionally loaded without Next image optimization. */}
-    {/* eslint-disable-next-line @next/next/no-img-element */}
-    <img src={app.connector.logoUrl} alt="" referrerPolicy="no-referrer"/>
-  </>;
+  if (app.kind === "connector") return <AppBrandImage appId={app.appearance} src={app.connector.logoUrl}/>;
+  if (app.appearance === "feishu") return <AppBrandImage appId="feishu"/>;
   if (app.appearance === "figma") return <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#f24e1e" d="M5 2h7v7H8.5A3.5 3.5 0 0 1 5 5.5Z"/><path fill="#ff7262" d="M12 2h3.5a3.5 3.5 0 1 1 0 7H12Z"/><path fill="#a259ff" d="M5 9h7v7H8.5a3.5 3.5 0 1 1 0-7Z"/><circle cx="15.5" cy="12.5" r="3.5" fill="#1abcfe"/><path fill="#0acf83" d="M5 16h7v3.5A3.5 3.5 0 1 1 5 19.5Z"/></svg>;
   if (app.appearance === "google") return <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285f4" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.7h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.8 3-4.3 3-7.2Z"/><path fill="#34a853" d="M12 22c2.7 0 5-.9 6.6-2.5l-3.2-2.5c-.9.6-2 .9-3.4.9-2.6 0-4.8-1.8-5.6-4.2H3.1v2.6A10 10 0 0 0 12 22Z"/><path fill="#fbbc05" d="M6.4 13.7a6 6 0 0 1 0-3.4V7.7H3.1a10 10 0 0 0 0 8.6Z"/><path fill="#ea4335" d="M12 6.1c1.5 0 2.8.5 3.8 1.5l2.9-2.9A9.7 9.7 0 0 0 3.1 7.7l3.3 2.6A6 6 0 0 1 12 6.1Z"/></svg>;
-  if (app.appearance === "feishu") return <Image src="/icons/feishu-logo.svg" width={48} height={48} unoptimized alt=""/>;
   const paths: Partial<Record<LaunchpadApp["appearance"], ReactNode>> = {
     github: <path d="M12 .3A12 12 0 0 0 8.2 23.7c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C15.3 5 16.3 5.3 16.3 5.3c.6 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3Z"/>,
     slack: <path d="M5 15.2a2.5 2.5 0 1 1-2.5-2.5H5Zm1.3 0a2.5 2.5 0 0 1 5 0v6.3a2.5 2.5 0 1 1-5 0ZM8.8 5a2.5 2.5 0 1 1 2.5-2.5V5Zm0 1.3a2.5 2.5 0 0 1 0 5H2.5a2.5 2.5 0 1 1 0-5ZM19 8.8a2.5 2.5 0 1 1 2.5 2.5H19Zm-1.3 0a2.5 2.5 0 0 1-5 0V2.5a2.5 2.5 0 1 1 5 0Zm-2.5 10.1a2.5 2.5 0 1 1-2.5 2.5v-2.5Zm0-1.2a2.5 2.5 0 0 1 0-5h6.3a2.5 2.5 0 1 1 0 5Z"/>,
@@ -245,8 +243,8 @@ function AppLogo({ app, compact = false }: { app: LaunchpadApp; compact?: boolea
 
 function DockItemIcon({ item, launchpad = false }: { item: DockItem; launchpad?: boolean }) {
   if (item.kind !== "system") return launchpad ? <BrandAppIcon app={item}/> : <AppLogo app={item} compact/>;
-  if (item.id === "system:calendar") return <DesktopDesignIcon name="calendar" size={launchpad ? 46 : 28}/>;
-  if (item.id === "system:hr") return <DesktopDesignIcon name="people" size={launchpad ? 46 : 28}/>;
+  if (item.id === "system:calendar") return <DesktopDesignIcon name="calendar" size={launchpad ? 43 : 28}/>;
+  if (item.id === "system:hr") return <DesktopDesignIcon name="people" size={launchpad ? 43 : 28}/>;
   if (item.id === "system:store") return <AppStoreBrandIcon className={launchpad ? "agent-os-launchpad-system-store" : "agent-store-dock-icon"}/>;
   return <Icon name={item.icon} size={launchpad ? 46 : 22}/>;
 }
@@ -971,11 +969,8 @@ function Launchpad({ open, cwd, onClose, onOpenApp }: {
   onOpenApp: (app: DockItem) => void;
 }) {
   const [apps, setApps] = useState<LaunchpadApp[]>(() => getLaunchpadApps([]));
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<"全部" | LaunchpadCategory>("全部");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -1001,55 +996,18 @@ function Launchpad({ open, cwd, onClose, onOpenApp }: {
     };
     loadApps();
     window.addEventListener("agent-os:apps-changed", loadApps);
-    const focusTimer = window.setTimeout(() => searchRef.current?.focus(), 180);
     return () => {
       controller.abort();
       window.removeEventListener("agent-os:apps-changed", loadApps);
-      window.clearTimeout(focusTimer);
     };
   }, [cwd, open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, open]);
-
   const allApps: DockItem[] = [...SYSTEM_DOCK_APPS, ...apps].sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));
-  const availableCategories = LAUNCHPAD_CATEGORIES.filter((item) => item === "全部" || allApps.some((app) => app.category === item));
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  const visibleApps = allApps.filter((app) => {
-    if (category !== "全部" && app.category !== category) return false;
-    const source = app.kind === "plugin" ? app.plugin.source : app.kind === "connector" ? `${app.connector.authMode} ${app.connector.capabilities.join(" ")}` : app.kind === "builtin" ? "飞书 lark cli builtin" : "Syntropic system app";
-    return !normalizedQuery || `${app.name} ${app.description} ${source}`.toLocaleLowerCase().includes(normalizedQuery);
-  });
-
   if (!open) return null;
-  return (
-    <section className="agent-os-launchpad" role="dialog" aria-label="启动台" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <header className="agent-os-launchpad-header">
-        <label><Icon name="search" size={17}/><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索应用" aria-label="搜索应用"/></label>
-        <button type="button" aria-label="关闭启动台" onClick={onClose}><Icon name="close" size={18}/></button>
-      </header>
-      <nav className="agent-os-launchpad-categories" aria-label="应用分类">
-        {availableCategories.map((item) => <button key={item} type="button" aria-pressed={category === item} onClick={() => setCategory(item)}>{item}</button>)}
-      </nav>
-      <div className="agent-os-launchpad-grid" role="list" aria-busy={loading}>
-        {error ? <div className="agent-os-launchpad-state is-error" role="alert">{error}</div> : null}
-        {!loading && !error && !visibleApps.length ? <div className="agent-os-launchpad-state">没有匹配的应用</div> : null}
-        {visibleApps.map((app) => <div role="listitem" key={app.id}>
-          <button className="agent-os-launchpad-app" type="button" onClick={() => onOpenApp(app)} aria-label={`打开 ${app.name}`}>
-            <span className={`agent-os-launchpad-icon ${app.kind === "system" ? `is-system is-${app.id.slice(7)}` : `is-${app.appearance}${app.kind === "connector" ? " is-official-icon" : ""}`}`} aria-hidden="true"><DockItemIcon item={app} launchpad/></span>
-            <strong>{app.name}</strong>
-          </button>
-        </div>)}
-      </div>
-      <footer aria-label={`${allApps.length} 个可用应用`}><i className="active"/></footer>
-    </section>
-  );
+  return <LaunchpadPanel apps={allApps} categories={LAUNCHPAD_CATEGORIES} loading={loading} error={error}
+    onClose={onClose} onOpenApp={onOpenApp}
+    searchText={app => app.kind === "plugin" ? app.plugin.source : app.kind === "connector" ? app.connector.capabilities.join(" ") : app.kind === "builtin" ? "飞书 lark" : "Syntropic"}
+    renderIcon={app => <span className={`agent-os-launchpad-icon ${app.kind === "system" ? `is-system is-${app.id.slice(7)}` : `is-${app.appearance}${app.kind === "connector" ? " is-official-icon" : ""}`}`} aria-hidden="true"><DockItemIcon item={app} launchpad/></span>}/>;
 }
 
 function extractArtifacts(session: SessionInfo, messages: AgentMessage[]): Artifact[] {
@@ -1493,6 +1451,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   const [fileOpenRequest, setFileOpenRequest] = useState<FileOpenRequest | null>(null);
   const [filesHaveUnsavedChanges, setFilesHaveUnsavedChanges] = useState(false);
   const [launchpadOpen, setLaunchpadOpen] = useState(false);
+  const launchpadTriggerRef = useRef<HTMLButtonElement>(null);
   const [openApps, setOpenApps] = useState<LaunchpadApp[]>([]);
   const [dockApps, setDockApps] = useState<DockItem[]>([]);
   const [pinnedDockAppIds, setPinnedDockAppIds] = useState<Set<string>>(() => new Set());
@@ -2006,7 +1965,10 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     setFrontWindow("library");
   }, [artifacts, setFrontWindow]);
 
-  const closeLaunchpad = useCallback(() => setLaunchpadOpen(false), []);
+  const closeLaunchpad = useCallback(() => {
+    setLaunchpadOpen(false);
+    launchpadTriggerRef.current?.focus({ preventScroll: true });
+  }, []);
 
   const rememberDockItem = useCallback((item: DockItem) => {
     setDockApps((current) => current.some((dockItem) => dockItem.id === item.id)
@@ -2873,7 +2835,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
       </section>
 
       <DesktopDock>
-        <button className={`dock-launchpad${launchpadOpen ? " is-open" : ""}`} type="button" aria-label="启动台" aria-pressed={launchpadOpen} data-label="启动台" onClick={() => { setWorkspaceOpen(false); setLaunchpadOpen((value) => !value); }}><Icon name="grid" size={22}/></button><i/>
+        <button ref={launchpadTriggerRef} className={`dock-launchpad${launchpadOpen ? " is-open" : ""}`} type="button" aria-label="启动台" aria-pressed={launchpadOpen} data-label="启动台" onClick={() => { setWorkspaceOpen(false); setLaunchpadOpen((value) => !value); }}><Icon name="grid" size={22}/></button><i/>
         {pinnedDockItems.map(renderDockItem)}
         {temporaryDockItems.length ? <i className="agent-os-dock-app-divider"/> : null}
         {temporaryDockItems.map(renderDockItem)}

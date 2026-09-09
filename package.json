@@ -71,6 +71,7 @@
     "proper-lockfile": "4.1.2",
     "qrcode": "^1.5.4",
     "react": "^19.2.4",
+    "react-aria-components": "^1.21.1",
     "react-dom": "^19.2.4",
     "remark-frontmatter": "^5.0.0",
     "undici": "8.10.0",

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const cssSource = await readFile(new URL("./AgentDesktop.css", import.meta.url), "utf8");
+const cssSource = await readFile(new URL("./AgentDesktop.css", import.meta.url), "utf8") + await readFile(new URL("./LaunchpadPanel.css", import.meta.url), "utf8");
 const desktopSource = await readFile(new URL("./AgentDesktop.tsx", import.meta.url), "utf8");
 
 function zIndexFor(selector) {

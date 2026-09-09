@@ -1,6 +1,7 @@
 "use client";
 
 import "./AppStore.css";
+import { AppBrandImage } from "./AppBrandImage";
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { Bot, Compass, Database, PackageCheck, PanelsTopLeft, Search, Store, type LucideIcon } from "lucide-react";
@@ -25,9 +26,7 @@ export function AppStoreBrandIcon({ className = "" }: { className?: string }) {
 
 function StoreIcon({ item, large = false }: { item: AppStorePackage; large?: boolean }) {
   return <span className={`agent-store-icon is-${item.connectionId ?? "app"}${large ? " is-large" : ""}`} aria-hidden="true">
-    {/* Official brand assets are intentionally loaded without Next image optimization. */}
-    {/* eslint-disable-next-line @next/next/no-img-element */}
-    <img src={item.logoUrl} alt="" referrerPolicy="no-referrer"/>
+    <AppBrandImage appId={item.connectionId} src={item.logoUrl}/>
   </span>;
 }
 

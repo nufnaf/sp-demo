@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const desktopSource = await readFile(new URL("./AgentDesktop.tsx", import.meta.url), "utf8");
-const cssSource = await readFile(new URL("./AgentDesktop.css", import.meta.url), "utf8");
+const cssSource = await readFile(new URL("./AgentDesktop.css", import.meta.url), "utf8") + await readFile(new URL("./LaunchpadPanel.css", import.meta.url), "utf8");
+const panelSource = await readFile(new URL("./LaunchpadPanel.tsx", import.meta.url), "utf8");
 const pluginRouteSource = await readFile(new URL("../app/api/plugins/route.ts", import.meta.url), "utf8");
 
 test("the Dock opens a searchable launchpad backed by built-in apps and the Pi plugins API", () => {
@@ -11,7 +12,7 @@ test("the Dock opens a searchable launchpad backed by built-in apps and the Pi p
   assert.match(desktopSource, /fetch\(url, \{ cache: "no-store"/);
   assert.match(desktopSource, /getLaunchpadApps\(data\.packages, \[\.\.\.\(connectorData\.builtins/);
   assert.match(desktopSource, /\/api\/app-store\/installations/);
-  assert.match(desktopSource, /placeholder="搜索应用"/);
+  assert.match(panelSource, /placeholder="搜索应用"/);
   assert.match(desktopSource, /className=\{`dock-launchpad\$\{launchpadOpen/);
   assert.match(desktopSource, /aria-pressed=\{launchpadOpen\}/);
   assert.match(desktopSource, /setLaunchpadOpen\(\(value\) => !value\)/);
@@ -81,15 +82,11 @@ test("global apps can load before a workspace exists without weakening cwd check
   assert.match(pluginRouteSource, /if \(requestedCwd\) \{[\s\S]*?isExistingFilePathAllowed/);
 });
 
-test("the launchpad keeps the menu bar and Dock visible and honors accessibility settings", () => {
-  assert.match(cssSource, /\.agent-os-launchpad \{[^}]*z-index:155[^}]*inset:44px 0 0/);
-  assert.match(cssSource, /\.agent-os-dock \{[^}]*z-index: 160/);
-  assert.match(desktopSource, /role="dialog" aria-label="启动台"/);
-  assert.match(desktopSource, /<div role="listitem" key=\{app\.id\}>[\s\S]*?<button className="agent-os-launchpad-app"/);
-  assert.doesNotMatch(desktopSource, /agent-os-launchpad-app[\s\S]{0,500}<small>/);
-  assert.match(cssSource, /\.agent-os-launchpad-grid \{[^}]*display:flex[^}]*justify-content:flex-start/);
-  assert.match(cssSource, /\.agent-os-launchpad-grid > \[role="listitem"\]\{width:112px/);
-  assert.match(desktopSource, /event\.key === "Escape"/);
-  assert.match(cssSource, /prefers-reduced-motion: reduce/);
-  assert.match(cssSource, /prefers-reduced-transparency: reduce[\s\S]*?agent-os-launchpad/);
+test("the launchpad uses an accessible application grid and honors display preferences", () => {
+  assert.match(panelSource, /role="dialog" aria-label="启动台"/);
+  assert.match(panelSource, /<GridList[\s\S]*?layout="grid" selectionMode="none"/);
+  assert.match(panelSource, /event\.key === "Escape"/);
+  assert.match(panelSource, /event\.nativeEvent\.isComposing/);
+  assert.match(cssSource, /prefers-reduced-motion:reduce/);
+  assert.match(cssSource, /prefers-reduced-transparency:reduce/);
 });
