@@ -30,7 +30,7 @@ export function createHandler(storeProvider = getStore) {
     // Every form/link and redirect stays in the same run, including a copied URL.
     const html = page => prefix ? page.replace(/((?:href|action)=")\/(?!\/)/g, `$1${prefix}/`) : page;
     try {
-      if (!scoped && url.pathname.startsWith("/demo/")) { res.statusCode = 404; return res.end("演示地址无效"); }
+      if (!scoped && url.pathname.startsWith("/demo/")) { res.statusCode = 404; return res.end("招聘工作台地址无效"); }
       if (url.pathname === "/style.css" && req.method === "GET") {
         res.setHeader("Content-Type", "text/css; charset=utf-8");
         return res.end(

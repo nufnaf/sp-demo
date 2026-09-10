@@ -13,6 +13,6 @@ test('desktop preparation waits for confirmed remote initialization before ready
 test('ordinary Web skips preparation; network, permission and malformed success remain failures',async()=>{
   await preparePresentationCalendar({root:'',request:()=>{throw Error('should not call');}});
   for(const request of [async()=>{throw Error('secret upstream');},async()=>Response.json({error:'secret upstream'},{status:503}),async()=>Response.json({})]){
-    await assert.rejects(preparePresentationCalendar({root:'/demo',request}),e=>e.message.includes('演示日程')&&!e.message.includes('secret'));
+    await assert.rejects(preparePresentationCalendar({root:'/demo',request}),e=>e.message.includes('团队日程')&&!e.message.includes('secret'));
   }
 });

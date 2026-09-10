@@ -58,7 +58,7 @@ export class FeishuDemoClient {
   }
   calendar(): FeishuCalendarClient {
     const id = this.config.calendarId;
-    if (typeof id !== "string" || !id.trim() || id.trim() === "primary") throw new FeishuDemoError("configuration", "请在飞书配置中填写专用演示日历 calendarId，并完成日历授权。");
+    if (typeof id !== "string" || !id.trim() || id.trim() === "primary") throw new FeishuDemoError("configuration", "团队日历尚未配置，请联系管理员设置日历并完成授权。");
     return new FeishuCalendarClient(id.trim(), `${this.config.appId}:${id.trim()}`, (path, init) => this.get(path, init, true), this.config.calendarResetEventIds);
   }
   private async folderDocuments(query = ""): Promise<DemoDocument[]> {

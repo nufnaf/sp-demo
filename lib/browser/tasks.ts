@@ -128,7 +128,7 @@ async function execute(run: TaskRun, url: string): Promise<BrowserTaskState> {
     const model = runtime.getModel(run.state.provider, run.state.modelId);
     if (!model) throw new Error(`模型目录中没有 ${run.state.provider}/${run.state.modelId}。请联系安装包提供者检查模型配置。`);
     if (!(await runtime.getAuth(model))?.auth.apiKey) throw new Error(run.state.provider === "openrouter"
-      ? "OpenRouter 演示授权不可用，请联系安装包提供者检查预置 Key。无需登录 ChatGPT。"
+      ? "OpenRouter 授权不可用，请联系管理员检查模型服务配置。"
       : "ChatGPT 尚未授权。请打开设置 → Models → ChatGPT Plus/Pro → Login 后重试。");
     assertRunning();
     recordTiming("auth", authStarted);
