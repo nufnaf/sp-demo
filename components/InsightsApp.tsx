@@ -5,6 +5,7 @@ import type { InsightSelection, PublicationInsightItem, WorkspaceInsightItem } f
 import { Check, ArrowUpRight, FileText, LoaderCircle, CircleAlert } from "lucide-react";
 import { AppBrandImage } from "./AppBrandImage";
 import { FileViewer } from "./FileViewer";
+import { DesktopReadingArea } from "./DesktopReadingArea";
 import "./RecruitingDesign.css";
 
 export function InsightsApp({ items, selection, analyzing, onSelect, onOpenFile, onOpenRecruiting }: {
@@ -39,7 +40,7 @@ export function InsightsApp({ items, selection, analyzing, onSelect, onOpenFile,
       {selected && file ? <>
         <div className="insights-detail-toolbar"><span>{selected.kind === "publication" ? "岗位发布建议 · 对应 JD" : `分析于 ${formatDate(modified, true)}`}</span><button type="button" onClick={() => onOpenFile({ ...file, taskTitle: selected.kind === "publication" ? selected.artifact.taskTitle : "AI 洞察", modified })}>{selected.kind === "publication" ? "打开 JD 文件 ↗" : "打开报告文件 ↗"}</button></div>
         {selected.kind === "publication" ? <PublicationDetail item={selected} onOpenRecruiting={onOpenRecruiting}/>
-          : <div className="insights-report"><FileViewer key={`${file.cwd}:${file.filePath}:${modified}`} filePath={file.filePath} cwd={file.cwd} sourceSessionId={file.sessionId} initialDisplayMode="preview" showToolbar={false} watchEnabled={false}/></div>}
+          : <DesktopReadingArea className="insights-report"><FileViewer key={`${file.cwd}:${file.filePath}:${modified}`} filePath={file.filePath} cwd={file.cwd} sourceSessionId={file.sessionId} initialDisplayMode="preview" showToolbar={false} watchEnabled={false}/></DesktopReadingArea>}
       </> : <div className="insights-empty"><h2>洞察会在合适的时机出现</h2><p>岗位发布建议与分析报告会保留在这里，随时查看和继续处理。</p></div>}
     </main>
   </div>;

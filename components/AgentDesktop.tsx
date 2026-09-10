@@ -55,6 +55,8 @@ import { InsightsApp } from "./InsightsApp";
 import type { InsightSelection, WorkspaceInsightItem } from "@/lib/workspace-insights";
 import { HRRecruitingApp } from "./HRRecruitingApp";
 import { RecruitingPublication } from "./RecruitingPublication";
+import { RecruitingQueryResult } from "./RecruitingQueryResult";
+import { DesktopReadingArea } from "./DesktopReadingArea";
 import { DesktopNotification } from "./DesktopNotification";
 import { subscribeBrowserEvents } from "@/lib/browser/client-events";
 import { InvestmentWorkspaceApp } from "./InvestmentWorkspaceApp";
@@ -1466,6 +1468,8 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   const [dockContextMenu, setDockContextMenu] = useState<{ appId: string; x: number; y: number } | null>(null);
   const [browserTasks, setBrowserTasks] = useState<BrowserTaskState[]>([]);
   const [taskOutcomes, setTaskOutcomes] = useState<Record<string, string>>({});
+  const [queryResultSession, setQueryResultSession] = useState<{ id: string; cwd: string } | null>(null);
+  const [candidateRequest, setCandidateRequest] = useState<{ id: number; jobId: string }>();
   const [pendingRequest, setPendingRequest] = useState<string | null>(null);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const knownArtifactIdsRef = useRef<Set<string> | null>(null);
@@ -1928,6 +1932,12 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   const openTask = useCallback((sessionId: string) => {
     if (presentationCwd) {
       const browserTask = browserTasks.filter(task => task.parentSessionId === sessionId).at(-1);
+      const session = sessions.find(item => item.id === sessionId);
+      if (session && !runningIds.has(sessionId) && !browserTask?.status.match(/^(starting|running|stopping)$/) && taskOutcomes[sessionId] === "已完成"
+          && presentationAction(session.firstMessage) === "query-recruiting") {
+        setQueryResultSession({ id: sessionId, cwd: session.cwd }); setFrontWindow("query-result");
+        return;
+      }
       const artifact = artifacts.find(item => item.sessionId === sessionId);
       if (browserTask?.pageId) {
         setBrowserPageId(browserTask.pageId); setBrowserOpen(true); setFrontWindow("browser");
@@ -1943,7 +1953,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     setTaskSessionId(sessionId);
     setFrontWindow("tasks");
     window.history.replaceState(null, "", `?session=${encodeURIComponent(sessionId)}`);
-  }, [setFrontWindow, presentationCwd, browserTasks, artifacts, runningIds, setNotice]);
+  }, [setFrontWindow, presentationCwd, browserTasks, artifacts, runningIds, setNotice, sessions, taskOutcomes]);
 
   useEffect(() => {
     if (!taskSessionId) return;
@@ -2063,7 +2073,8 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
       setScheduleOpen(true);
       setFrontWindow("schedule");
     } else if (item.id === "system:tasks") {
-      if (sessions[0]) openTask(sessions[0].id);
+      const task = presentationCwd ? visibleTasks[0] : sessions[0];
+      if (task) openTask(task.id);
     } else if (item.id === "system:library") {
       openArtifactLibrary();
     } else if (item.id === "system:crm") {
@@ -2091,12 +2102,12 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
       setSettingsOpen(true);
       setFrontWindow("settings");
     }
-  }, [openArtifactLibrary, openLaunchpadApp, openTask, rememberDockItem, sessions, setFrontWindow]);
+  }, [openArtifactLibrary, openLaunchpadApp, openTask, rememberDockItem, sessions, setFrontWindow, presentationCwd, visibleTasks]);
 
   const isDockItemOpen = useCallback((item: DockItem) => {
     if (item.kind !== "system") return openApps.some((openApp) => openApp.id === item.id);
     if (item.id === "system:calendar") return scheduleOpen;
-    if (item.id === "system:tasks") return Boolean(taskSessionId);
+    if (item.id === "system:tasks") return Boolean(taskSessionId || queryResultSession?.cwd === activeCwd);
     if (item.id === "system:library") return artifactLibraryOpen;
     if (item.id === "system:crm") return salesCrmOpen;
     if (item.id === "system:hr") return hrRecruitingOpen;
@@ -2106,7 +2117,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     if (item.id === "system:terminal") return terminalOpen;
     if (item.id === "system:store") return appStoreOpen;
     return settingsOpen;
-  }, [appStoreOpen, artifactLibraryOpen, browserOpen, filesOpen, hrRecruitingOpen, salesCrmOpen, investmentWorkspaceOpen, openApps, settingsOpen, taskSessionId, terminalOpen, scheduleOpen]);
+  }, [appStoreOpen, artifactLibraryOpen, browserOpen, filesOpen, hrRecruitingOpen, salesCrmOpen, investmentWorkspaceOpen, openApps, settingsOpen, taskSessionId, terminalOpen, scheduleOpen, queryResultSession, activeCwd]);
 
   const toggleDockAppPin = useCallback((app: DockItem) => {
     setPinnedDockAppIds((current) => {
@@ -2375,6 +2386,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   const openWindowIds = [
     ...([
       [!presentationCwd && !!taskSessionId, "tasks"],
+      [!!queryResultSession && queryResultSession.cwd === activeCwd, "query-result"],
       [!!selectedInsight && selectedInsight.cwd === activeCwd, "insights"],
       [scheduleOpen, "schedule"], [artifactLibraryOpen, "library"],
       [settingsOpen, "settings"], [appStoreOpen, "store"],
@@ -2618,10 +2630,20 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
             onOpen={openArtifact}
           />
         </DesktopWindow>}
+        {queryResultSession && queryResultSession.cwd === activeCwd && <DesktopWindow title="招聘查询结果" kind="file" desktopHidden={hiddenWindowIds.has("query-result")} front={frontWindow === "query-result"} onFocus={() => setFrontWindow("query-result")} onClose={() => setQueryResultSession(null)}>
+          <RecruitingQueryResult key={queryResultSession.id} sessionId={queryResultSession.id} cwd={queryResultSession.cwd}
+            onOpenCandidates={jobId => { setCandidateRequest({ id: Date.now(), jobId }); setHrRecruitingOpen(true); setFrontWindow("hr"); }}
+            onOpenReport={openInsightResult}
+            onOpenBrowser={browserTasks.some(task => task.parentSessionId === queryResultSession.id && task.pageId) ? () => {
+              const task = browserTasks.filter(task => task.parentSessionId === queryResultSession.id && task.pageId).at(-1)!;
+              setBrowserPageId(task.pageId!); setBrowserOpen(true); setFrontWindow("browser");
+            } : undefined}/>
+        </DesktopWindow>}
         {openArtifacts.map((artifact, index) => {
           const identity = artifactIdentity(artifact);
           const windowId = `file:${identity}`;
           const isDemoJd = artifact.cwd === presentationCwd && getFileName(artifact.filePath) === "ai-agent-engineer-jd.html";
+          const ReadingArea = getFileName(artifact.filePath) === "recruiting-interviewer-alignment-report.html" ? DesktopReadingArea : "div";
           return <DesktopWindow
             key={identity}
             title={isDemoJd ? "岗位 JD" : getFileName(artifact.filePath)}
@@ -2639,9 +2661,9 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
               setFrontWindow(nextFront ? `file:${artifactIdentity(nextFront)}` : artifactLibraryOpen ? "library" : "tasks", false);
             }}
           >
-            <div className="agent-os-file-app"><FileViewer filePath={artifact.filePath} cwd={artifact.cwd} sourceSessionId={artifact.sessionId} initialDisplayMode={isHtmlArtifact(artifact) ? "preview" : undefined} watchEnabled={!hiddenWindowIds.has(windowId) && frontWindow === windowId}
+            <ReadingArea className="agent-os-file-app"><FileViewer filePath={artifact.filePath} cwd={artifact.cwd} sourceSessionId={artifact.sessionId} initialDisplayMode={isHtmlArtifact(artifact) ? "preview" : undefined} watchEnabled={!hiddenWindowIds.has(windowId) && frontWindow === windowId}
               jdPlayback={isDemoJd ? { animate: pendingJdPreviews.has(identity), active: !hiddenWindowIds.has(windowId) && frontWindow === windowId, onComplete: () => completeJdPreview(identity) } : undefined}
-            /></div>
+            /></ReadingArea>
           </DesktopWindow>;
         })}
         {selectedInsight && selectedInsight.cwd === activeCwd && <DesktopWindow className="agent-os-window-insights" title="AI 洞察" kind="app" desktopHidden={hiddenWindowIds.has("insights")} front={frontWindow === "insights"} onFocus={() => setFrontWindow("insights")} onClose={() => setSelectedInsight(null)}>
@@ -2693,6 +2715,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
           releaseTemporaryDockItem("system:hr");
         }} titleIcon={<span className="agent-os-hr-title-icon"><Icon name="recruiting" size={13}/></span>}>
           <HRRecruitingApp
+              candidateRequest={candidateRequest}
               presentation={Boolean(presentationCwd)}
               onOpenInsight={openInsightResult}
             cwd={activeCwd}

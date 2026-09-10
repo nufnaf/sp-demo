@@ -8,7 +8,8 @@ import { addInsightResult } from "./insight-event-store";
 import { renderRecruitingInsightReport, recruitingInsightSummary } from "./recruiting-insight-report";
 import { scheduleFeishuAlignmentMeeting } from "./feishu-meeting";
 import type { DemoMeeting } from "./recruiting-scene";
-interface Progress { recruiting?: RecruitingSnapshot; insight?: { filePath: string; title: string; modified: string; summary?: string }; meeting?: DemoMeeting }
+import { recruitingQueryResult, type RecruitingQueryResult } from "./recruiting-query-result";
+export interface Progress { recruiting?: RecruitingSnapshot; queries?: Record<string, RecruitingQueryResult>; insight?: { filePath: string; title: string; modified: string; summary?: string }; meeting?: DemoMeeting }
 declare global { var __syntropicProgressTail: Promise<unknown> | undefined; }
 export async function readProgress(root = presentationRoot()): Promise<Progress> {
   if (!root) return {};
@@ -54,9 +55,12 @@ async function ensureRecruitingInsight(progress: Progress, cwd: string) {
     }
 }
 
-export function saveRecruitingProgress(data: RecruitingSnapshot, draft: string, root = presentationRoot()): Promise<Progress> {
+export function saveRecruitingProgress(data: RecruitingSnapshot, draft: string, root = presentationRoot(), query?: { sessionId: string; question: string; summary: string }): Promise<Progress> {
   return updateProgress(async (progress) => {
     const verified = verifiedRecruitingSnapshot(data, draft);
+    if (query && verified.scene) {
+      progress.queries = { ...progress.queries, [query.sessionId]: recruitingQueryResult(verified.scene, query.sessionId, query.question, query.summary) };
+    }
     // Only a verified current-run website result can produce the mock receipt.
     // Derive it from the same job so retries and later queries preserve identity.
     progress.recruiting = {

@@ -68,7 +68,7 @@ export function createPresentationTask(cwd: string, parentId: string, message: s
         } else task.summary = result.result || "招聘进展已核对，可以查看招聘窗口。";
       }
       signal.throwIfAborted();
-      await saveRecruitingProgress(snapshot, publicationDraft(cwd), root);
+      await saveRecruitingProgress(snapshot, publicationDraft(cwd), root, action === "query-recruiting" ? { sessionId: task.sessionId, question: message, summary: task.summary ?? "" } : undefined);
       if (action === "publish-jd") task.summary += " 已同步发布到 BOSS 直聘。";
       task.status = "completed";
       manager.appendMessage(demoAssistant(task.summary));

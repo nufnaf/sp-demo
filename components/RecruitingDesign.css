@@ -36,7 +36,7 @@
 .hr-recruiting-app .recruiting-funnel>header,.hr-recruiting-app .recruiting-candidates>header {display:flex;align-items:center;justify-content:space-between;gap:16px;}
 .hr-recruiting-app .recruiting-funnel>header p,.hr-recruiting-app .recruiting-candidates>header p {font-size:12px;margin:4px 0 0;}
 .hr-recruiting-app .presentation-metrics {gap:12px;margin-top:20px;}
-.hr-recruiting-app .presentation-metrics button {min-width:0;text-align:left;border:1px solid #eff0f2;border-radius:14px;padding:16px 12px;background:#f7f7f9;}
+.hr-recruiting-app .presentation-metrics button {min-width:0;display:flex;flex-direction:column;justify-content:flex-start;align-items:flex-start;text-align:left;border:1px solid #eff0f2;border-radius:14px;padding:16px 12px;background:#f7f7f9;}
 .hr-recruiting-app .presentation-metrics button.selected {border-color:#c7e6da;background:linear-gradient(130deg,#edf7f2,#fbfdfc);color:#168469;}
 .hr-recruiting-app .presentation-metrics strong {display:block;font-size:28px;line-height:1.2;font-weight:600;margin:0 0 8px;}
 .hr-recruiting-app .presentation-metrics small {font-size:12px;color:inherit;}
@@ -70,6 +70,10 @@
 .hr-recruiting-app .recruiting-insight-actions button {padding:12px 18px;border-radius:14px;}
 .hr-recruiting-app .recruiting-insight-actions button:first-child {background:linear-gradient(130deg,#168c6c,#2bad87);color:#fff;border-color:transparent;}
 .hr-recruiting-app .presentation-candidate-backdrop>article {background:white;border-radius:22px 0 0 22px;color:#14211e;}
+.hr-recruiting-app .presentation-candidate-backdrop h3 {font-size:16px;font-weight:600;line-height:24px;margin:28px 0 12px;}
+.hr-recruiting-app .presentation-candidate-backdrop ul {margin:12px 0 20px;padding-left:20px;}
+.hr-recruiting-app .presentation-candidate-backdrop li {font-size:14px;line-height:1.8;margin:6px 0;color:#6f7e79;}
+.hr-recruiting-app .presentation-candidate-backdrop section + section {margin-top:18px;}
 .hr-recruiting-app .hr-recruiting-page-header h1 {font-size:32px;font-weight:600;}
 .hr-recruiting-app .hr-jobs-grid>button,.hr-recruiting-app .hr-source-grid>article {border-radius:18px;background:#fff;border-color:#e3ebe7;}
 .insights-app {height:100%;width:100%;min-height:0;display:grid;grid-template-columns:260px minmax(0,1fr);color:#14211e;background:#fff;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;color-scheme:light;}

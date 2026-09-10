@@ -7,9 +7,10 @@ import { PresentationSchedule } from "./PresentationSchedule";
 import { notifyCalendarChanged } from "@/hooks/useFeishuCalendar";
 export { PresentationSchedule } from "./PresentationSchedule";
 
-export function RecruitingPipeline({ scene, cwd, onOpenWebsite, onOpenInsight }: { scene: RecruitingScene | null; cwd: string; onOpenWebsite?: (url: string) => void; onOpenInsight: (result: InsightResult) => void }) {
+export function RecruitingPipeline({ scene, cwd, onOpenWebsite, onOpenInsight, initialFilter = "" }: { scene: RecruitingScene | null; cwd: string; onOpenWebsite?: (url: string) => void; onOpenInsight: (result: InsightResult) => void; initialFilter?: string }) {
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("");
+  const [filter, setFilter] = useState(initialFilter);
+  useEffect(() => { setFilter(initialFilter); }, [initialFilter]);
   const [selected, setSelected] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ insight?: { title: string; filePath: string; modified: string; summary?: string }; meeting?: DemoMeeting }>({});
   const [error, setError] = useState("");

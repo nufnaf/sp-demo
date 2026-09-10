@@ -121,7 +121,8 @@ const icons = {
   close: <HRIcon size={15}><path d="m7 7 10 10M17 7 7 17"/></HRIcon>,
 };
 
-export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice, publishedDraft, onOpenPublishedJob, presentation = false, onOpenInsight }: {
+export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice, publishedDraft, onOpenPublishedJob, presentation = false, onOpenInsight, candidateRequest }: {
+  candidateRequest?: { id: number; jobId: string };
   presentation?: boolean;
   onOpenInsight?: (result: InsightResult) => void;
   publishedDraft?: string;
@@ -153,6 +154,7 @@ export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice, publ
   }, [cwd, publishedDraft]);
   useEffect(() => { if (publishedDraft) setSection("jobs"); }, [publishedDraft]);
   const [section, setSection] = useState<HRSection>("overview");
+  useEffect(() => { if (candidateRequest) setSection("candidates"); }, [candidateRequest]);
   const [stage, setStage] = useState<CandidateStage>("全部");
   const [query, setQuery] = useState("");
   const [activeCandidateId, setActiveCandidateId] = useState<string | null>(null);
@@ -519,7 +521,7 @@ export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice, publ
     </aside>
 
     <main className="hr-recruiting-main">
-      {(presentation || scene) && (section === "overview" || section === "candidates") && <RecruitingPipeline scene={scene} cwd={cwd!} onOpenInsight={(result) => onOpenInsight?.(result)} onOpenWebsite={(path) => onOpenPublishedJob?.(new URL(path.replace(/^\//, ""), siteUrl).href)}/>}
+      {(presentation || scene) && (section === "overview" || section === "candidates") && <RecruitingPipeline key={candidateRequest?.id ?? "default"} initialFilter={candidateRequest?.jobId === scene?.job?.id ? "missing" : ""} scene={scene} cwd={cwd!} onOpenInsight={(result) => onOpenInsight?.(result)} onOpenWebsite={(path) => onOpenPublishedJob?.(new URL(path.replace(/^\//, ""), siteUrl).href)}/>}
       {!presentation && !scene && section === "overview" ? <>
         {activeJob ? <><header className="hr-recruiting-hero"><span><small>招聘目标</small><h1>{roleName}</h1><p>目标招聘 {activeJob.headcount} 位 · {activeJob.location} · {activeJob.source}</p></span><em className="steady"><i/>{activeJob.status}</em></header>
           <section className="hr-recruiting-pipeline"><header><span><strong>招聘管道</strong><small>点击阶段查看全部候选人</small></span><button type="button" onClick={() => { setStage("全部"); setSection("candidates"); }}>查看全部</button></header><div>{stageCounts.map((item) => <button type="button" key={item.label} onClick={() => { setStage(item.label); setSection("candidates"); }}><small>{item.label}</small><strong>{item.count}</strong><i style={{ width: `${roleCandidates.length ? Math.max(5, item.count / roleCandidates.length * 100) : 0}%` }}/></button>)}</div></section>
