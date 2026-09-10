@@ -35,6 +35,17 @@ async function readJson<T>(url: string): Promise<T> {
   return data as T;
 }
 
+async function readTaskFailure(sessionId: string): Promise<string | undefined> {
+  try {
+    const data = await readJson<{ context?: { messages?: { role: string; stopReason?: string; errorMessage?: string; content?: { type: string; text?: string }[] }[] } }>(`/api/sessions/${encodeURIComponent(sessionId)}?tail=1`);
+    const message = data.context?.messages?.find(item => item.role === "assistant" && item.stopReason === "error");
+    return message?.errorMessage || message?.content?.filter(item => item.type === "text").map(item => item.text).join("\n");
+  } catch { return undefined; }
+}
+
+// Includes both 30s website reads and the browser task's 180s execution budget.
+const PUBLICATION_RESULT_TIMEOUT_MS = 270_000;
+
 export function RecruitingPublication(props: Props) {
   const [suggestion, setSuggestion] = useState<(JdArtifact & { recognizedAt?: string }) | null>(null);
   const [completedJob, setCompletedJob] = useState<PublishedRecruitingJob | null>(null);
@@ -114,7 +125,7 @@ export function RecruitingPublication(props: Props) {
       if (message) { setDismissed(true); callbacks.current.onNotice(message); }
     };
     const poll = async () => {
-      if (Date.now() - pending.startedAt > 210000) return settled("发布结果暂时无法确认，请查看任务和招聘网页。");
+      if (Date.now() - pending.startedAt > PUBLICATION_RESULT_TIMEOUT_MS) return settled("发布结果暂时无法确认，请在招聘网页核对岗位后再重试。");
       try {
         const state = await readJson<{ tasks: BrowserTaskState[] }>(`/api/browser/state?cwd=${encodeURIComponent(props.cwd ?? "")}`);
         if (cancelled) return;
@@ -129,6 +140,13 @@ export function RecruitingPublication(props: Props) {
           }
         }
         const task = state.tasks.filter((item) => item.parentSessionId === pending.sessionId).at(-1);
+        // The persisted parent outcome also covers failures before browser startup
+        // and after browser completion, when the final website read/save fails.
+        if (callbacks.current.presentation) {
+          const failure = await readTaskFailure(pending.sessionId);
+          if (cancelled) return;
+          if (failure) return settled(failure);
+        }
         if (task?.status === "completed") {
           const data = await readJson<{ jobs: PublishedRecruitingJob[] }>("/api/apps/internal-recruiting");
           if (cancelled) return;
@@ -139,7 +157,7 @@ export function RecruitingPublication(props: Props) {
           settled();
           return;
         }
-        if (task && ["failed", "stopped"].includes(task.status)) return settled(task.status === "stopped" ? "发布任务已停止，请核对网页中的保存结果。" : "发布未完成，可以重试或查看任务详情。");
+        if (task && ["failed", "stopped"].includes(task.status)) return settled(task.status === "stopped" ? "发布任务已停止，请核对网页中的保存结果。" : task.error || task.result || "发布未完成，请稍后重试。");
         if (!task && Date.now() - pending.startedAt > 6000) {
           const agent = await readJson<{ running?: boolean; state?: { isStreaming?: boolean } }>(`/api/agent/${pending.sessionId}`);
           if (cancelled) return;
@@ -148,11 +166,11 @@ export function RecruitingPublication(props: Props) {
             const job = published.jobs.find(item => item.draft === pending.draft);
             if (cancelled) return;
             if (job) { setCompletedJob(job); callbacks.current.onPublished(job, pending.sessionId); return settled(); }
-            return settled("发布未完成，请查看任务状态后重试。");
+            return settled("发布未完成，请稍后重试。");
           }
         }
       } catch {
-        if (Date.now() - pending.startedAt > 210000) return settled("发布结果暂时无法确认，请查看任务和招聘网页。");
+        if (Date.now() - pending.startedAt > PUBLICATION_RESULT_TIMEOUT_MS) return settled("发布结果暂时无法确认，请在招聘网页核对岗位后再重试。");
       }
       if (!cancelled) timer = setTimeout(() => void poll(), 750);
     };
