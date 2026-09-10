@@ -762,7 +762,6 @@
 
 /* The first desktop invites a real task; widgets appear as work accumulates. */
 .agent-os-widget-reminders.is-empty-hidden { display: none; }
-.agent-os-composer:focus-within { outline: 2px solid rgba(75,124,109,.35); outline-offset: 3px; }
 /* Temporarily hide the home guide entry; keep the guide available for future use. */
 .agent-os-start-footer { position: absolute; right: calc(100% + 12px); bottom: 9px; display: none; white-space: nowrap; }
 .agent-os-start-footer button { display: inline-flex; align-items: center; gap: 7px; min-height: 28px; padding: 4px 12px; border: 1px solid rgba(255,255,255,.25); border-radius: 18px; color: #fff; background: rgba(20,32,42,.18); cursor: pointer; font-size: 11px; transition: background 160ms ease; }
