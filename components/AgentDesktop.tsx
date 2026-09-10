@@ -10,6 +10,7 @@ import { DesktopStartStage } from "./DesktopStartStage";
 import { DesktopComposerInput } from "./DesktopComposerInput";
 import { DesktopDock } from "./DesktopDock";
 import { isJdDemoArtifact, publicationDestinations } from "@/lib/recruiting-publication";
+import { presentationAction } from "@/lib/presentation-actions";
 import { DesktopWorkspaceWidgets, workspaceReference, type WorkspaceWidgetItem } from "./DesktopWorkspaceWidgets";
 import { DesktopCollaboration } from "./DesktopCollaboration";
 import { compactDesktopTurns } from "@/lib/desktop-conversation";
@@ -2177,6 +2178,12 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     window.setTimeout(() => void refreshSessions(), 450);
   }, [refreshSessions, setNotice]);
   const jarvis = useJarvis({ cwd: activeCwd, onTaskStarted: handleJarvisTaskStarted, onTaskSettled: handleJarvisTaskSettled });
+  // Pending submission covers the interval before SSE reports the task. Saved
+  // workspace sessions cover refreshes, including stopped or failed JD tasks.
+  const jdRequested = presentationAction(pendingRequest ?? "") === "generate-jd"
+    || jarvis.turns.some(turn => turn.role === "user" && presentationAction(turn.text) === "generate-jd")
+    || jarvis.tasks.some(task => presentationAction(task.description) === "generate-jd")
+    || workspaceSessions.some(session => presentationAction(session.firstMessage) === "generate-jd");
   const presentedReply = useRef(0);
   useEffect(() => {
     if (presentationCwd && jarvis.latestReplyTurnId > presentedReply.current && jarvis.speechText) {
@@ -2820,6 +2827,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
               }}>{openingStartResource ? "打开中…" : startMode === "files" ? "浏览文件" : "选择应用"}</button>}
               <DesktopComposerInput key={activeCwd} inputRef={composerInputRef} value={prompt} onChange={setPrompt}
                 recruiting={!!presentationCwd && activeCwd === presentationCwd} hasJd={artifacts.some(isJdDemoArtifact)}
+                jdRequested={jdRequested} progressReady={sessionsLoaded && !!jarvis.sessionId}
                 busy={jarvis.running || widgetTasks.some(task => task.running)} viewingRecruiting={hrRecruitingOpen && !hiddenWindowIds.has("hr") && frontWindow === "hr"}
                 placeholder={showStart ? startPlaceholder : jarvis.ready ? hasStartedWork ? "和 Syntropic 说点什么" : "发布今天的第一项任务吧～" : "Syntropic 正在启动…"}/>
               <button className="voice dictate" type="button" aria-label="语音输入" onClick={() => { dictationCompletionRef.current = "draft"; dictation.toggle(); }}><DesktopDesignIcon name="microphone" size={20}/></button>

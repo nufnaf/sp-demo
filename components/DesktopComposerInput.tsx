@@ -9,13 +9,15 @@ const generalPrompts = [
   "总结今天所有任务的进展",
 ];
 
-export function DesktopComposerInput({ inputRef, value, onChange, placeholder, recruiting, hasJd, busy, viewingRecruiting }: {
+export function DesktopComposerInput({ inputRef, value, onChange, placeholder, recruiting, hasJd, jdRequested, progressReady, busy, viewingRecruiting }: {
   inputRef: RefObject<HTMLInputElement | null>;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   recruiting: boolean;
   hasJd: boolean;
+  jdRequested: boolean;
+  progressReady: boolean;
   busy: boolean;
   viewingRecruiting: boolean;
 }) {
@@ -38,10 +40,10 @@ export function DesktopComposerInput({ inputRef, value, onChange, placeholder, r
         if (!live) return;
         setPublishedJob(data.jobs?.find(job => /AI\s*Agent.*工程师/i.test(job.title))?.title ?? null);
         setCheckedPublication(true);
-      }).catch(() => { /* Keep suggestions hidden until the state is known. */ });
+      }).catch(() => { /* Query suggestions require confirmed publication; the opening JD cue does not. */ });
     return () => { live = false; };
   }, [recruiting, requested, viewingRecruiting, hasJd]);
-  const prompts = recruiting ? recruitingQuickPrompts({ hasJd, busy, viewingRecruiting, publishedJob, checkedPublication }) : generalPrompts;
+  const prompts = recruiting ? recruitingQuickPrompts({ hasJd, jdRequested, progressReady, busy, viewingRecruiting, publishedJob, checkedPublication }) : generalPrompts;
   const visible = requested && prompts.length > 0;
   useEffect(() => {
     if (!visible) return;
