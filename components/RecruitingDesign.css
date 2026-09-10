@@ -1,5 +1,5 @@
 /* Shared visual language for the two recruiting surfaces only. */
-.agent-os .agent-os-window:is(.agent-os-window-hr,.agent-os-window-insights) { border-radius:28px; background:#fff; box-shadow:0 18px 40px #11182714,0 2px 8px #1118270d; }
+.agent-os .agent-os-window:is(.agent-os-window-hr,.agent-os-window-insights) { background:#fff; box-shadow:0 18px 40px #11182714,0 2px 8px #1118270d; }
 .hr-recruiting-app.os-workspace.os-workspace {
   --wa-ink:#14211e; --wa-secondary:#6f7e79; --wa-tertiary:#77847f;
   --wa-line:#e3ebe7; --wa-background:#fff; --wa-surface:#fff;
