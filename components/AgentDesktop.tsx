@@ -1298,7 +1298,7 @@ function DesktopWindow({
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     onFocus();
-    if (event.button !== 0 || window.innerWidth <= 760 || maximized || (event.target as HTMLElement).closest("button")) return;
+    if (event.button !== 0 || window.innerWidth <= 760 || maximized || (event.target as HTMLElement).closest("button, .agent-os-traffic")) return;
     const windowElement = event.currentTarget.parentElement;
     const windowLayer = windowElement?.parentElement;
     if (!windowElement || !windowLayer) return;
@@ -1345,7 +1345,7 @@ function DesktopWindow({
         onPointerUp={(event) => { dragRef.current = null; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
         onPointerCancel={() => { dragRef.current = null; }}
         onLostPointerCapture={() => { dragRef.current = null; }}
-        onDoubleClick={(event) => { if (!(event.target as HTMLElement).closest("button")) setMaximized((value) => !value); }}
+        onDoubleClick={(event) => { if (!(event.target as HTMLElement).closest("button, .agent-os-traffic")) setMaximized((value) => !value); }}
       >
         <span className="agent-os-traffic" aria-label="窗口控制">
           <button className="close" type="button" aria-label="关闭" onClick={onClose}/>
