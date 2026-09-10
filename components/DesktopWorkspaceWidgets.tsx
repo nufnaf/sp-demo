@@ -16,9 +16,9 @@ const profiles: Record<string, { goal: string; note: string; file: string; insig
 };
 export function workspaceReference(cwd: string) { return profiles[cwd.split("/").at(-1) ?? ""]?.file; }
 
-export function DesktopWorkspaceWidgets({ cwd, recruiting, tasks, artifacts, insights, working, onOpenLibrary, onOpenRecruiting, onOpenSchedule, onOpenPreset }: {
+export function DesktopWorkspaceWidgets({ cwd, recruiting, tasks, artifacts, insights, working, onOpenLibrary, onOpenInsights, onOpenRecruiting, onOpenSchedule, onOpenPreset }: {
   cwd: string; recruiting: boolean; tasks: WorkspaceWidgetItem[]; artifacts: WorkspaceWidgetItem[]; insights: WorkspaceWidgetItem[]; working: boolean;
-  onOpenLibrary: () => void; onOpenRecruiting: () => void; onOpenSchedule: () => void; onOpenPreset: (file: string) => void;
+  onOpenLibrary: () => void; onOpenInsights: () => void; onOpenRecruiting: () => void; onOpenSchedule: () => void; onOpenPreset: (file: string) => void;
 }) {
   const calendar = useFeishuCalendar(recruiting);
   const [scene, setScene] = useState<RecruitingScene | null>(null);
@@ -92,7 +92,7 @@ export function DesktopWorkspaceWidgets({ cwd, recruiting, tasks, artifacts, ins
       insightItems.length ? <div className="workspace-insight-list">{insightItems.map(item => <button type="button" className="workspace-insight" key={item.id} onClick={item.onOpen} disabled={item.disabled} title={item.title}>
         <span className="workspace-insight-title">{item.title}</span>{item.detail && <span className="workspace-insight-summary">{item.detail}</span>}<span className="workspace-insight-link">{item.actionLabel ?? "查看依据与下一步"} <span aria-hidden="true">↗</span></span>
       </button>)}</div> : emptyState("洞察会在合适的时机出现", "Syntropic 会理解新任务和产物，主动发现值得推进的下一步", <span className="workspace-observing"><DesktopDesignIcon name="sparkles" size={16}/>持续观察</span>),
-      <small>{insightItems.length} 条最新发现</small>)}
+      <button type="button" onClick={onOpenInsights} aria-label={`查看全部 AI 洞察，共 ${insightItems.length} 条`}>查看全部{insightItems.length ? ` ${insightItems.length}` : ""} <span aria-hidden="true">↗</span></button>)}
     {card("tasks", "当前任务", <span className="workspace-task-total"><strong>{tasks.length}</strong><span>当前任务</span></span>,
       tasks.length ? <div className="workspace-task-list">{tasks.map(item => <button type="button" className={`workspace-task${item.running ? " is-running" : ""}`} key={item.id} onClick={item.onOpen} title={item.title}>
         <strong><i/>{item.title}</strong><small>{item.detail}</small>

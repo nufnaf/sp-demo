@@ -51,6 +51,7 @@ import { VoiceOrb } from "./VoiceOrb";
 import { BrowserApp } from "./BrowserApp";
 import { SalesCRMApp } from "./SalesCRMApp";
 import { InsightsApp } from "./InsightsApp";
+import type { InsightSelection, WorkspaceInsightItem } from "@/lib/workspace-insights";
 import { HRRecruitingApp } from "./HRRecruitingApp";
 import { RecruitingPublication } from "./RecruitingPublication";
 import { DesktopNotification } from "./DesktopNotification";
@@ -1437,7 +1438,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   const [taskSessionId, setTaskSessionId] = useState<string | null>(null);
   const [jarvisSessionId, setJarvisSessionId] = useState<string | null>(null);
   const [openArtifacts, setOpenArtifacts] = useState<Artifact[]>([]);
-  const [selectedInsight, setSelectedInsight] = useState<InsightResult | null>(null);
+  const [selectedInsight, setSelectedInsight] = useState<InsightSelection | null>(null);
   const [openFeishuDocuments, setOpenFeishuDocuments] = useState<FeishuDocument[]>([]);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [artifactLibraryOpen, setArtifactLibraryOpen] = useState(false);
@@ -1944,11 +1945,19 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   }, [setFrontWindow]);
 
   const openInsightResult = useCallback((result: InsightResult) => {
-    setSelectedInsight(result);
+    setSelectedInsight({ cwd: result.cwd, id: result.filePath, report: result });
     setFrontWindow("insights");
     setInsightNotification(null);
     setNotificationCenterOpen(false);
   }, [setFrontWindow]);
+
+  const openInsights = useCallback((items: WorkspaceInsightItem[]) => {
+    if (!activeCwd) return;
+    const first = items[0];
+    if (first?.kind === "report") return openInsightResult(first.result);
+    setSelectedInsight({ cwd: activeCwd, id: first?.id ?? null });
+    setFrontWindow("insights");
+  }, [activeCwd, openInsightResult, setFrontWindow]);
 
   const openFeishuDocument = useCallback((document: FeishuDocument) => {
     if (!document.url) return;
@@ -2444,7 +2453,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
         browserTasks={browserTasks}
         onOpenInsight={openInsightResult}
         cwd={activeCwd}
-        viewedArtifact={frontWindow === "insights" && selectedInsight ? { ...selectedInsight, taskTitle: "AI 洞察" } : openArtifacts.find((artifact) => `file:${artifactIdentity(artifact)}` === frontWindow) ?? null}
+        viewedArtifact={frontWindow === "insights" && selectedInsight?.report ? { ...selectedInsight.report, taskTitle: "AI 洞察" } : openArtifacts.find((artifact) => `file:${artifactIdentity(artifact)}` === frontWindow) ?? null}
         onStartTask={(message) => startTask(message, "publication")}
         onTaskStarted={(sessionId) => { publicationSessionRef.current = sessionId; }}
         onPublished={(job, sessionId) => {
@@ -2464,7 +2473,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
         }}
         onNotice={setNotice}
     >
-      {({ notification, widgetInsights }) => (
+      {({ notification, widgetInsights, insightItems }) => (
     <main className={`agent-os${showStart ? " has-start-guide" : ""}`}>
       <div className="agent-os-wallpaper" aria-hidden="true"/>
 
@@ -2565,6 +2574,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
           working={widgetTasks.some(task => task.running)} tasks={widgetTasks}
           artifacts={artifacts.map(artifact => ({ id: artifactIdentity(artifact), title: getFileName(artifact.filePath), detail: artifact.taskTitle, onOpen: () => openArtifact(artifact) }))}
           insights={widgetInsights}
+          onOpenInsights={() => openInsights(insightItems)}
           onOpenLibrary={openArtifactLibrary} onOpenRecruiting={() => { setHrRecruitingOpen(true); setFrontWindow("hr"); }}
           onOpenSchedule={() => { setScheduleOpen(true); setFrontWindow("schedule"); }}
           onOpenPreset={file => openArtifact({ filePath: `${activeCwd}/${file}`, sessionId: `preset:${activeCwd}`, cwd: activeCwd, taskTitle: "工作台资料", modified: new Date().toISOString() })}/> }
@@ -2579,7 +2589,8 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
               return { id: session.id, title: taskTitle(session), running, detail: running ? "正在推进" : status === "aborted" ? "已停止 · 查看详情" : files ? `已生成 ${files} 个文件` : "查看任务进展", onOpen: () => openTask(session.id) };
             })}
             artifacts={artifacts.map((artifact) => ({ id: artifactIdentity(artifact), title: getFileName(artifact.filePath), detail: artifact.taskTitle, onOpen: () => openArtifact(artifact) }))}
-            insights={insightResults.map((result) => ({ id: `${result.sessionId}:${result.filePath}`, title: result.title, detail: formatInsightModified(result.modified), onOpen: () => openInsightResult(result) }))}
+            insights={widgetInsights}
+            onOpenInsights={() => openInsights(insightItems)}
             onOpenLibrary={openArtifactLibrary}
           />
         </DraggableDesktopWidget>}
@@ -2626,11 +2637,14 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
         })}
         {selectedInsight && selectedInsight.cwd === activeCwd && <DesktopWindow className="agent-os-window-insights" title="AI 洞察" kind="app" desktopHidden={hiddenWindowIds.has("insights")} front={frontWindow === "insights"} onFocus={() => setFrontWindow("insights")} onClose={() => setSelectedInsight(null)}>
           <InsightsApp
-            results={insightResults}
-            selected={insightResults.find(item => item.filePath === selectedInsight.filePath) ?? selectedInsight}
+            items={insightItems}
+            selection={selectedInsight}
             analyzing={insightRunning}
-            onSelect={openInsightResult}
-            onOpenFile={() => openArtifact({ ...selectedInsight, taskTitle: "AI 洞察" })}
+            onSelect={(item) => {
+              if (item.kind === "report") openInsightResult(item.result);
+              else setSelectedInsight({ cwd: selectedInsight.cwd, id: item.id });
+            }}
+            onOpenFile={openArtifact}
           />
         </DesktopWindow>}
         {scheduleOpen && <DesktopWindow kind="app" title="团队日程" desktopHidden={hiddenWindowIds.has("schedule")} front={frontWindow === "schedule"} onFocus={() => setFrontWindow("schedule")} onClose={() => setScheduleOpen(false)}><PresentationSchedule recruiting={!presentationCwd || activeCwd === presentationCwd}/></DesktopWindow>}
