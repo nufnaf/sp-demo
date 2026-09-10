@@ -41,7 +41,7 @@
   top: calc(var(--home-grid-margin-y) + (var(--widget-row) - 1) * (var(--home-grid-row) + var(--home-grid-gap)));
 }
 .workspace-widget-schedule { --widget-column: 3; }
-.workspace-widget-insights { --widget-column: 5; }
+.workspace-widget-insights { --widget-column: 5; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; }
 .workspace-widget-tasks { --widget-column: 7; }
 .workspace-widget-artifacts { --widget-row: var(--home-artifact-row); --widget-row-span: 3; }
 .workspace-widget > .agent-os-card {
@@ -90,10 +90,11 @@
 .workspace-calendar-date > strong { color: #080e0c; font-size: 80px; font-weight: 600; line-height: .95; letter-spacing: -5px; margin-top: 5px; }
 .workspace-schedule-list > .workspace-widget-empty { padding: 20px 16px; }
 .workspace-insight-list { overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; scrollbar-width: thin; }
-.workspace-insight { flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 12px 14px; border-radius: 16px; background: rgba(247,250,249,.3) !important; }
+.workspace-insight { flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 12px 14px; border-radius: 16px; background: rgba(247,250,249,.3) !important; }
 .workspace-insight:hover { background: rgba(247,250,249,.6) !important; }
-.workspace-insight-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #14211e; font-size: 14px; line-height: 1.55; }
-.workspace-insight-link { color: #687773; font-size: 11px; }
+/* Figma 513:775–776: PingFang SC Medium 14/20, Regular 12/17, 4px gap. */
+.workspace-insight-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #0f0f0f; font-size: 14px; font-weight: 500; line-height: 20px; letter-spacing: 0; }
+.workspace-insight-link { margin-top: 4px; color: #687773; font-size: 11px; }
 .workspace-widget-insights .workspace-widget-empty { text-align: center; align-items: center; }
 .workspace-observing { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid #00a67d; border-radius: 20px; color: #008c68; font-size: 12px; margin-top: 10px; }
 .workspace-widget-tasks .agent-os-card > header { height: 88px; align-items: flex-start; margin-bottom: 16px; }
@@ -164,7 +165,7 @@
   .workspace-widget > .agent-os-card { background: #e7ecef; backdrop-filter: none; }
 }
 
-.workspace-insight-summary { color: #52645d; font-size: 12px; line-height: 1.6; }
+.workspace-insight-summary { color: #687773; font-size: 12px; font-weight: 400; line-height: 17px; letter-spacing: 0; }
 .workspace-insight:disabled { cursor: default; opacity: .7; }
 
 .workspace-schedule-error { color: #93422c; font-size: 12px; line-height: 1.6; }
