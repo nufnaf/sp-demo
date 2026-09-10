@@ -14,7 +14,7 @@ test("restored Jarvis history does not appear as a fresh desktop reply", () => {
 
 test("the desktop composer stays compact and swaps live voice for send when text exists", () => {
   assert.doesNotMatch(desktop, /composerFocused|className=\"attach\"/);
-  assert.match(desktop, /\{prompt\.trim\(\) \? \([\s\S]*?className="send"[\s\S]*?: \([\s\S]*?className="voice realtime"/);
+  assert.match(desktop, /prompt\.trim\(\) \? \([\s\S]*?className="send"[\s\S]*?: \([\s\S]*?className="voice realtime"/);
   assert.doesNotMatch(desktopCss, /agent-os-ai-surface\.expanded/);
   assert.doesNotMatch(desktopCss, /agent-os-ai-surface:not\(\.expanded\)/);
 });

@@ -24,7 +24,7 @@ test("initial session hydration establishes a baseline instead of opening histor
 test("workspace manager uses real workspace statistics and only managed cards expose deletion", () => {
   assert.match(source, /const workspaceStats = useMemo/);
   assert.match(source, /className="agent-os-workspace-grid"/);
-  assert.match(source, /workspace\.managed && <button className="delete"/);
+  assert.match(source, /workspace\.managed && \(!presentationCwd \|\| workspace\.cwd !== presentationCwd\) && <button className="delete"/);
   assert.match(route, /if \(!isManagedWorkspacePath\(cwd\)\)/);
   assert.match(route, /getRunningRpcSessionIds\(\)/);
 });

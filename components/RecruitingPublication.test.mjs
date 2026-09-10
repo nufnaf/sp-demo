@@ -231,3 +231,31 @@ test("publication and later reports share order and completed state, including r
   assert.equal(reloaded.insightItems[1].actionLabel, "已发布");
   assert.equal(reloaded.insightItems[1].modified, publication.modified);
 });
+
+test("publication waits for preview completion and hides an existing suggestion during playback", () => {
+  const h = harness();
+  h.props.viewedArtifactReady = false;
+  assert.equal(h.recognize().publicationInsight, null);
+  h.props.viewedArtifactReady = true;
+  assert.ok(h.recognize().publicationInsight);
+  h.props.viewedArtifactReady = false;
+  const hidden = h.render();
+  assert.equal(hidden.publicationInsight, null);
+  assert.equal(hidden.notification, null);
+});
+
+test("a new generation at the same path gets a suggestion after its own preview", () => {
+  const h = harness();
+  h.recognize().notification.props.onDismiss();
+  h.artifact.sessionId = "jd-generation-two";
+  h.props.viewedArtifactReady = false;
+  assert.equal(h.recognize().notification, null);
+  h.props.viewedArtifactReady = true;
+  assert.ok(h.recognize().notification);
+});
+
+test("legacy path-based notification history restores without repeating a dismissed suggestion", () => {
+  const artifact = { cwd: "/fixture", sessionId: "jd-session", filePath: "/fixture/engineer-jd.md", taskTitle: "生成岗位 JD" };
+  const h = harness({ suggestion: artifact, seen: [artifact.filePath], dismissed: true });
+  assert.equal(h.recognize().notification, null);
+});
