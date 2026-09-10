@@ -73,7 +73,11 @@ function harness(saved = {}) {
 test("JD notification and desktop suggestion appear together with one publication action", () => {
   const h = harness();
   assert.equal(h.render().publicationInsight, null);
-  const { notification, publicationInsight } = h.recognize();
+  const { notification, publicationInsight, insightItems } = h.recognize();
+  assert.equal(insightItems.length, 1);
+  assert.equal(insightItems[0].onPublish, publicationInsight.onOpen);
+  assert.equal(insightItems[0].artifact.filePath, h.artifact.filePath);
+  assert.ok(insightItems[0].modified);
   assert.ok(publicationInsight.detail.includes("岗位 JD 已准备好"));
   assert.equal(notification.props.action.onClick, publicationInsight.onOpen);
 });
@@ -179,4 +183,51 @@ test("demo publication copy follows the saved BOSS receipt and survives reload",
   restored.publishedJobs.push(job);
   assert.match(restored.render().publicationInsight.detail, /BOSS 直聘（模拟）/);
   assert.equal(restored.calls.length, 0);
+});
+
+function assertSharedList(surfaces) {
+  assert.deepEqual(
+    surfaces.insightItems.map(({ id, title, detail, actionLabel, disabled }) => ({ id, title, detail, actionLabel, disabled })),
+    surfaces.widgetInsights.map(({ id, title, detail, actionLabel, disabled }) => ({ id, title, detail, actionLabel, disabled })),
+  );
+}
+
+test("application publishing shares preparation, pending, failure and retry with the desktop", async () => {
+  const h = harness();
+  const ready = h.recognize(); assertSharedList(ready);
+  ready.insightItems[0].onPublish();
+  const preparing = h.render(); assertSharedList(preparing);
+  assert.equal(preparing.insightItems[0].actionLabel, "正在准备…");
+  const pending = await h.settle(); assertSharedList(pending);
+  assert.equal(pending.insightItems[0].actionLabel, "正在发布…");
+  assert.equal(pending.insightItems[0].disabled, true);
+  h.browserTasks.push({ parentSessionId: "publication-session", status: "failed" });
+  h.tick(); const failed = await h.settle(); assertSharedList(failed);
+  assert.equal(failed.insightItems[0].disabled, false);
+  failed.insightItems[0].onPublish(); await h.settle();
+  assert.equal(h.calls.length, 2, "one task per deliberate action, including retry");
+});
+
+test("publication and later reports share order and completed state, including reload", async () => {
+  const h = harness(); h.recognize();
+  h.props.insights = [h.report];
+  const combined = h.render(); assertSharedList(combined);
+  assert.equal(combined.insightItems[0].kind, "publication");
+  combined.insightItems[0].onPublish(); await h.settle();
+  const digest = await webcrypto.subtle.digest("SHA-256", new TextEncoder().encode(`${h.artifact.cwd}\n${h.artifact.filePath}`));
+  const job = { draft: Buffer.from(digest).toString("hex").slice(0, 32), title: "AI Agent 工程师" };
+  h.publishedJobs.push(job);
+  h.browserTasks.push({ parentSessionId: "publication-session", status: "completed" });
+  h.tick(); const completed = await h.settle(); assertSharedList(completed);
+  assert.equal(completed.insightItems[0].kind, "report");
+  const publication = completed.insightItems[1];
+  assert.equal(publication.actionLabel, "已发布");
+  assert.equal(publication.disabled, true);
+  publication.onPublish(); await h.settle(); assert.equal(h.calls.length, 1);
+  const restored = harness(JSON.parse(h.storage.get("syntropic:notifications:/fixture")));
+  restored.publishedJobs.push(job); restored.props.insights = [h.report];
+  const reloaded = await restored.settle(); assertSharedList(reloaded);
+  assert.equal(reloaded.insightItems.length, 2);
+  assert.equal(reloaded.insightItems[1].actionLabel, "已发布");
+  assert.equal(reloaded.insightItems[1].modified, publication.modified);
 });

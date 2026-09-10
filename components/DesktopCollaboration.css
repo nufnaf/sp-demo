@@ -13,6 +13,7 @@
 .collaboration-body { padding: 0 8px 10px; }
 .collaboration-row { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 51px; padding: 8px; border: 0; border-radius: 9px; background: transparent; text-align: left; cursor: pointer; }
 .collaboration-row:hover { background: #ffffff65; }
+.collaboration-row:disabled { cursor: default; }
 .collaboration-row > span { flex: 1; min-width: 0; }
 .collaboration-row strong, .collaboration-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .collaboration-row strong { color: #40564d; font-size: 11px; font-weight: 500; }
