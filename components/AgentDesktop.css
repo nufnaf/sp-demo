@@ -154,6 +154,7 @@
 .agent-os-insight-empty strong { margin-top: 11px; font-size: 10px; }.agent-os-insight-empty small { margin-top: 5px; color: var(--os-muted); font-size: 7px; }
 
 .agent-os-window-layer { position: absolute; z-index: 30; inset: 44px 0 112px; pointer-events: none; }
+/* All desktop app windows share this outer radius; the mobile layout uses square corners. */
 .agent-os-window { position: absolute; width: min(1080px, calc(100vw - 160px)); height: min(690px, calc(100vh - 220px)); min-width: 680px; min-height: 460px; overflow: hidden; border: 1px solid rgba(255,255,255,.88); border-radius: 15px; color: var(--os-text); background: rgba(246,249,250,.82); box-shadow: inset 0 1px rgba(255,255,255,.9), 0 24px 72px rgba(45,67,80,.22); pointer-events: auto; backdrop-filter: blur(34px) saturate(1.22); opacity: .95; transform: scale(.992); transition: opacity 180ms ease, transform 260ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms ease; font-optical-sizing:auto; -webkit-font-smoothing:antialiased; }
 /* Preserve layout and mounted app state while exposing the desktop. */
 .agent-os-window.is-desktop-hidden { visibility: hidden; pointer-events: none; }
@@ -170,7 +171,7 @@
 .agent-os-window-investment { width:min(1180px,calc(100vw - 112px));height:min(720px,calc(100vh - 174px)); }
 .agent-os-window-terminal { width:min(860px,calc(100vw - 240px));height:min(520px,calc(100vh - 270px));min-width:620px;min-height:400px; }
 .agent-os-window-terminal .agent-os-window-body { background:rgba(241,246,247,.72); }
-.agent-os-window-store { width:min(1178px,calc(100vw - 64px));height:min(789px,calc(100vh - 140px));border-radius:28px; }
+.agent-os-window-store { width:min(1178px,calc(100vw - 64px));height:min(789px,calc(100vh - 140px)); }
 .agent-os-window-store .agent-os-window-bar{height:50px;background:#f6f6f6;border-bottom:0;backdrop-filter:none}
 .agent-os-window-store .agent-os-window-body{height:calc(100% - 50px);container-type:inline-size;container-name:store-window}
 .agent-os-window-store .agent-os-window-bar>strong{justify-self:start;padding-left:2px}
@@ -188,7 +189,7 @@
 .agent-os-window-file .agent-os-window-bar > strong { font-size:9px }
 .agent-os-window-document .agent-os-window-bar{height:36px;grid-template-columns:78px 1fr 78px;background:rgba(255,255,255,.7)}.agent-os-window-document .agent-os-window-body{height:calc(100% - 36px);background:white}.agent-os-window-document .agent-os-window-bar>strong{font-size:9px}.agent-os-window-document .agent-os-window-bar>strong img{width:16px;height:16px}
 .agent-os-file-app .file-viewer-toolbar { display:none!important }
-.agent-os-window-file.agent-os-window-jd { width:min(1440px,calc(100vw - 96px));height:min(900px,calc(100vh - 174px));border-radius:28px;background:#fff; }
+.agent-os-window-file.agent-os-window-jd { width:min(1440px,calc(100vw - 96px));height:min(900px,calc(100vh - 174px));background:#fff; }
 .agent-os-window-jd .agent-os-window-bar { height:50px;grid-template-columns:76px 1fr auto;background:#f6f6f6;border-bottom:0; }
 .agent-os-window-jd .agent-os-window-bar>strong { justify-self:start;font-size:0; }
 .agent-os-window-jd .agent-os-window-bar>span:last-child { padding-right:16px; }
