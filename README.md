@@ -75,7 +75,7 @@ npm run desktop
 
 ## 双击 App 与部署边界
 
-`npm run package:desktop` 在独立构建暂存目录生成 `build/desktop/release/Syntropic.app`。已有安装版随包携带 Node、Electron、Chromium 和工作台运行依赖，基础启动与招聘 browser use 不要求目标电脑预装 Node 或 Chrome。模型执行仍需联网及有效授权。受控包包含专用飞书只读应用配置，不包含 Pi 模型凭据，也不依赖飞书 CLI。
+`npm run package:desktop` 在独立构建暂存目录生成 `build/desktop/release/Syntropic.app`。已有安装版随包携带 Node、Electron、Chromium 和工作台运行依赖，基础启动与招聘 browser use 不要求目标电脑预装 Node 或 Chrome。模型执行仍需联网及有效授权。当前默认构建 [DeepSeek 官方 API 演示包](docs/deepseek-demo.md)，需要准备专用 DeepSeek Key 和飞书应用配置；接收者无需另行登录模型账号，也不依赖飞书 CLI。
 
 当前包覆盖 macOS Apple Silicon，采用本机 ad-hoc 签名，未完成公开分发公证或其他平台验收。不能据此宣称整场演示已经在所有无开发环境电脑上可用。
 
