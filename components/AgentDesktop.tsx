@@ -9,7 +9,7 @@ import { DesktopDesignIcon } from "./DesktopDesignIcon";
 import { RecruitingBrandIcon } from "./RecruitingBrandIcon";
 import { DesktopStartStage } from "./DesktopStartStage";
 import { DesktopComposerInput } from "./DesktopComposerInput";
-import { DesktopDock } from "./DesktopDock";
+import { DesktopDock, DesktopDockItem, DesktopDockSeparator } from "./DesktopDock";
 import { isJdDemoArtifact, publicationDestinations } from "@/lib/recruiting-publication";
 import { presentationAction } from "@/lib/presentation-actions";
 import { DesktopWorkspaceWidgets, workspaceReference, type WorkspaceWidgetItem } from "./DesktopWorkspaceWidgets";
@@ -2096,7 +2096,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   const isDockItemOpen = useCallback((item: DockItem) => {
     if (item.kind !== "system") return openApps.some((openApp) => openApp.id === item.id);
     if (item.id === "system:calendar") return scheduleOpen;
-    if (item.id === "system:tasks") return Boolean(taskSessionId) && frontWindow === "tasks";
+    if (item.id === "system:tasks") return Boolean(taskSessionId);
     if (item.id === "system:library") return artifactLibraryOpen;
     if (item.id === "system:crm") return salesCrmOpen;
     if (item.id === "system:hr") return hrRecruitingOpen;
@@ -2106,7 +2106,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     if (item.id === "system:terminal") return terminalOpen;
     if (item.id === "system:store") return appStoreOpen;
     return settingsOpen;
-  }, [appStoreOpen, artifactLibraryOpen, browserOpen, filesOpen, frontWindow, hrRecruitingOpen, salesCrmOpen, investmentWorkspaceOpen, openApps, settingsOpen, taskSessionId, terminalOpen, scheduleOpen]);
+  }, [appStoreOpen, artifactLibraryOpen, browserOpen, filesOpen, hrRecruitingOpen, salesCrmOpen, investmentWorkspaceOpen, openApps, settingsOpen, taskSessionId, terminalOpen, scheduleOpen]);
 
   const toggleDockAppPin = useCallback((app: DockItem) => {
     setPinnedDockAppIds((current) => {
@@ -2415,7 +2415,8 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   const renderDockItem = (item: DockItem) => {
     const open = isDockItemOpen(item);
     const className = item.kind === "system" ? `dock-${item.id.slice(7)}` : `dock-app is-${item.appearance}${item.kind === "connector" ? " is-official-icon" : ""}`;
-    return <button
+    return <DesktopDockItem
+      open={open}
       key={item.id}
       className={`${className}${open ? " is-open" : ""}`}
       type="button"
@@ -2430,7 +2431,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     >
       <DockItemIcon item={item}/>
       {item.kind === "system" && item.id === "system:tasks" && runningCount > 0 ? <em>{runningCount}</em> : null}
-    </button>;
+    </DesktopDockItem>;
   };
 
   const widgetTasks: WorkspaceWidgetItem[] = visibleTasks.map((session) => {
@@ -2870,9 +2871,9 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
       </section>
 
       <DesktopDock>
-        <button ref={launchpadTriggerRef} className={`dock-launchpad${launchpadOpen ? " is-open" : ""}`} type="button" aria-label="启动台" aria-pressed={launchpadOpen} data-label="启动台" onClick={() => { setWorkspaceOpen(false); setLaunchpadOpen((value) => !value); }}><Icon name="grid" size={22}/></button><i/>
+        <DesktopDockItem animateOpening={false} ref={launchpadTriggerRef} className={`dock-launchpad${launchpadOpen ? " is-open" : ""}`} type="button" aria-label="启动台" aria-pressed={launchpadOpen} data-label="启动台" onClick={() => { setWorkspaceOpen(false); setLaunchpadOpen((value) => !value); }}><Icon name="grid" size={22}/></DesktopDockItem><DesktopDockSeparator/>
         {pinnedDockItems.map(renderDockItem)}
-        {temporaryDockItems.length ? <i className="agent-os-dock-app-divider"/> : null}
+        {temporaryDockItems.length ? <DesktopDockSeparator className="agent-os-dock-app-divider"/> : null}
         {temporaryDockItems.map(renderDockItem)}
       </DesktopDock>
 

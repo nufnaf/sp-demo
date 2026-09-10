@@ -405,12 +405,12 @@
 .agent-os-spinner { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.32); border-top-color: white; border-radius: 50%; animation: agent-os-spin .65s linear infinite; }
 
 .agent-os-dock { position: absolute; z-index: 310; left: 50%; bottom: 16px; height: 74px; max-width: calc(100vw - 32px); border: 0; border-radius: 24px; padding: 15px 24px; display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,.3); backdrop-filter: blur(4px); transform: translateX(-50%); }
-.agent-os-dock > button { position: relative; width: 44px; height: 44px; flex: 0 0 44px; border: 0; border-radius: 12px; padding: 0; display: grid; place-items: center; color: #25382f; background: white; box-shadow: 0 2px 4px rgba(0,0,0,.08); cursor: pointer; transform:translateY(0) scale(1); transform-origin: center bottom; transition: transform 140ms var(--os-ease-out), background 140ms ease, color 140ms ease; }
+.agent-os-dock > button { position: relative; width: 44px; height: 44px; flex: 0 0 44px; border: 0; border-radius: 12px; padding: 0; display: grid; place-items: center; color: #25382f; background: transparent; cursor: pointer; transform:translateY(0) scale(1); transform-origin: center bottom; transition: transform 140ms var(--os-ease-out), background 140ms ease, color 140ms ease; }
 .agent-os-dock > button:active { transform:translateY(0) scale(.94) }.agent-os-dock > button:focus-visible { outline:2px solid rgba(43,53,59,.72);outline-offset:3px }.agent-os-dock > i { width: 1px; height: 32px; margin: 0 4px 0 3px; background: rgba(48,66,76,.14); }
 .agent-os-dock > button::before { content: attr(data-label); position: absolute; left: 50%; bottom: calc(100% + 10px); border: 1px solid rgba(255,255,255,.88); border-radius: 7px; padding: 5px 8px; color: #252b2f; background: rgba(249,251,252,.94); box-shadow: 0 7px 20px rgba(48,72,85,.17); backdrop-filter:blur(12px); font-size: 8px; font-weight:560; line-height:1; white-space: nowrap; opacity: 0; pointer-events: none; transform: translate(-50%, 4px); transition: opacity 100ms ease, transform 150ms var(--os-ease-out); }
 .agent-os-dock > button.is-open::after { content:"";position:absolute;left:50%;bottom:-6px;width:4px;height:4px;border-radius:50%;background:rgba(31,43,49,.72);box-shadow:0 0 0 1px rgba(255,255,255,.34);transform:translateX(-50%) }
 .agent-os-dock > button em { position: absolute; right: -4px; top: -4px; min-width: 16px; height: 16px; border: 2px solid rgba(239,246,248,.96); border-radius: 9px; padding: 0 3px; display: grid; place-items: center; color: white; background: #e75751; box-shadow:0 2px 5px rgba(113,42,39,.2); font-size: 7px; font-weight:700; line-height:1; font-style: normal; }
-.agent-os-dock > .dock-app .agent-os-app-logo{width:34px;height:34px;flex-basis:34px;border-radius:10px;box-shadow:inset 0 1px rgba(255,255,255,.5),0 3px 8px rgba(45,62,72,.12)}.agent-os-dock > .dock-app .agent-os-app-logo svg{width:22px;height:22px}.agent-os-dock > .dock-app .agent-os-app-logo img{width:78%;height:78%}.agent-os-dock > button.dock-app.is-official-icon{border:0;background:transparent;box-shadow:none}.agent-os-dock > .dock-app.is-official-icon .agent-os-app-logo{width:100%;height:100%;flex-basis:100%;border:0;border-radius:inherit;background:transparent;box-shadow:none}.agent-os-dock > .dock-app.is-official-icon .agent-os-app-logo img{width:100%;height:100%;border-radius:inherit;filter:drop-shadow(0 3px 5px rgba(45,62,72,.18))}.agent-os-dock > .dock-app.is-official-icon.is-huayu-law .agent-os-app-logo{background:#184d69}.agent-os-dock > .dock-app.is-official-icon.is-huayu-law .agent-os-app-logo img{width:86%;height:auto;border-radius:0;object-fit:contain}.agent-os-dock-app-divider{margin-left:4px!important}
+.agent-os-dock > .dock-app .agent-os-app-logo{width:34px;height:34px;flex-basis:34px;border-radius:10px;box-shadow:inset 0 1px rgba(255,255,255,.5),0 3px 8px rgba(45,62,72,.12)}.agent-os-dock > .dock-app .agent-os-app-logo svg{width:22px;height:22px}.agent-os-dock > .dock-app .agent-os-app-logo img{width:78%;height:78%}.agent-os-dock > button.dock-app.is-official-icon .desktop-dock-icon{border:0;background:transparent;box-shadow:none}.agent-os-dock > .dock-app.is-official-icon .agent-os-app-logo{width:100%;height:100%;flex-basis:100%;border:0;border-radius:inherit;background:transparent;box-shadow:none}.agent-os-dock > .dock-app.is-official-icon .agent-os-app-logo img{width:100%;height:100%;border-radius:inherit;filter:drop-shadow(0 3px 5px rgba(45,62,72,.18))}.agent-os-dock > .dock-app.is-official-icon.is-huayu-law .agent-os-app-logo{background:#184d69}.agent-os-dock > .dock-app.is-official-icon.is-huayu-law .agent-os-app-logo img{width:86%;height:auto;border-radius:0;object-fit:contain}.agent-os-dock-app-divider{margin-left:4px!important}
 .agent-os-dock > .dock-app.is-feishu .agent-os-app-logo{width:100%;height:100%;flex-basis:100%;border:0;border-radius:inherit;background:white;box-shadow:none}.agent-os-dock > .dock-app.is-feishu .agent-os-app-logo img{width:76%;height:76%;object-fit:contain}
 .agent-os-hr-title-icon{width:18px;height:18px;display:grid;place-items:center;color:rgba(47,58,65,.72);background:transparent}
 .agent-os-investment-title-icon{width:18px;height:18px;display:grid;place-items:center;color:rgba(47,58,65,.72);background:transparent}
@@ -833,15 +833,15 @@
 .agent-os-jd-notification strong { white-space: normal; overflow-wrap: anywhere; }
 .agent-os-jd-notification button:focus-visible { outline: 3px solid #27825f; outline-offset: 2px; }
 
-.agent-os-dock > .dock-tasks, .agent-os-launchpad-icon.is-system.is-tasks { color: white; background: #377bf6; }
-.agent-os-dock > .dock-library, .agent-os-launchpad-icon.is-system.is-library { color: white; background: #8b6be8; }
-.agent-os-dock > .dock-hr, .agent-os-launchpad-icon.is-system.is-hr { background: #00a67d; }
-.agent-os-dock > .dock-calendar, .agent-os-launchpad-icon.is-system.is-calendar { background: #ffa200; }
-.agent-os-dock > .dock-files, .agent-os-launchpad-icon.is-system.is-files { color: white; background: #48a7ed; }
-.agent-os-dock > .dock-browser, .agent-os-launchpad-icon.is-system.is-browser { color: white; background: #338fbd; }
-.agent-os-dock > .dock-settings, .agent-os-launchpad-icon.is-system.is-settings { color: white; background: #67717d; }
-.agent-os-dock > .dock-terminal, .agent-os-launchpad-icon.is-system.is-terminal { color: white; background: #252b32; }
-.agent-os-dock > button > .agent-os-icon { width: 26px; height: 26px; }
+.agent-os-dock .desktop-dock-icon.dock-tasks, .agent-os-launchpad-icon.is-system.is-tasks { color: white; background: #377bf6; }
+.agent-os-dock .desktop-dock-icon.dock-library, .agent-os-launchpad-icon.is-system.is-library { color: white; background: #8b6be8; }
+.agent-os-dock .desktop-dock-icon.dock-hr, .agent-os-launchpad-icon.is-system.is-hr { background: #00a67d; }
+.agent-os-dock .desktop-dock-icon.dock-calendar, .agent-os-launchpad-icon.is-system.is-calendar { background: #ffa200; }
+.agent-os-dock .desktop-dock-icon.dock-files, .agent-os-launchpad-icon.is-system.is-files { color: white; background: #48a7ed; }
+.agent-os-dock .desktop-dock-icon.dock-browser, .agent-os-launchpad-icon.is-system.is-browser { color: white; background: #338fbd; }
+.agent-os-dock .desktop-dock-icon.dock-settings, .agent-os-launchpad-icon.is-system.is-settings { color: white; background: #67717d; }
+.agent-os-dock .desktop-dock-icon.dock-terminal, .agent-os-launchpad-icon.is-system.is-terminal { color: white; background: #252b32; }
+.agent-os-dock .desktop-dock-icon > .agent-os-icon { width: 26px; height: 26px; }
 @media (max-width: 760px) {
   .agent-os-wallpaper { background-size: auto 165%; background-position: center -5.53vh; }
   .agent-os-dock { padding-inline: 12px; overflow-x: auto; scrollbar-width: none; }
