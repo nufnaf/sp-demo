@@ -2253,7 +2253,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
 
   const sendDesktopMessage = async (text: string) => {
     const message = text.trim();
-    if (!message || !jarvis.sessionId) return;
+    if (!message || !jarvis.sessionId || jarvis.sending) return;
     sentAfterReplyRef.current = jarvis.latestReplyTurnId;
     markWorkspaceEngaged(activeCwd);
     setPendingRequest(message);
@@ -2261,9 +2261,10 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     followConversationRef.current = true;
     setJarvisPanelOpen(false);
     composerInputRef.current?.blur();
-    setPrompt("");
     desktopVoice.noteUserInput();
-    await jarvis.send(message);
+    const accepted = await jarvis.send(message);
+    if (accepted) setPrompt(current => current === text ? "" : current);
+    else if (accepted === false) setPendingRequest(null);
   };
   const submitPrompt = async (event: FormEvent) => {
     event.preventDefault();
@@ -2834,7 +2835,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
               {presentationCwd && (jarvis.running || widgetTasks.some(task => task.running)) ? (
                 <button className="send" type="button" aria-label="停止当前任务" title="停止当前任务" onClick={() => void stopPresentationTasks()}><Icon name="close" size={19}/></button>
               ) : prompt.trim() ? (
-                <button className="send" type="submit" aria-label="发送给 Syntropic" disabled={!jarvis.sessionId}>{submitting ? <span className="agent-os-spinner"/> : <Icon name="arrow-up" size={19}/>}</button>
+                <button className="send" type="submit" aria-label="发送给 Syntropic" disabled={!jarvis.sessionId || jarvis.sending}>{submitting || jarvis.sending ? <span className="agent-os-spinner"/> : <Icon name="arrow-up" size={19}/>}</button>
               ) : (
                 <button className="voice realtime" type="button" aria-label="开始实时语音对话" onClick={startConversation}><Icon name="waveform" size={19}/></button>
               )}

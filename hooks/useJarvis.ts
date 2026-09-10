@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { sendAgentCommand } from "@/lib/agent-client";
+import { isPromptRejectedError, sendAgentCommand } from "@/lib/agent-client";
 import { splitFinalAssistantBlocks } from "@/lib/message-display";
 import { INITIAL_STREAMING_STATE, streamReducer, type ClientAssistantMessageEvent } from "@/lib/streaming-message";
 import type { AgentMessage, AssistantMessage, CustomMessage, UserMessage } from "@/lib/types";
@@ -119,6 +119,9 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [running, setRunning] = useState(false);
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
+  const connectionRef = useRef<{ sessionId: string; waitUntilReady(): Promise<void> } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [turns, setTurns] = useState<JarvisTurn[]>([]);
   const [tasks, setTasks] = useState<JarvisTask[]>([]);
@@ -153,6 +156,7 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
     setSessionId(null);
     setConnected(false);
     setRunning(false);
+    runningRef.current = false;
     setTurns([]);
     setTasks([]);
     setLatestReplyTurnId(0);
@@ -199,6 +203,15 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
   // Follow the session's event stream.
   useEffect(() => {
     if (!sessionId) return;
+    let live = true;
+    let ready = false;
+    let connectionCount = 0;
+    let eventRevision = 0;
+    const waiters = new Set<(error?: Error) => void>();
+    const settleWaiters = (error?: Error) => {
+      for (const settle of waiters) settle(error);
+      waiters.clear();
+    };
     const delivered = new Map(tasksRef.current.map((task) => [task.sessionId, task.status]));
     const acceptTask = (task: JarvisTask) => {
       const previous = delivered.get(task.sessionId);
@@ -212,22 +225,67 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
       pushTurn({ role: "task", text: task.description, task, taskEvent: started ? "started" : "settled" });
     };
     const source = new EventSource(`/api/agent/${encodeURIComponent(sessionId)}/events`);
+    const connection = {
+      sessionId,
+      waitUntilReady: () => {
+        if (ready) return Promise.resolve();
+        if (!live || source.readyState === EventSource.CLOSED) return Promise.reject(new Error("会话连接已断开，请重试。"));
+        return new Promise<void>((resolve, reject) => {
+          const settle = (error?: Error) => {
+            window.clearTimeout(timer);
+            waiters.delete(settle);
+            if (error) reject(error); else resolve();
+          };
+          const timer = window.setTimeout(() => settle(new Error("会话连接超时，请重试。")), 15_000);
+          waiters.add(settle);
+        });
+      },
+    };
+    connectionRef.current = connection;
     source.onmessage = (event: MessageEvent<string>) => {
+      if (!live) return;
       let payload: Record<string, unknown>;
       try {
         payload = JSON.parse(event.data) as Record<string, unknown>;
       } catch {
         return;
       }
+      eventRevision += 1;
       switch (payload.type) {
         case "connected":
+          ready = true;
           setConnected(true);
           runningRef.current = payload.isStreaming === true;
           setRunning(payload.isStreaming === true);
           if (payload.isStreaming === true) dispatch({ type: "start" });
+          else dispatch({ type: "end" });
+          settleWaiters();
+          // A run may have finished while disconnected. Restore its reply only
+          // if no newer live event has arrived while history was loading.
+          if (connectionCount++ > 0) {
+            const revision = eventRevision;
+            void fetch(`/api/sessions/${encodeURIComponent(sessionId)}?tail=${HISTORY_TAIL}&deferThinking=1&deferMedia=1`, { cache: "no-store" })
+              .then(async response => {
+                if (!response.ok) return;
+                const detail = await response.json() as { context?: { messages?: AgentMessage[] } };
+                if (!live || eventRevision !== revision) return;
+                const restored = turnsFromMessages(detail.context?.messages ?? [], nextTurnId);
+                setTurns(restored.turns);
+                setTasks(current => restored.tasks.reduce(upsertTask, current));
+                const lastAssistant = [...restored.turns].reverse().find(turn => turn.role === "assistant");
+                if (lastAssistant) setLastReply(lastAssistant.text);
+              }).catch(() => {});
+          }
+          break;
+        case "session_closed":
+          ready = false;
+          setConnected(false);
           break;
         case "startup_error":
+          ready = false;
+          setConnected(false);
           setError(typeof payload.errorMessage === "string" ? payload.errorMessage : "Syntropic 启动失败");
+          settleWaiters(new Error("会话启动失败，请重试。"));
           break;
         case "agent_start":
           runningRef.current = true;
@@ -236,10 +294,15 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
           setLastReply("");
           break;
         case "agent_end":
+        case "agent_settled":
+        case "prompt_done":
           runningRef.current = false;
           setRunning(false);
           dispatch({ type: "end" });
           for (const resolve of idleWaitersRef.current.splice(0)) resolve();
+          break;
+        case "prompt_error":
+          setError(typeof payload.errorMessage === "string" ? payload.errorMessage : "请求未能完成，请重试。");
           break;
         case "message_start": {
           const message = payload.message as AgentMessage | undefined;
@@ -288,23 +351,51 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
       }
     };
     source.onerror = () => {
+      if (!live) return;
+      ready = false;
       setConnected(false);
+      if (source.readyState === EventSource.CLOSED) settleWaiters(new Error("会话连接已断开，请重试。"));
     };
     return () => {
+      live = false;
+      if (connectionRef.current === connection) connectionRef.current = null;
+      settleWaiters(new Error("当前会话已切换，请重新发送。"));
       source.close();
     };
-  }, [pushTurn, sessionId]);
+  }, [nextTurnId, pushTurn, sessionId]);
 
   const send = useCallback(async (text: string) => {
     const message = text.trim();
-    if (!sessionId || !message) return;
+    if (sendingRef.current) return;
+    if (!sessionId || !message) return false;
+    const connection = connectionRef.current;
+    if (!connection || connection.sessionId !== sessionId) return false;
+    sendingRef.current = true;
+    setSending(true);
     setError(null);
+    let submitted = false;
     try {
-      await sendAgentCommand(sessionId, running ? { type: "steer", message } : { type: "prompt", message });
+      await connection.waitUntilReady();
+      if (connectionRef.current !== connection) return false;
+      submitted = true;
+      await sendAgentCommand(sessionId, runningRef.current ? { type: "steer", message } : { type: "prompt", message });
+      return true;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (connectionRef.current !== connection) return false;
+      setError(submitted && !isPromptRejectedError(cause)
+        ? "发送结果暂时无法确认，请先查看任务进展，避免重复发送。"
+        : cause instanceof Error ? cause.message : String(cause));
+      // Re-resolve an unavailable session for the user's next attempt. Never
+      // replay a command: a lost HTTP response does not mean it was rejected.
+      if (!submitted || (isPromptRejectedError(cause) && cause.status === 404)) {
+        setResetCount(count => count + 1);
+      }
+      return false;
+    } finally {
+      sendingRef.current = false;
+      setSending(false);
     }
-  }, [running, sessionId]);
+  }, [sessionId]);
 
   const abort = useCallback(async () => {
     if (!sessionId) return;
@@ -355,6 +446,7 @@ export function useJarvis({ cwd, onTaskStarted, onTaskSettled }: UseJarvisOption
   return {
     sessionId,
     ready: connected && !error,
+    sending,
     running,
     error,
     turns,
