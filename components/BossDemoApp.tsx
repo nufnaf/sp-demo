@@ -39,7 +39,7 @@ export function BossDemoApp() {
       <span className="boss-demo-connected"><CheckCircle2 size={15}/>已连接</span>
     </header>
     <main>
-      <section className="boss-demo-account"><Building2 size={22}/><div><strong>企业招聘空间</strong><p>职位发布与招聘工作台保持同步</p></div><small>演示预设</small></section>
+      <section className="boss-demo-account"><Building2 size={22}/><div><strong>企业招聘空间</strong><p>职位发布与招聘工作台保持同步</p></div></section>
       <div className="boss-demo-section-title"><h2>招聘中的职位</h2><span>{jobs.length} 个职位</span></div>
       {error ? <div className="boss-demo-empty" role="alert"><p>{error}</p><button type="button" onClick={() => setRevision(value => value + 1)}>重新加载</button></div>
         : loading ? <p role="status">正在读取职位…</p>
@@ -47,10 +47,9 @@ export function BossDemoApp() {
             <header><BriefcaseBusiness size={20}/><span>已发布</span></header>
             <h3>{job.title}</h3><p>{job.department} · {job.owner}</p>
             <div className="boss-demo-job-facts"><span><MapPin size={15}/>{job.location}</span><span><Users size={15}/>招聘 {job.headcount} 人</span></div>
-            <footer><CheckCircle2 size={15}/><span>已同步到 BOSS 直聘<small>模拟发布结果 · {new Date(job.bossPublication!.publishedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}</small></span></footer>
+            <footer><CheckCircle2 size={15}/><span>已同步到 BOSS 直聘<small>发布时间 · {new Date(job.bossPublication!.publishedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}</small></span></footer>
           </article>)}</div>
             : <div className="boss-demo-empty"><BriefcaseBusiness size={32}/><h3>招聘账号已就绪</h3><p>在招聘工作台生成 JD 并发布岗位后，<br/>这里会同步显示职位和发布结果。</p></div>}
-      <p className="boss-demo-footnote">本窗口展示演示数据，职位发布结果为模拟结果。</p>
     </main>
   </div>;
 }

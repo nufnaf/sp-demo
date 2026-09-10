@@ -663,7 +663,7 @@ export class AgentSessionWrapper {
     if (isPresentationCwd(this.cwd)) {
       if (["steer", "follow_up"].includes(type)) type = "prompt";
       if (["bash", "compact", "reload", "set_tools", "set_model", "navigate_tree"].includes(type)) {
-        throw new Error("演示工作台只支持固定业务流程，请使用工作台中的操作入口。");
+        throw new Error("请使用工作台中的操作入口继续。");
       }
     }
     const allowedDuringReplacement = COMMANDS_ALLOWED_DURING_SESSION_REPLACEMENT.has(type);
@@ -712,7 +712,7 @@ export class AgentSessionWrapper {
             if (this.isRunning()) throw new Error("当前任务正在执行，可以点击停止任务。");
             this.emit({ type: "agent_start" });
             this.appendDemoMessage({ role: "user", content: message, timestamp: Date.now() });
-            this.appendDemoMessage(demoAssistant(action === "cancel" ? "当前没有正在执行的任务。" : this.cwd === presentationCwd() ? PRESENTATION_HELP : "此演示工作台支持查看预置资料和成果；招聘流程请切换到招聘工作台。"));
+            this.appendDemoMessage(demoAssistant(action === "cancel" ? "当前没有正在执行的任务。" : this.cwd === presentationCwd() ? PRESENTATION_HELP : "可以在当前工作台查看资料和成果；如需生成 JD 或发布岗位，请切换到招聘工作台。"));
             this.emit({ type: "agent_end", messages: [] });
             this.emit({ type: "prompt_done" });
             return null;

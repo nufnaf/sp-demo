@@ -122,7 +122,7 @@ async function startSupervisor() {
           delete env.OPENROUTER_API_KEY;
           delete env.DEEPSEEK_API_KEY;
         } catch {
-          await showStatus({ phase: 'error', title: '演示模型配置不可用', detail: '安装包缺少有效的模型服务配置，请联系提供者重新打包。无需登录 ChatGPT。', retry: false });
+          await showStatus({ phase: 'error', title: '模型服务配置不可用', detail: '模型服务配置缺失或无效，请联系管理员。', retry: false });
           return;
         }
       }

@@ -39,7 +39,7 @@ export async function readRecruitingSnapshot(signal?: AbortSignal): Promise<Recr
 /** Do not import another demo run's job or scene into this run. */
 export function verifiedRecruitingSnapshot(data: RecruitingSnapshot, draft: string): RecruitingSnapshot {
   const job = data.jobs.find(item => item.draft === draft);
-  if (!job) throw new Error("未找到本轮演示的已发布岗位，请核对网页后重试。");
+  if (!job) throw new Error("未找到当前工作台的已发布岗位，请核对网页后重试。");
   if (data.scene?.job?.id !== job.id) throw new Error("招聘统计与本轮岗位不一致，请重新查询招聘进展。");
   return { jobs: [job], scene: data.scene };
 }

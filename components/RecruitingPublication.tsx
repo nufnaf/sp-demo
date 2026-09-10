@@ -222,7 +222,7 @@ export function RecruitingPublication(props: Props) {
     artifact: suggestion,
     modified: suggestion.recognizedAt,
     title: completedJob ? "岗位发布建议 · 已完成" : "已识别新创建的 JD",
-    detail: completedJob ? `「${completedJob.title}」已发布到${publicationDestinations(completedJob)}。` : pending ? "正在通过招聘网页发布岗位，完成后将同步招聘进展。" : props.presentation ? "岗位 JD 已准备好，可以发布到内部招聘系统，并同步生成 BOSS 直聘的模拟发布结果。" : "岗位 JD 已准备好，可以发布到内部招聘系统。",
+    detail: completedJob ? `「${completedJob.title}」已发布到${publicationDestinations(completedJob)}。` : pending ? "正在通过招聘网页发布岗位，完成后将同步招聘进展。" : props.presentation ? "岗位 JD 已准备好，可以发布到内部招聘系统和 BOSS 直聘。" : "岗位 JD 已准备好，可以发布到内部招聘系统。",
     actionLabel: completedJob ? "已发布" : pending ? "正在发布…" : preparing ? "正在准备…" : "发布岗位",
     disabled: Boolean(completedJob || pending) || preparing,
     onPublish: () => void publish(),

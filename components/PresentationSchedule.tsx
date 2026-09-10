@@ -2,6 +2,7 @@
 import "./PresentationSchedule.css";
 import { useFeishuCalendar } from "@/hooks/useFeishuCalendar";
 import { addCalendarDays, calendarDate, calendarDuration, calendarTimeLabel } from "@/lib/calendar-view";
+import { calendarDescriptionForDisplay } from "@/lib/feishu-demo-calendar-marker";
 
 export function PresentationSchedule({ recruiting = true }: { recruiting?: boolean } = {}) {
   const { events, date, loading, error, fetchedAt, refresh, setDate } = useFeishuCalendar(recruiting);
@@ -17,13 +18,16 @@ export function PresentationSchedule({ recruiting = true }: { recruiting?: boole
     {error && <p role="alert">{error}{events.length > 0 ? "（下方为上次读取的日程）" : ""}</p>}
     {recruiting && loading && !events.length && <p role="status">正在读取飞书日程…</p>}
     {(!recruiting || (!loading && !error && !events.length)) && <p>当前范围暂无已安排的会议。</p>}
-    {recruiting && events.map(event => <article key={event.id}>
-      <em>已安排</em><h2>{event.title}</h2><p>{event.allDay ? event.startsAt : calendarTimeLabel(event)} · {calendarDuration(event)}</p>
-      {event.allDay ? event.endsAt !== event.startsAt && <p>结束日期：{event.endsAt}</p> : <p>结束：{calendarTimeLabel({ ...event, startsAt: event.endsAt })}</p>}
-      {event.location && <p>地点：{event.location}</p>}
-      {event.description && <><h3>会议说明</h3><p style={{ whiteSpace: "pre-wrap" }}>{event.description}</p></>}
-      {event.appLink && <a href={event.appLink} target="_blank" rel="noreferrer">在飞书中查看 ↗</a>}
-    </article>)}
+    {recruiting && events.map(event => {
+      const description = calendarDescriptionForDisplay(event.description);
+      return <article key={event.id}>
+        <em>已安排</em><h2>{event.title}</h2><p>{event.allDay ? event.startsAt : calendarTimeLabel(event)} · {calendarDuration(event)}</p>
+        {event.allDay ? event.endsAt !== event.startsAt && <p>结束日期：{event.endsAt}</p> : <p>结束：{calendarTimeLabel({ ...event, startsAt: event.endsAt })}</p>}
+        {event.location && <p>地点：{event.location}</p>}
+        {description && <><h3>会议说明</h3><p style={{ whiteSpace: "pre-wrap" }}>{description}</p></>}
+        {event.appLink && <a href={event.appLink} target="_blank" rel="noreferrer">在飞书中查看 ↗</a>}
+      </article>;
+    })}
     {recruiting && fetchedAt && <small>最近读取：{new Date(fetchedAt).toLocaleTimeString("zh-CN", { timeZone: "Asia/Shanghai" })}</small>}
   </section>;
 }

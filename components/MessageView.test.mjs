@@ -26,6 +26,16 @@ function renderMessage(message, props = {}) {
   );
 }
 
+test("scripted workflow replies use the product label while retaining internal model provenance", () => {
+  const message = { role: "assistant", provider: "syntropic-demo", model: "fixed-jd", content: [{ type: "text", text: "岗位 JD 已准备好。" }] };
+  const html = renderMessage(message);
+  assert.match(html, /Syntropic/);
+  assert.doesNotMatch(html, /fixed-jd|syntropic-demo/);
+  assert.equal(message.provider, "syntropic-demo");
+  assert.equal(message.model, "fixed-jd");
+  assert.match(renderMessage({ ...message, provider: "anthropic", model: "claude-test" }), /claude-test/);
+});
+
 test("keeps streamed tool input out of collapsed markup while counting it", () => {
   const block = {
     type: "toolCall",

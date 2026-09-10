@@ -39,7 +39,7 @@ export async function saveRecruitingJdDemo(cwd: string, signal?: AbortSignal) {
 }
 
 export function createRecruitingJdDemoTask(cwd: string, jarvisSessionId: string, message: string) {
-  if (!isRecruitingJdDemoRequest(cwd, message)) throw new Error("不是当前招聘演示的 JD 生成请求。");
+  if (!isRecruitingJdDemoRequest(cwd, message)) throw new Error("请切换到招聘工作台后生成岗位 JD。");
   const manager = SessionManager.create(cwd, presentationSessionDir(cwd));
   const task: JarvisTaskInfo = { sessionId: manager.getSessionId(), jarvisSessionId, description: "生成岗位 JD", status: "running", createdAt: new Date().toISOString() };
   manager.appendCustomEntry(JARVIS_TASK_ORIGIN_TYPE, { version: 1, jarvisSessionId, description: task.description, createdAt: task.createdAt });

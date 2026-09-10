@@ -3,17 +3,17 @@ import { join } from 'node:path';
 
 // Also used by the packager. Errors deliberately omit file contents.
 export async function readDemoModelConfig(configPath, provider = 'openrouter') {
-  if (!['openrouter', 'deepseek'].includes(provider)) throw new Error('不支持的演示模型服务。');
+  if (!['openrouter', 'deepseek'].includes(provider)) throw new Error('不支持的模型服务。');
   const label = provider === 'deepseek' ? 'DeepSeek' : 'OpenRouter';
   let config;
   try { config = JSON.parse(await readFile(configPath, 'utf8')); }
-  catch { throw new Error(`无法读取 ${label} 演示配置，请提供有效的 .env.${provider}-demo.json。`); }
+  catch { throw new Error(`无法读取 ${label} 模型服务配置，请联系管理员。`); }
   if (typeof config?.apiKey !== 'string' || !config.apiKey.trim() || /\s/.test(config.apiKey.trim())) {
-    throw new Error(`${label} 演示配置缺少有效 apiKey。`);
+    throw new Error(`${label} 模型服务缺少有效的 API 密钥。`);
   }
   const modelId = provider === 'deepseek' ? (config.modelId || 'deepseek-flash') : 'openai/gpt-5.6-luna';
   if (typeof modelId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9./_-]{0,127}$/.test(modelId)) {
-    throw new Error(`${label} 演示配置的 modelId 无效。`);
+    throw new Error(`${label} 模型配置无效。`);
   }
   return { apiKey: config.apiKey.trim(), modelId };
 }

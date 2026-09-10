@@ -69,8 +69,8 @@ export class FeishuCalendarClient {
       const query = new URLSearchParams({ page_size: "500", anchor_time: "0" });
       if (token) query.set("page_token", token);
       const data = await this.request(this.path(`?${query}`));
-      if (data.items !== undefined && !Array.isArray(data.items)) throw new Error("飞书日程列表不完整，未重置演示日程。");
-      if (data.items === undefined && data.has_more) throw new Error("飞书日程列表不完整，未重置演示日程。");
+      if (data.items !== undefined && !Array.isArray(data.items)) throw new Error("飞书日程列表不完整，已暂停同步，请重试。");
+      if (data.items === undefined && data.has_more) throw new Error("飞书日程列表不完整，已暂停同步，请重试。");
       for (const item of (data.items ?? []) as Record<string, unknown>[]) {
         if (item.status === "cancelled") continue;
         const event = normalizeCalendarEvent(item, this.calendarId);
@@ -81,7 +81,7 @@ export class FeishuCalendarClient {
       if (!token || seen.has(token)) break;
       seen.add(token);
     }
-    throw new Error("飞书日程列表加载未完成，未重置演示日程。");
+    throw new Error("飞书日程列表加载未完成，已暂停同步，请重试。");
   }
   async remove(eventId: string): Promise<void> {
     if (!eventId) throw new Error("日程标识无效。");

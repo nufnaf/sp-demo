@@ -36,9 +36,9 @@ export async function resetPresentationCalendar(root: string, calendar: FeishuCa
     let state: ResetState | undefined;
     try { state = JSON.parse(await readFile(file, "utf8")); }
     catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw new Error("演示日程初始化记录无法读取，请重新打开 App。");
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw new Error("日程同步记录无法读取，请重新打开 App。");
     }
-    if (state && (!/^\d{4}-\d{2}-\d{2}$/.test(state.date) || !Array.isArray(state.staleIds) || !state.staleIds.every(id => typeof id === "string") || typeof state.complete !== "boolean")) throw new Error("演示日程初始化记录不完整，请重新打开 App。");
+    if (state && (!/^\d{4}-\d{2}-\d{2}$/.test(state.date) || !Array.isArray(state.staleIds) || !state.staleIds.every(id => typeof id === "string") || typeof state.complete !== "boolean")) throw new Error("日程同步记录不完整，请重新打开 App。");
     if (state?.complete) return;
     // Read every page before any mutation. Cancelled tombstones are excluded.
     const events = await calendar.allEvents();

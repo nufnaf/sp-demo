@@ -58,6 +58,6 @@ export class OwnedProcessTree {
       if (!(await this.capture()).length) return;
       await delay(150);
     }
-    throw new Error('仍有本 App 的子进程未结束，保留演示目录以避免后台写入与清理冲突。');
+    throw new Error('应用仍有后台进程未结束，工作数据已保留，请稍后重试退出。');
   }
 }

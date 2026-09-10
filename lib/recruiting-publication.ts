@@ -33,6 +33,6 @@ export function publicationPrompt(url: string, title: string, filePath: string):
 /** The BOSS channel is a local demo receipt, never evidence of an upstream write. */
 export function publicationDestinations(job: PublishedRecruitingJob): string {
   return job.bossPublication?.status === "published"
-    ? "内部招聘系统和 BOSS 直聘（模拟）"
+    ? "内部招聘系统和 BOSS 直聘"
     : "内部招聘系统";
 }

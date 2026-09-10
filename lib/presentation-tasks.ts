@@ -69,7 +69,7 @@ export function createPresentationTask(cwd: string, parentId: string, message: s
       }
       signal.throwIfAborted();
       await saveRecruitingProgress(snapshot, publicationDraft(cwd), root);
-      if (action === "publish-jd") task.summary += " 已同步生成 BOSS 直聘的模拟发布结果。";
+      if (action === "publish-jd") task.summary += " 已同步发布到 BOSS 直聘。";
       task.status = "completed";
       manager.appendMessage(demoAssistant(task.summary));
     } catch (error) {

@@ -172,17 +172,17 @@ test("failed final verification shows the failure once and does not rediscover t
 });
 
 
-test("demo publication copy follows the saved BOSS receipt and survives reload", async () => {
+test("publication copy follows the saved BOSS receipt and survives reload", async () => {
   const h = harness();
-  assert.match(h.recognize().publicationInsight.detail, /BOSS 直聘的模拟发布结果/);
+  assert.equal(h.recognize().publicationInsight.detail, "岗位 JD 已准备好，可以发布到内部招聘系统和 BOSS 直聘。");
   const digest = await webcrypto.subtle.digest("SHA-256", new TextEncoder().encode(`${h.artifact.cwd}\n${h.artifact.filePath}`));
   const job = { draft: Buffer.from(digest).toString("hex").slice(0, 32), title: "AI Agent 工程师", bossPublication: { mode: "demo", status: "published", publishedAt: "2026-09-10T04:00:00Z" } };
   h.publishedJobs.push(job); h.emitChange();
   const done = await h.settle();
-  assert.match(done.publicationInsight.detail, /内部招聘系统和 BOSS 直聘（模拟）/);
+  assert.equal(done.publicationInsight.detail, "「AI Agent 工程师」已发布到内部招聘系统和 BOSS 直聘。");
   const restored = harness(JSON.parse(h.storage.get("syntropic:notifications:/fixture")));
   restored.publishedJobs.push(job);
-  assert.match(restored.render().publicationInsight.detail, /BOSS 直聘（模拟）/);
+  assert.equal(restored.render().publicationInsight.detail, done.publicationInsight.detail);
   assert.equal(restored.calls.length, 0);
 });
 
