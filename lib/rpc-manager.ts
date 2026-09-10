@@ -20,6 +20,7 @@ import {
 import { cacheSessionPath, invalidateSessionListCache, resolveSessionPath } from "./session-reader";
 import { getProjectTrustStatus, projectTrustReloadOptions } from "./project-trust";
 import { persistExplicitStartupPreferences } from "./startup-preferences";
+import { persistInitialSession } from "./session-persistence";
 import { notifySessionComplete } from "./web-push";
 import { hydrateAppConnectionEnvironment } from "./app-connections";
 import type { SlashCommandInfo } from "@earendil-works/pi-coding-agent";
@@ -83,6 +84,13 @@ import {
 export interface AgentEvent {
   type: string;
   [key: string]: unknown;
+}
+
+export class SessionNotFoundError extends Error {
+  constructor() {
+    super("Session not found");
+    this.name = "SessionNotFoundError";
+  }
 }
 
 type EventListener = (event: AgentEvent) => void;
@@ -545,7 +553,7 @@ export class AgentSessionWrapper {
   }
 
   private emit(event: AgentEvent): void {
-    for (const listener of this.listeners) {
+    for (const listener of [...this.listeners]) {
       try {
         listener(event);
       } catch (error) {
@@ -603,6 +611,10 @@ export class AgentSessionWrapper {
   }
 
   onEvent(listener: EventListener): () => void {
+    if (!this._alive) {
+      listener({ type: "session_closed" });
+      return () => {};
+    }
     this.listeners.push(listener);
     for (const event of this.pendingUiRequests.values()) listener(event);
     return () => {
@@ -1139,6 +1151,7 @@ export class AgentSessionWrapper {
     if (!this._alive) return;
     this.presentationRun?.controller.abort();
     this._alive = false;
+    this.emit({ type: "session_closed" });
     if (this.idleTimer) clearTimeout(this.idleTimer);
     if (this.inner.isBashRunning) this.inner.abortBash();
     this.unsubscribe?.();
@@ -2323,7 +2336,11 @@ export async function startRpcSession(
 
   let sessionManager: SessionManager;
   if (sessionFile) {
+    // The SDK creates a different session when the file is absent.
+    // A resume must never silently change its identity or working directory.
+    if (!existsSync(sessionFile)) throw new SessionNotFoundError();
     sessionManager = SessionManager.open(sessionFile, undefined);
+    if (sessionManager.getSessionId() !== sessionId) throw new Error("Session identity mismatch");
   } else {
     if (!cwd) throw new Error("cwd is required for a new session");
     sessionManager = SessionManager.create(cwd, presentationSessionDir(cwd));
@@ -2355,6 +2372,7 @@ export async function startRpcSession(
     } satisfies JarvisMetadata);
     sessionManager.appendSessionInfo(JARVIS_SESSION_NAME);
   }
+  if (jarvis) persistInitialSession(sessionManager);
   const chatOnly = !jarvis && selectedToolNames?.length === 0 && !subagentLoadsResources;
   const finishStartingSession = trackStartingSession(sessionCwd);
   const starting = (async () => {
