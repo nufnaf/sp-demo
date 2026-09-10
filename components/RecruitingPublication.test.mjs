@@ -16,6 +16,7 @@ function harness(saved = {}) {
   const slots = [], storage = new Map(), timers = new Map();
   const publishedJobs = [];
   const browserTasks = [];
+  const taskMessages = [];
   const runningSessionIds = [];
   const listeners = new Map();
   let intervalCalls = 0;
@@ -49,7 +50,7 @@ function harness(saved = {}) {
     setTimeout: (fn, delay) => { const id = {}; timers.set(id, { fn, delay }); return id; }, clearTimeout: id => timers.delete(id),
     setInterval: () => { intervalCalls++; return {}; }, clearInterval() {},
     window: { addEventListener: (name, fn) => { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name).add(fn); }, removeEventListener: (name, fn) => listeners.get(name)?.delete(fn) },
-    fetch: async url => ({ ok: true, json: async () => String(url).includes("/api/files/") ? { content: "# AI Agent 工程师\n岗位说明" } : String(url).includes("internal-recruiting") ? { baseUrl: "http://localhost", jobs: publishedJobs } : String(url).includes("/api/agent/running") ? { runningSessionIds } : { tasks: browserTasks } }),
+    fetch: async url => ({ ok: true, json: async () => String(url).includes("/api/files/") ? { content: "# AI Agent 工程师\n岗位说明" } : String(url).includes("internal-recruiting") ? { baseUrl: "http://localhost", jobs: publishedJobs } : String(url).includes("/api/agent/running") ? { runningSessionIds } : String(url).includes("/api/sessions/") ? { context: { messages: taskMessages } } : { tasks: browserTasks } }),
     require: id => id === "react" ? react : id === "react/jsx-runtime" ? require(id) : id === "./DesktopNotification" ? { DesktopNotification() {} } : id.includes("file-paths") ? { encodeFilePathForApi: encodeURIComponent } : { publicationDestinations, isJdDemoArtifact: item => item.filePath.endsWith("jd.md"), publicationPrompt: (url, title, path) => `${url} ${title} ${path}` },
   });
   const render = () => {
@@ -61,7 +62,7 @@ function harness(saved = {}) {
     } while (dirty);
     return output;
   };
-  return { props, artifact, report, calls, storage, render, publishedJobs, browserTasks, runningSessionIds,
+  return { props, artifact, report, calls, storage, render, publishedJobs, browserTasks, runningSessionIds, taskMessages,
     emitChange() { for (const fn of listeners.get("agent-os:presentation-changed") ?? []) fn(); },
     intervalCalls: () => intervalCalls,
     tick() { const ready = [...timers]; for (const [id, timer] of ready) if (timer.delay === 750) { timers.delete(id); timer.fn(); } },
@@ -258,4 +259,22 @@ test("legacy path-based notification history restores without repeating a dismis
   const artifact = { cwd: "/fixture", sessionId: "jd-session", filePath: "/fixture/engineer-jd.md", taskTitle: "生成岗位 JD" };
   const h = harness({ suggestion: artifact, seen: [artifact.filePath], dismissed: true });
   assert.equal(h.recognize().notification, null);
+});
+
+for (const browserCompleted of [false, true]) test(`publication shows persisted failure when browser completed=${browserCompleted}`, async () => {
+  const h = harness(); const notices = [], published = [];
+  const reason = browserCompleted
+    ? "网页操作已结束，但保存结果尚未确认。招聘网站响应超时（已等待 30 秒），请检查网络后重试。"
+    : "尚未提交岗位。招聘网站响应超时（已等待 30 秒），请检查网络后重试。";
+  h.taskMessages.push({ role: 'assistant', stopReason: 'error', errorMessage: reason });
+  if (browserCompleted) h.browserTasks.push({ parentSessionId: 'publication-session', status: 'completed' });
+  h.props.onNotice = message => notices.push(message);
+  h.props.onPublished = job => published.push(job);
+  h.recognize().publicationInsight.onOpen();
+  const result = await h.settle();
+  assert.deepEqual(notices, [reason]);
+  assert.deepEqual(published, []);
+  assert.equal(result.publicationInsight.disabled, false, 'retry remains available');
+  h.tick(); await h.settle();
+  assert.equal(notices.length, 1, 'failure is announced once');
 });

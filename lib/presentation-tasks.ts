@@ -26,9 +26,20 @@ export function createPresentationTask(cwd: string, parentId: string, message: s
   manager.appendSessionInfo(task.description);
   manager.appendMessage({ role: "user", content: message, timestamp: Date.now() });
   return { task, manager, async run(signal: AbortSignal) {
+    const readSnapshot = async (afterBrowser: boolean) => {
+      try { return await readRecruitingSnapshot(signal); }
+      catch (error) {
+        signal.throwIfAborted();
+        const reason = error instanceof Error ? error.message : String(error);
+        if (action !== "publish-jd") throw error;
+        throw new Error(afterBrowser
+          ? `网页操作已结束，但保存结果尚未确认。${reason}重试时会先核对已有岗位。`
+          : `尚未提交岗位。${reason}`);
+      }
+    };
     try {
       signal.throwIfAborted();
-      let snapshot = await readRecruitingSnapshot();
+      let snapshot = await readSnapshot(false);
       const published = snapshot.jobs.find(job => job.draft === publicationDraft(cwd));
       if (action === "publish-jd" && published) {
         task.summary = `“${published.title}”已发布，可在人才招聘中查看，无需重复创建。`;
@@ -48,7 +59,7 @@ export function createPresentationTask(cwd: string, parentId: string, message: s
         manager.appendMessage({ role: "toolResult", toolCallId, toolName: "browser_task", content: [{ type: "text", text: result.result || result.error || result.status }], details: result, isError: result.status !== "completed", timestamp: Date.now() });
         signal.throwIfAborted();
         if (result.status !== "completed") throw new Error(result.error || result.result || "网页任务未完成。");
-        snapshot = await readRecruitingSnapshot();
+        snapshot = await readSnapshot(true);
         signal.throwIfAborted();
         if (action === "publish-jd") {
           const saved = snapshot.jobs.find(job => job.draft === publicationDraft(cwd));

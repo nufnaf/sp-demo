@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import * as undici from "undici";
+import { macOSProxyForUrl, readMacOSProxySettings, type MacOSProxySettings } from "./macos-proxy";
 
 export const DEFAULT_HTTP_IDLE_TIMEOUT_MS = 300_000;
 
@@ -55,25 +56,44 @@ function createUndiciOriginDispatcher(origin: string | URL, options: object): un
   );
 }
 
-export function configureHttpDispatcher(
-  timeoutMs: number = DEFAULT_HTTP_IDLE_TIMEOUT_MS,
-): void {
-  if (dispatcherGlobal.__piWebHttpDispatcherConfigured) return;
-
+export function createHttpDispatcher(timeoutMs: number, systemProxy?: MacOSProxySettings): undici.Dispatcher {
   const normalizedTimeoutMs = parseHttpIdleTimeoutMs(timeoutMs);
   if (normalizedTimeoutMs === undefined) {
     throw new Error(`Invalid HTTP idle timeout: ${String(timeoutMs)}`);
   }
 
-  const dispatcher = withUndiciErrorListener(
-    new undici.EnvHttpProxyAgent({
-      allowH2: false,
-      bodyTimeout: normalizedTimeoutMs,
-      headersTimeout: normalizedTimeoutMs,
-      clientFactory: createUndiciClient,
-      factory: createUndiciOriginDispatcher,
-    }),
-  );
+  const options = {
+    allowH2: false,
+    bodyTimeout: normalizedTimeoutMs,
+    headersTimeout: normalizedTimeoutMs,
+    clientFactory: createUndiciClient,
+    factory: createUndiciOriginDispatcher,
+  };
+  // Explicit environment settings retain their original precedence and dynamic
+  // NO_PROXY behavior. GUI-launched Apps commonly have none of these variables.
+  const explicitProxy = ["http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY"]
+    .some(key => process.env[key] !== undefined);
+  if (!systemProxy || explicitProxy) return withUndiciErrorListener(new undici.EnvHttpProxyAgent(options));
+  // Let EnvHttpProxyAgent keep ownership of environment NO_PROXY matching even
+  // when the proxy endpoint itself comes from macOS. Its direct agent factory
+  // is intentionally not used here: that would proxy bypassed requests again.
+  return withUndiciErrorListener(new undici.Agent({
+    ...options,
+    factory(origin, poolOptions) {
+      const proxy = macOSProxyForUrl(systemProxy, new URL(origin));
+      if (!proxy) return createUndiciOriginDispatcher(origin, poolOptions);
+      return withUndiciErrorListener(new undici.EnvHttpProxyAgent({
+        ...options, httpProxy: proxy, httpsProxy: proxy,
+      }));
+    },
+  }));
+}
+
+export function configureHttpDispatcher(
+  timeoutMs: number = DEFAULT_HTTP_IDLE_TIMEOUT_MS,
+): void {
+  if (dispatcherGlobal.__piWebHttpDispatcherConfigured) return;
+  const dispatcher = createHttpDispatcher(timeoutMs, readMacOSProxySettings());
   undici.setGlobalDispatcher(dispatcher);
 
   // Keep fetch and the dispatcher on the same undici implementation. Preserve

@@ -8,13 +8,28 @@ export interface RecruitingSnapshot {
 }
 
 /** Called only at an explicit publication/query boundary in the demo. */
-export async function readRecruitingSnapshot(): Promise<RecruitingSnapshot> {
+export async function readRecruitingSnapshot(signal?: AbortSignal): Promise<RecruitingSnapshot> {
   const base = recruitingSiteUrl();
-  const response = await fetch(new URL("desktop/published-jobs", base), {
-    cache: "no-store", redirect: "error", signal: AbortSignal.timeout(5000),
-  });
-  if (!response.ok) throw new Error("暂时无法核对招聘网页的保存结果。");
-  const data = await response.json();
+  // Bound the complete read (including the body), while preserving cancellation.
+  const deadline = AbortSignal.timeout(30_000);
+  const requestSignal = signal ? AbortSignal.any([signal, deadline]) : deadline;
+  let data;
+  try {
+    const response = await fetch(new URL("desktop/published-jobs", base), {
+      cache: "no-store", redirect: "error", signal: requestSignal,
+    });
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw new Error(`招聘网站暂时无法返回岗位信息（HTTP ${response.status}），请稍后重试。`);
+    }
+    data = await response.json();
+  } catch (error) {
+    signal?.throwIfAborted();
+    if (deadline.aborted) throw new Error("招聘网站响应超时（已等待 30 秒），请检查网络后重试。");
+    if (error instanceof TypeError) throw new Error("暂时无法连接招聘网站，请检查网络后重试。");
+    if (error instanceof SyntaxError) throw new Error("招聘网站返回的数据无效，请稍后重试。");
+    throw error;
+  }
   if (data.app !== "syntropic-recruiting" || !Array.isArray(data.jobs)) throw new Error("招聘系统返回了无法识别的结果。");
   return { scene: data.scene ?? null, jobs: data.jobs.map((job: PublishedRecruitingJob) => ({
     ...job, url: new URL(`jobs/${encodeURIComponent(job.id)}`, base).href,
