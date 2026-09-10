@@ -1735,6 +1735,10 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
       ? [...SYSTEM_DOCK_APPS.filter((app) => preferredIds.has(app.id)), { kind: "system", id: "system:calendar", name: "团队日程", description: "查看团队会议安排", category: "团队协作", icon: "clock", rank: 6 }]
       : readPinnedDockApps();
     if (presentationCwd && !pinnedApps.some((app) => app.id === "builtin:feishu")) pinnedApps.push(BUILTIN_LAUNCHPAD_APPS.find((app) => app.id === "builtin:feishu")!);
+    if (presentationCwd && !pinnedApps.some((app) => app.id === "connector:boss-zhipin")) {
+      const boss = toConnectorLaunchpadApp("boss-zhipin");
+      if (boss) pinnedApps.push(boss);
+    }
     setDockApps(pinnedApps);
     setPinnedDockAppIds(new Set(pinnedApps.map((app) => app.id)));
     setDockPinsLoaded(true);
