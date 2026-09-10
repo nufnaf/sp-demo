@@ -1,4 +1,5 @@
 "use client";
+import { BossDemoApp } from "./BossDemoApp";
 import { FeishuDemoApp, FeishuDemoDocument } from "./FeishuDemoApp";
 import { PresentationSchedule } from "./RecruitingPipeline";
 
@@ -8,7 +9,7 @@ import { DesktopDesignIcon } from "./DesktopDesignIcon";
 import { DesktopStartStage } from "./DesktopStartStage";
 import { DesktopComposerInput } from "./DesktopComposerInput";
 import { DesktopDock } from "./DesktopDock";
-import { isJdDemoArtifact } from "@/lib/recruiting-publication";
+import { isJdDemoArtifact, publicationDestinations } from "@/lib/recruiting-publication";
 import { DesktopWorkspaceWidgets, workspaceReference, type WorkspaceWidgetItem } from "./DesktopWorkspaceWidgets";
 import { DesktopCollaboration } from "./DesktopCollaboration";
 import { compactDesktopTurns } from "@/lib/desktop-conversation";
@@ -2447,7 +2448,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
             setHrRecruitingOpen(true);
             setFrontWindow("hr");
           }
-          setNotice(`「${job.title}」已发布到内部招聘系统`);
+          setNotice(`「${job.title}」已发布到${publicationDestinations(job)}`);
         }}
         onSettled={(sessionId) => {
           if (publicationSessionRef.current === sessionId) publicationSessionRef.current = null;
@@ -2720,7 +2721,9 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
             {app.kind === "builtin" ? (
               <>{presentationCwd ? <FeishuDemoApp recruiting={activeCwd === presentationCwd} onOpen={openFeishuDocument}/> : <FeishuAppView app={app} onNotice={setNotice} onOpenDocument={openFeishuDocument}/>}</>
             ) : (
-              <ConnectedAppView app={app} onNotice={setNotice}/>
+              presentationCwd && app.appearance === "boss-zhipin"
+                ? <BossDemoApp/>
+                : <ConnectedAppView app={app} onNotice={setNotice}/>
             )}
           </DesktopWindow>;
         })}

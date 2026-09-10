@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { webcrypto } from "node:crypto";
 import vm from "node:vm";
 import ts from "typescript";
+import { publicationDestinations } from "../lib/recruiting-publication.ts";
 
 const source = await readFile(new URL("./RecruitingPublication.tsx", import.meta.url), "utf8");
 const compiled = ts.transpile(source, { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 });
@@ -49,7 +50,7 @@ function harness(saved = {}) {
     setInterval: () => { intervalCalls++; return {}; }, clearInterval() {},
     window: { addEventListener: (name, fn) => { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name).add(fn); }, removeEventListener: (name, fn) => listeners.get(name)?.delete(fn) },
     fetch: async url => ({ ok: true, json: async () => String(url).includes("/api/files/") ? { content: "# AI Agent 工程师\n岗位说明" } : String(url).includes("internal-recruiting") ? { baseUrl: "http://localhost", jobs: publishedJobs } : String(url).includes("/api/agent/running") ? { runningSessionIds } : { tasks: browserTasks } }),
-    require: id => id === "react" ? react : id === "react/jsx-runtime" ? require(id) : id === "./DesktopNotification" ? { DesktopNotification() {} } : id.includes("file-paths") ? { encodeFilePathForApi: encodeURIComponent } : { isJdDemoArtifact: item => item.filePath.endsWith("jd.md"), publicationPrompt: (url, title, path) => `${url} ${title} ${path}` },
+    require: id => id === "react" ? react : id === "react/jsx-runtime" ? require(id) : id === "./DesktopNotification" ? { DesktopNotification() {} } : id.includes("file-paths") ? { encodeFilePathForApi: encodeURIComponent } : { publicationDestinations, isJdDemoArtifact: item => item.filePath.endsWith("jd.md"), publicationPrompt: (url, title, path) => `${url} ${title} ${path}` },
   });
   const render = () => {
     let count = 0;
@@ -163,4 +164,19 @@ test("failed final verification shows the failure once and does not rediscover t
   h.recognize().publicationInsight.onOpen(); const done=await h.settle();
   assert.equal(notices.length,1); assert.match(notices[0],/没有找到/);
   assert.ok(done.publicationInsight); assert.equal(done.notification,null);
+});
+
+
+test("demo publication copy follows the saved BOSS receipt and survives reload", async () => {
+  const h = harness();
+  assert.match(h.recognize().publicationInsight.detail, /BOSS 直聘的模拟发布结果/);
+  const digest = await webcrypto.subtle.digest("SHA-256", new TextEncoder().encode(`${h.artifact.cwd}\n${h.artifact.filePath}`));
+  const job = { draft: Buffer.from(digest).toString("hex").slice(0, 32), title: "AI Agent 工程师", bossPublication: { mode: "demo", status: "published", publishedAt: "2026-09-10T04:00:00Z" } };
+  h.publishedJobs.push(job); h.emitChange();
+  const done = await h.settle();
+  assert.match(done.publicationInsight.detail, /内部招聘系统和 BOSS 直聘（模拟）/);
+  const restored = harness(JSON.parse(h.storage.get("syntropic:notifications:/fixture")));
+  restored.publishedJobs.push(job);
+  assert.match(restored.render().publicationInsight.detail, /BOSS 直聘（模拟）/);
+  assert.equal(restored.calls.length, 0);
 });
