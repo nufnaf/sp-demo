@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { FeishuCalendarClient } from "./feishu-calendar";
 
-interface Config { appId: string; appSecret: string; folderToken: string; documentIds: string[]; resourceIds?: string[]; wikiNodeIds?: string[]; calendarId?: string }
+interface Config { appId: string; appSecret: string; folderToken: string; documentIds: string[]; resourceIds?: string[]; wikiNodeIds?: string[]; calendarId?: string; calendarResetEventIds?: string[] }
 interface Envelope { code?: number; msg?: string; expire?: number; tenant_access_token?: string; data?: Record<string, unknown> }
 export class FeishuDemoError extends Error {
   constructor(public kind: "configuration" | "authorization" | "network", message: string) { super(message); }
@@ -59,7 +59,7 @@ export class FeishuDemoClient {
   calendar(): FeishuCalendarClient {
     const id = this.config.calendarId;
     if (typeof id !== "string" || !id.trim() || id.trim() === "primary") throw new FeishuDemoError("configuration", "请在飞书配置中填写专用演示日历 calendarId，并完成日历授权。");
-    return new FeishuCalendarClient(id.trim(), `${this.config.appId}:${id.trim()}`, (path, init) => this.get(path, init, true));
+    return new FeishuCalendarClient(id.trim(), `${this.config.appId}:${id.trim()}`, (path, init) => this.get(path, init, true), this.config.calendarResetEventIds);
   }
   private async folderDocuments(query = ""): Promise<DemoDocument[]> {
     const items: DemoDocument[] = [];
@@ -129,6 +129,7 @@ export async function getFeishuDemoClient(): Promise<FeishuDemoClient> {
     for (const ids of [config.resourceIds, config.wikiNodeIds]) {
       if (ids !== undefined && (!Array.isArray(ids) || !ids.every(id => typeof id === "string" && /^[a-zA-Z0-9]+$/.test(id)))) throw new Error();
     }
+    if (config.calendarResetEventIds !== undefined && (!Array.isArray(config.calendarResetEventIds) || !config.calendarResetEventIds.every(id => typeof id === "string" && /^[a-zA-Z0-9_-]+$/.test(id)))) throw new Error();
   } catch { throw new FeishuDemoError("configuration", "飞书尚未连接，请联系管理员完成配置。"); }
   const identity = JSON.stringify(config);
   if (!client || identity !== configIdentity) { client = new FeishuDemoClient(config); configIdentity = identity; }

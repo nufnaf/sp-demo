@@ -5,6 +5,8 @@ import { getFeishuDemoClient } from "./feishu-demo-client";
 import type { CalendarEventDraft, FeishuCalendarClient, FeishuCalendarEvent } from "./feishu-calendar";
 import type { RecruitingScene } from "./recruiting-scene";
 import { addCalendarDays, calendarDate } from "./calendar-view";
+import { demoCalendarDescription } from "./feishu-demo-calendar-marker";
+import { presentationRoot } from "./presentation-runtime";
 
 interface MeetingRequest { key: string; draft: CalendarEventDraft; eventId?: string }
 declare global { var __syntropicFeishuMeetingLocks: Map<string, Promise<FeishuCalendarEvent>> | undefined }
@@ -54,5 +56,7 @@ export function alignmentMeetingDraft(scene: RecruitingScene, now = new Date()):
 }
 export async function scheduleFeishuAlignmentMeeting(root: string, scene: RecruitingScene): Promise<FeishuCalendarEvent> {
   const calendar = (await getFeishuDemoClient()).calendar();
-  return ensureFeishuMeeting(root, `alignment-${scene.job?.id}`, alignmentMeetingDraft(scene), calendar);
+  const draft = alignmentMeetingDraft(scene);
+  if (presentationRoot()) draft.description = demoCalendarDescription(draft.description);
+  return ensureFeishuMeeting(root, `alignment-${scene.job?.id}`, draft, calendar);
 }

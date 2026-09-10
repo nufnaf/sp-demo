@@ -10,7 +10,7 @@ export async function createPresentationRun(userData) {
   const root = join(runs, id);
   await mkdir(join(root, 'workspace'), { recursive: true });
   await writeFile(join(root, 'owner.json'), JSON.stringify({ id, pid: process.pid }), { mode: 0o600 });
-  await writeFile(join(root, 'workspace', 'AGENTS.md'), '# 星流科技招聘工作台\n固定岗位：高级 AI Agent 研发工程师；Agent Platform；北京 / 上海；招聘 6 人。JD 使用本地固定内容，不调用模型或实时读取飞书。发布和招聘查询由程序直接交给 Pi 浏览器 Agent，使用已登记招聘网页。其他输入不启动模型任务。会议只记录当前工作台日程，不发送邀请。\n', { mode: 0o600 });
+  await writeFile(join(root, 'workspace', 'AGENTS.md'), '# 星流科技招聘工作台\n固定岗位：高级 AI Agent 研发工程师；Agent Platform；北京 / 上海；招聘 6 人。JD 使用本地固定内容，不调用模型或实时读取飞书。发布和招聘查询由程序直接交给 Pi 浏览器 Agent，使用已登记招聘网页。其他输入不启动模型任务。会议同步专用飞书演示日历，不发送邀请；每次完整重启恢复当天两个预设会议。\n', { mode: 0o600 });
   const presets = [
     { directory: 'workspace', name: '招聘工作台' },
     { directory: 'workspaces/product-release', name: '产品发布工作台', file: '产品发布计划.md', content: '# 星流科技 · 产品发布计划\n\n目标：完成企业 Agent 系统季度版本发布。\n\n## 交付清单\n- 产品 Brief 与核心叙事：已完成初稿，待评审。\n- 发布说明与内部 FAQ：整理功能变化、适用场景与常见问题。\n- 上线检查：确认文档、产品体验和支持安排。\n\n## 协作节奏\n产品、研发与客户成功共同评审，确认后推进发布。' },
