@@ -11,7 +11,7 @@ void app.whenReady().then(async () => {
 const win = new BrowserWindow({ width: 1000, height: 740, show: false, backgroundColor: '#273878', webPreferences: {
   preload: join(electronRoot, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false,
 } });
-const screen = new StartupScreen(win, { timeoutMs: process.env.SYNTROPIC_TEST_WORKBENCH_URL ? 45000 : 800, onTimeout: () => screen.show({ phase: 'error', title: '工作空间加载时间较长', detail: '请重新尝试。', retry: true }) });
+const screen = new StartupScreen(win, { timeoutMs: process.env.SYNTROPIC_TEST_WORKBENCH_URL ? 45000 : 800, onTimeout: () => screen.show({ phase: 'error', reason: 'workbench-timeout', title: '工作空间加载时间较长', detail: '请重新尝试。', retry: true }) });
 globalThis.startupFixture = { win, screen, retries: 0 };
 win.webContents.on('did-start-navigation', details => {
   if (details.isMainFrame && !details.isSameDocument && process.env.SYNTROPIC_TEST_WORKBENCH_URL) screen.waitForWorkbench();

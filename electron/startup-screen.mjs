@@ -66,7 +66,11 @@ export class StartupScreen {
   }
 
   reveal() {
-    if (this.disposed || this.state.phase !== 'starting') return;
+    // A hidden renderer can deliver its usable frame after the timeout.
+    // Only that timeout may yield to readiness; service/page errors stay visible.
+    const waiting = this.state.phase === 'starting'
+      || (this.state.phase === 'error' && this.state.reason === 'workbench-timeout');
+    if (this.disposed || !waiting) return;
     clearTimeout(this.readyTimer);
     this.state = { ...STARTUP_STATE, phase: 'revealing' };
     this.publish();

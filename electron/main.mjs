@@ -58,7 +58,7 @@ function createWindow() {
   });
   const currentWindow = window;
   startup = new StartupScreen(currentWindow, {
-    onTimeout: () => showStatus({ phase: 'error', title: '工作空间加载时间较长', detail: '暂时未能完成页面加载，请重新尝试。', retry: true }),
+    onTimeout: () => showStatus({ phase: 'error', reason: 'workbench-timeout', title: '工作空间加载时间较长', detail: '暂时未能完成页面加载，请重新尝试。', retry: true }),
   });
   const currentStartup = startup;
   void currentStartup.loaded.then(() => {
