@@ -1467,6 +1467,17 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   const [pendingRequest, setPendingRequest] = useState<string | null>(null);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const knownArtifactIdsRef = useRef<Set<string> | null>(null);
+  // Only results discovered after the workspace baseline can animate. Refreshes
+  // restore complete documents, and each generation has its own session identity.
+  const [pendingJdPreviews, setPendingJdPreviews] = useState<Set<string>>(() => new Set());
+  const completeJdPreview = useCallback((identity: string) => {
+    setPendingJdPreviews(current => {
+      if (!current.has(identity)) return current;
+      const next = new Set(current);
+      next.delete(identity);
+      return next;
+    });
+  }, []);
   const [hiddenWindowIds, setHiddenWindowIds] = useState<Set<string>>(() => new Set());
   const desktopPress = useRef<{ pointerId: number; x: number; y: number; target: HTMLElement; scrollTop: number; scrollLeft: number } | null>(null);
   useEffect(() => { setHiddenWindowIds(new Set()); }, [activeCwd]);
@@ -1707,6 +1718,8 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
           workspaceSessions.filter(isInsightTaskSession).map((session) => session.id),
         );
         const desktopArtifacts = newlyGenerated.filter((artifact) => !insightSessionIds.has(artifact.sessionId));
+        const newJds = desktopArtifacts.filter(artifact => artifact.cwd === presentationCwd && getFileName(artifact.filePath) === "ai-agent-engineer-jd.html");
+        if (newJds.length) setPendingJdPreviews(current => new Set([...current, ...newJds.map(artifactIdentity)]));
         const activeElement = document.activeElement;
         const composerIsActive = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
         if (desktopArtifacts.length && !composerIsActive && windowFocusRevision.current === focusAtRequest && canRevealArtifact()) {
@@ -2444,6 +2457,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
         onOpenInsight={openInsightResult}
         cwd={activeCwd}
         viewedArtifact={frontWindow === "insights" && selectedInsight?.report ? { ...selectedInsight.report, taskTitle: "AI 洞察" } : openArtifacts.find((artifact) => `file:${artifactIdentity(artifact)}` === frontWindow) ?? null}
+        viewedArtifactReady={!openArtifacts.some(artifact => `file:${artifactIdentity(artifact)}` === frontWindow && pendingJdPreviews.has(artifactIdentity(artifact)))}
         onStartTask={(message) => startTask(message, "publication")}
         onTaskStarted={(sessionId) => { publicationSessionRef.current = sessionId; }}
         onPublished={(job, sessionId) => {
@@ -2622,7 +2636,9 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
               setFrontWindow(nextFront ? `file:${artifactIdentity(nextFront)}` : artifactLibraryOpen ? "library" : "tasks", false);
             }}
           >
-            <div className="agent-os-file-app"><FileViewer filePath={artifact.filePath} cwd={artifact.cwd} sourceSessionId={artifact.sessionId} initialDisplayMode={isHtmlArtifact(artifact) ? "preview" : undefined} watchEnabled={!hiddenWindowIds.has(windowId) && frontWindow === windowId}/></div>
+            <div className="agent-os-file-app"><FileViewer filePath={artifact.filePath} cwd={artifact.cwd} sourceSessionId={artifact.sessionId} initialDisplayMode={isHtmlArtifact(artifact) ? "preview" : undefined} watchEnabled={!hiddenWindowIds.has(windowId) && frontWindow === windowId}
+              jdPlayback={isDemoJd ? { animate: pendingJdPreviews.has(identity), active: !hiddenWindowIds.has(windowId) && frontWindow === windowId, onComplete: () => completeJdPreview(identity) } : undefined}
+            /></div>
           </DesktopWindow>;
         })}
         {selectedInsight && selectedInsight.cwd === activeCwd && <DesktopWindow className="agent-os-window-insights" title="AI 洞察" kind="app" desktopHidden={hiddenWindowIds.has("insights")} front={frontWindow === "insights"} onFocus={() => setFrontWindow("insights")} onClose={() => setSelectedInsight(null)}>

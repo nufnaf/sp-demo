@@ -20,6 +20,7 @@ interface Props {
   cwd: string | null;
   children: (surfaces: { notification: ReactNode; widgetInsights: WorkspaceWidgetItem[]; insightItems: WorkspaceInsightItem[] }) => ReactNode;
   viewedArtifact: JdArtifact | null;
+  viewedArtifactReady?: boolean;
   onStartTask: (message: string) => Promise<string | null>;
   onTaskStarted: (sessionId: string) => void;
   onPublished: (job: PublishedRecruitingJob, sessionId: string) => void;
@@ -49,7 +50,8 @@ export function RecruitingPublication(props: Props) {
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) ?? "{}");
       setCompletedJob(saved.completedJob ?? null); setDismissed(saved.dismissed === true); setSuggestion(saved.suggestion ?? null); setPending(saved.pending ?? null);
-      seen.current = new Set(saved.seen ?? []); setReadInsights(saved.readInsights ?? []);
+      seen.current = new Set((saved.seen ?? []).map((id: string) => id === saved.suggestion?.filePath
+        ? `${saved.suggestion.sessionId}:${id}` : id)); setReadInsights(saved.readInsights ?? []);
     } catch { /* Invalid optional UI state does not affect saved work. */ }
     setLoaded(true);
   }, [storageKey, props.cwd]);
@@ -63,6 +65,8 @@ export function RecruitingPublication(props: Props) {
   useEffect(() => { callbacks.current = props; });
   const path = props.viewedArtifact?.filePath;
   const artifactTitle = props.viewedArtifact?.taskTitle;
+  const artifactSessionId = props.viewedArtifact?.sessionId;
+  const viewedArtifactReady = props.viewedArtifactReady !== false;
   useEffect(() => {
     if (!loaded || !path || !props.insights.some((item) => item.filePath === path)) return;
     setReadInsights((items) => items.includes(path) ? items : [...items, path]);
@@ -70,15 +74,17 @@ export function RecruitingPublication(props: Props) {
 
   useEffect(() => {
     const artifact = callbacks.current.viewedArtifact;
-    if (!loaded || !artifact || artifact.cwd !== props.cwd || !isJdDemoArtifact(artifact) || pending || preparing || seen.current.has(artifact.filePath)) return;
+    if (!loaded || !viewedArtifactReady || !artifact || artifact.cwd !== props.cwd || !isJdDemoArtifact(artifact) || pending || preparing) return;
+    const identity = `${artifact.sessionId}:${artifact.filePath}`;
+    if (seen.current.has(identity)) return;
     const timer = setTimeout(() => {
-      seen.current.add(artifact.filePath);
+      seen.current.add(identity);
       setSuggestion({ ...artifact, recognizedAt: new Date().toISOString() });
       setCompletedJob(null);
       setDismissed(false);
     }, 1400);
     return () => clearTimeout(timer);
-  }, [path, artifactTitle, props.cwd, pending, preparing, loaded]);
+  }, [path, artifactTitle, artifactSessionId, viewedArtifactReady, props.cwd, pending, preparing, loaded]);
 
   useEffect(() => {
     if (!loaded || !suggestion || pending || preparing) return;
@@ -190,7 +196,9 @@ export function RecruitingPublication(props: Props) {
     setReadInsights((items) => [...items, nextInsight.filePath]);
     props.onOpenInsight(nextInsight);
   };
-  const publicationInsight: PublicationInsightItem | null = loaded && suggestion ? {
+  const previewInProgress = !viewedArtifactReady && suggestion?.filePath === path;
+  const visibleNotice = !viewedArtifactReady && props.notice?.includes("JD 已准备好") ? null : props.notice;
+  const publicationInsight: PublicationInsightItem | null = loaded && suggestion && !previewInProgress ? {
     kind: "publication",
     id: `publication:${suggestion.filePath}`,
     artifact: suggestion,
@@ -207,12 +215,12 @@ export function RecruitingPublication(props: Props) {
   if (loaded) {
     if (publicationInsight && !completedJob && !pending && !dismissed) notification = <DesktopNotification
       ariaLabel="岗位发布建议" label="需要确认" title={`AI 主动洞察：${publicationInsight.title}`}
-      description={props.notice || publicationInsight.detail}
+      description={visibleNotice || publicationInsight.detail}
       action={{ label: `${publicationInsight.actionLabel} ›`, onClick: publicationInsight.onPublish, disabled: publicationInsight.disabled }}
       dismissLabel="稍后发布" onDismiss={() => setDismissed(true)}
     />;
-    else if (props.notice) notification = <DesktopNotification
-      ariaLabel="工作台通知" label="工作台动态" title={props.notice} autoDismiss
+    else if (visibleNotice) notification = <DesktopNotification
+      ariaLabel="工作台通知" label="工作台动态" title={visibleNotice} autoDismiss
       dismissLabel="关闭通知" onDismiss={props.onDismissNotice}
     />;
     else if (nextInsight) notification = <DesktopNotification
