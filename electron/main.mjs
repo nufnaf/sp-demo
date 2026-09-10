@@ -9,6 +9,7 @@ import { prepareDemoModelEnvironment } from './demo-model.mjs';
 import { preparePackagedRuntime, removeOldPackagedRuntimes } from './packaged-runtime.mjs';
 import { StartupScreen, STARTUP_STATE } from './startup-screen.mjs';
 import { APP_ORIGIN, isAppUrl, isExternalUrl } from './policy.mjs';
+import { createAppLocationGuard } from './app-location.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const packaged = existsSync(join(process.resourcesPath, 'desktop-runtime.json'));
@@ -25,6 +26,10 @@ let ready = false;
 let packagedBuildId;
 let status = STARTUP_STATE;
 let supervisorStopped = Promise.resolve();
+const locationAvailable = createAppLocationGuard(packaged ? process.resourcesPath : undefined, () => {
+  dialog.showErrorBox('应用位置已变化', 'Syntropic 在运行时被移动，旧进程需要退出。请从新位置重新打开 Syntropic。以后移动或替换 App 前，请先按 ⌘Q 完全退出，并等待复制完成后再打开。');
+  app.quit();
+});
 
 function showStatus(next) {
   status = next;
@@ -36,7 +41,9 @@ function loadWorkbench() {
   void window.loadURL(APP_ORIGIN).catch(() => {});
 }
 function focusWindow() {
+  if (quitting || !locationAvailable()) return;
   if (!window) createWindow();
+  if (!window || window.isDestroyed()) return;
   if (window.isMinimized()) window.restore();
   window.show();
   window.focus();
@@ -47,6 +54,7 @@ async function openExternal(url) {
   catch { await dialog.showMessageBox({ type: 'error', message: '无法打开系统浏览器', detail: '请检查系统默认浏览器，然后重新点击登录链接。' }); }
 }
 function createWindow() {
+  if (quitting || !locationAvailable()) return;
   window = new BrowserWindow({
     title: 'Syntropic', width: 1440, height: 960, minWidth: 960, minHeight: 640,
     backgroundColor: '#273878', icon: appIcon, show: false,
