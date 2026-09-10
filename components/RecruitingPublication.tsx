@@ -51,6 +51,7 @@ export function RecruitingPublication(props: Props) {
   const [completedJob, setCompletedJob] = useState<PublishedRecruitingJob | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [preparing, setPreparing] = useState(false);
+  const [publicationError, setPublicationError] = useState<string | null>(null);
   const [pending, setPending] = useState<{ sessionId: string; draft: string; startedAt: number } | null>(null);
   const seen = useRef(new Set<string>());
   const [loaded, setLoaded] = useState(false);
@@ -61,6 +62,7 @@ export function RecruitingPublication(props: Props) {
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) ?? "{}");
       setCompletedJob(saved.completedJob ?? null); setDismissed(saved.dismissed === true); setSuggestion(saved.suggestion ?? null); setPending(saved.pending ?? null);
+      setPublicationError(typeof saved.publicationError === "string" ? saved.publicationError : null);
       seen.current = new Set((saved.seen ?? []).map((id: string) => id === saved.suggestion?.filePath
         ? `${saved.suggestion.sessionId}:${id}` : id)); setReadInsights(saved.readInsights ?? []);
     } catch { /* Invalid optional UI state does not affect saved work. */ }
@@ -68,8 +70,8 @@ export function RecruitingPublication(props: Props) {
   }, [storageKey, props.cwd]);
   useEffect(() => {
     if (!loaded || !props.cwd) return;
-    localStorage.setItem(storageKey, JSON.stringify({ suggestion, completedJob, dismissed, pending, seen: [...seen.current], readInsights }));
-  }, [storageKey, props.cwd, loaded, suggestion, completedJob, dismissed, pending, readInsights]);
+    localStorage.setItem(storageKey, JSON.stringify({ suggestion, completedJob, dismissed, pending, publicationError, seen: [...seen.current], readInsights }));
+  }, [storageKey, props.cwd, loaded, suggestion, completedJob, dismissed, pending, publicationError, readInsights]);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const callbacks = useRef(props);
@@ -92,6 +94,7 @@ export function RecruitingPublication(props: Props) {
       seen.current.add(identity);
       setSuggestion({ ...artifact, recognizedAt: new Date().toISOString() });
       setCompletedJob(null);
+      setPublicationError(null);
       setDismissed(false);
     }, 1400);
     return () => clearTimeout(timer);
@@ -122,6 +125,7 @@ export function RecruitingPublication(props: Props) {
       if (cancelled) return;
       setPending(null);
       callbacks.current.onSettled(pending.sessionId);
+      setPublicationError(message ?? null);
       if (message) { setDismissed(true); callbacks.current.onNotice(message); }
     };
     const poll = async () => {
@@ -181,6 +185,7 @@ export function RecruitingPublication(props: Props) {
   const publish = async () => {
     if (!suggestion || completedJob || pending || preparing) return;
     setPreparing(true);
+    setPublicationError(null);
     try {
       const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${suggestion.cwd}\n${suggestion.filePath}`));
       const draft = Array.from(new Uint8Array(bytes)).map((byte) => byte.toString(16).padStart(2, "0")).join("").slice(0, 32);
@@ -199,12 +204,15 @@ export function RecruitingPublication(props: Props) {
       }
       if (!mounted.current) return;
       const sessionId = await props.onStartTask(message);
+      if (!sessionId && mounted.current) setPublicationError("发布任务尚未启动，请稍后重试。");
       if (sessionId && mounted.current) {
         props.onTaskStarted(sessionId);
         setPending({ sessionId, draft, startedAt: Date.now() });
       }
     } catch (error) {
-      props.onNotice(error instanceof Error ? error.message : "无法启动发布任务");
+      const message = error instanceof Error ? error.message : "无法启动发布任务";
+      setPublicationError(message);
+      props.onNotice(message);
     } finally { setPreparing(false); }
   };
 
@@ -220,9 +228,12 @@ export function RecruitingPublication(props: Props) {
     kind: "publication",
     id: `publication:${suggestion.filePath}`,
     artifact: suggestion,
+    stage: completedJob ? "published" : pending ? "publishing" : preparing ? "preparing" : publicationError ? "attention" : "ready",
+    job: completedJob,
+    includesBoss: Boolean(props.presentation || completedJob?.bossPublication),
     modified: suggestion.recognizedAt,
-    title: completedJob ? "岗位发布建议 · 已完成" : "已识别新创建的 JD",
-    detail: completedJob ? `「${completedJob.title}」已发布到${publicationDestinations(completedJob)}。` : pending ? "正在通过招聘网页发布岗位，完成后将同步招聘进展。" : props.presentation ? "岗位 JD 已准备好，可以发布到内部招聘系统和 BOSS 直聘。" : "岗位 JD 已准备好，可以发布到内部招聘系统。",
+    title: completedJob ? "岗位发布建议 · 已完成" : publicationError && !pending && !preparing ? "岗位发布需要处理" : "已识别新创建的 JD",
+    detail: completedJob ? `「${completedJob.title}」已发布到${publicationDestinations(completedJob)}。` : pending ? "正在通过招聘网页发布岗位，完成后将同步招聘进展。" : preparing ? "正在准备岗位发布，请稍候。" : publicationError || (props.presentation ? "岗位 JD 已准备好，可以发布到内部招聘系统和 BOSS 直聘。" : "岗位 JD 已准备好，可以发布到内部招聘系统。"),
     actionLabel: completedJob ? "已发布" : pending ? "正在发布…" : preparing ? "正在准备…" : "发布岗位",
     disabled: Boolean(completedJob || pending) || preparing,
     onPublish: () => void publish(),

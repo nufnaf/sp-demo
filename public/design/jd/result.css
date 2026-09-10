@@ -248,3 +248,6 @@ h1{font-size:32px;
 .panel,.detail-card{break-inside:avoid}
 h2,h3{break-after:avoid}
 }
+
+.chip .jd-icon { flex-shrink:0; width:20px; height:20px; color:#087b60; }
+.card-icon .jd-icon { width:24px; height:24px; }

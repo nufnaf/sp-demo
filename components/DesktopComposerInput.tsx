@@ -10,7 +10,7 @@ const generalPrompts = [
 ];
 
 export function DesktopComposerInput({ inputRef, value, onChange, placeholder, recruiting, hasJd, jdRequested, progressReady, busy, viewingRecruiting }: {
-  inputRef: RefObject<HTMLInputElement | null>;
+  inputRef: RefObject<HTMLTextAreaElement | null>;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
@@ -54,7 +54,7 @@ export function DesktopComposerInput({ inputRef, value, onChange, placeholder, r
     return () => document.removeEventListener("pointerdown", dismiss);
   }, [visible]);
 
-  return <div className="agent-os-composer-input" ref={rootRef}
+  return <div className="agent-os-composer-input" data-has-draft={Boolean(value.trim())} ref={rootRef}
     onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}
     onKeyDown={(event) => {
       if (event.key === "Escape" && visible) {
@@ -62,11 +62,15 @@ export function DesktopComposerInput({ inputRef, value, onChange, placeholder, r
         inputRef.current?.focus(); setOpen(false);
       }
     }}>
-    <input ref={inputRef} value={value} placeholder={placeholder} aria-label="和 Syntropic 对话"
+    <textarea rows={1} ref={inputRef} value={value} placeholder={placeholder} aria-label="和 Syntropic 对话"
       aria-controls={visible ? suggestionsId : undefined} autoComplete="off"
       onFocus={() => setOpen(!value.trim())} onClick={() => setOpen(!value.trim())}
       onChange={(event) => { onChange(event.target.value); setOpen(!event.target.value.trim()); }}
       onKeyDown={(event) => {
+        if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
+          event.preventDefault();
+          event.currentTarget.form?.requestSubmit();
+        }
         if (event.key === "ArrowDown" && visible) {
           event.preventDefault(); rootRef.current?.querySelector("button")?.focus();
         }

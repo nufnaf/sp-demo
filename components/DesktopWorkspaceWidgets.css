@@ -41,7 +41,7 @@
   top: calc(var(--home-grid-margin-y) + (var(--widget-row) - 1) * (var(--home-grid-row) + var(--home-grid-gap)));
 }
 .workspace-widget-schedule { --widget-column: 3; }
-.workspace-widget-insights { --widget-column: 5; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; }
+.workspace-widget-insights { --widget-column: 5; }
 .workspace-widget-tasks { --widget-column: 7; }
 .workspace-widget-artifacts { --widget-row: var(--home-artifact-row); --widget-row-span: 3; }
 .workspace-widget > .agent-os-card {
@@ -52,12 +52,16 @@
 .workspace-widget .agent-os-card > header { flex: 0 0 auto; height: 24px; padding: 0; margin-bottom: 16px; border: 0; align-items: center; }
 .workspace-widget .agent-os-card > header > span { min-width: 0; gap: 8px; }
 .workspace-widget .agent-os-card > header strong { font-size: 16px; font-weight: 600; }
-.workspace-widget .agent-os-card > header small, .workspace-widget .agent-os-card > header button { padding: 0; border: 0; color: #008b69; font-size: 13px; white-space: nowrap; }
+.workspace-widget .agent-os-card > header small, .workspace-widget .agent-os-card > header button { padding: 2px 6px; border: 0; color: #008b69; font-size: 13px; font-weight: 400; line-height: 20px; white-space: nowrap; }
 .workspace-eyebrow { color: #687773; font-size: 14px; }
 .workspace-widget button { cursor: pointer; border: 0; color: inherit; background: transparent; text-align: left; }
 .workspace-widget button:focus-visible { outline: 2px solid #008b69; outline-offset: 2px; }
-.workspace-widget button:hover { background-color: #ffffff40; }
-.workspace-widget .agent-os-card > header .workspace-outline-action { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid #00a67d; border-radius: 16px; font-size: 12px; }
+.workspace-widget button { transition: background-color 150ms ease, color 150ms ease; }
+.workspace-widget button:hover:not(:disabled) { background-color: #ffffff40; }
+.workspace-widget .agent-os-card > header button { border-radius: 6px; }
+.workspace-widget .agent-os-card > header button:hover:not(:disabled) { color: #006b50; background: #00a67d0d; }
+.workspace-widget button:disabled { cursor: default; }
+.workspace-widget .agent-os-card > header .workspace-outline-action { display: flex; align-items: center; gap: 6px; }
 .workspace-widget-empty { min-height: 0; display: flex; flex: 1; flex-direction: column; justify-content: center; padding: 16px 14px; border-radius: 16px; background: rgba(247,250,249,.3); }
 .workspace-widget-empty strong { font-size: 14px; font-weight: 500; line-height: 1.6; }
 .workspace-widget-empty p { margin: 4px 0 0; color: #687773; font-size: 12px; line-height: 1.65; }
@@ -76,11 +80,11 @@
 .workspace-deadline { display: flex; justify-content: space-between; border-radius: 8px; padding: 10px 11px; color: #593800; background: rgba(255,162,0,.19); font-size: 13px; }
 .workspace-widget-goal .workspace-widget-empty { background: transparent; padding: 0; }
 .workspace-widget-goal .workspace-widget-empty > strong { font-size: 24px; }
-.workspace-widget-schedule .agent-os-card > header { position: absolute; inset: 0 0 auto; height: 48px; padding: 0 16px; margin: 0; }
+.workspace-widget-schedule .agent-os-card > header { position: absolute; inset: 20px 16px auto; height: 24px; padding: 0; margin: 0; }
 .workspace-widget-schedule .agent-os-card > header > span { pointer-events: none; }
 .workspace-calendar { display: flex; height: 100%; min-height: 0; gap: 16px; }
 .workspace-schedule-list { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; scrollbar-width: thin; padding: 0 2px; }
-.workspace-schedule-event { display: flex; flex-direction: column; align-items: flex-start; flex-shrink: 0; gap: 3px; border-left: 3px solid #00b883 !important; border-radius: 2px; padding: 1px 0 1px 13px; }
+.workspace-schedule-event { display: flex; flex-direction: column; align-items: flex-start; flex-shrink: 0; gap: 3px; border-left: 3px solid #00b883 !important; border-radius: 8px; padding: 8px 10px 8px 13px; }
 .workspace-schedule-event.tone-1 { border-left-color: #ffa200 !important; }
 .workspace-schedule-event.tone-2 { border-left-color: #3370ff !important; }
 .workspace-schedule-event time { font-size: 16px; font-weight: 600; }
@@ -96,16 +100,16 @@
 .workspace-insight-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #0f0f0f; font-size: 14px; font-weight: 500; line-height: 20px; letter-spacing: 0; }
 .workspace-insight-link { margin-top: 4px; color: #687773; font-size: 11px; }
 .workspace-widget-insights .workspace-widget-empty { text-align: center; align-items: center; }
-.workspace-observing { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid #00a67d; border-radius: 20px; color: #008c68; font-size: 12px; margin-top: 10px; }
+.workspace-observing { display: inline-flex; align-items: center; gap: 6px; padding: 5px 0; color: #008c68; font-size: 12px; margin-top: 10px; }
 .workspace-widget-tasks .agent-os-card > header { height: 88px; align-items: flex-start; margin-bottom: 16px; }
 .workspace-widget-tasks .agent-os-card > header .workspace-task-total { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
 .workspace-widget-tasks .agent-os-card > header .workspace-task-total strong { font-size: 64px; color: #080e0c; font-weight: 500; line-height: 1; letter-spacing: -3px; }
 .workspace-task-total > span { color: #687773; font-size: 14px; }
 .workspace-task-list { min-height: 0; overflow-y: auto; scrollbar-width: thin; display: flex; flex-direction: column; gap: 14px; }
-.workspace-task { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; padding: 2px 0; border-radius: 4px; }
+.workspace-task { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; padding: 8px 10px; border-radius: 8px; }
 .workspace-task > strong { display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 500; }
-.workspace-task i { display: inline-block; width: 6px; height: 6px; margin: 0 6px 2px 0; border-radius: 50%; background: #8a9790; }
-.workspace-task.is-running i { background: #00a67d; }
+.workspace-task i { display: inline-block; width: 6px; height: 6px; margin: 0 6px 2px 0; border-radius: 50%; background: #00a67d; }
+.workspace-task.is-running i { box-shadow: 0 0 0 3px #00a67d1a; }
 .workspace-task small { color: #687773; font-size: 12px; }
 .workspace-artifact-mark { display: inline-block; width: 24px; height: 24px; background: #009c76; mask: url("/icons/catppuccin/latte/_file.svg") center / contain no-repeat; }
 .workspace-artifact-list { min-height: 0; overflow-y: auto; scrollbar-width: thin; display: flex; flex-direction: column; gap: 6px; }
@@ -121,6 +125,7 @@
 /* Compact the contents along with the rows, preserving the desktop's open space. */
 @media (max-height: 903px) {
   .workspace-widget > .agent-os-card { padding: 12px; }
+  .workspace-widget-schedule .agent-os-card > header { inset: 12px 12px auto; }
   .workspace-widget .agent-os-card > header { margin-bottom: 8px; }
   .workspace-widget .agent-os-card > header strong { font-size: 14px; }
   .workspace-widget .agent-os-card > header small, .workspace-widget .agent-os-card > header button { font-size: 12px; }

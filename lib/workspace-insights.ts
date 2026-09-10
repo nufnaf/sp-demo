@@ -1,5 +1,5 @@
 import type { InsightResult } from "./insight-automation";
-import type { JdArtifact } from "./recruiting-publication";
+import type { JdArtifact, PublishedRecruitingJob } from "./recruiting-publication";
 
 interface InsightItemBase {
   id: string;
@@ -11,6 +11,9 @@ interface InsightItemBase {
 export interface PublicationInsightItem extends InsightItemBase {
   kind: "publication";
   artifact: JdArtifact;
+  stage: "ready" | "preparing" | "publishing" | "published" | "attention";
+  job: PublishedRecruitingJob | null;
+  includesBoss: boolean;
   actionLabel: string;
   disabled: boolean;
   onPublish: () => void;

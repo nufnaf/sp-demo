@@ -7,7 +7,9 @@ import "./RecruitingDesign.css";
 import { RecruitingPipeline } from "./RecruitingPipeline";
 import type { RecruitingScene } from "@/lib/recruiting-scene";
 import type { InsightResult } from "@/lib/insight-automation";
-import { WorkspaceAppIcon } from "./WorkspaceAppIcon";
+import { RecruitingBrandIcon } from "./RecruitingBrandIcon";
+import { AppBrandImage } from "./AppBrandImage";
+import { getChinaAppDefinition } from "@/lib/china-apps";
 import { BOSS_DEMO_ACCOUNT } from "@/lib/boss-demo";
 import type { PublishedRecruitingJob } from "@/lib/recruiting-publication";
 
@@ -98,9 +100,9 @@ const MANUAL_DATA_KEY_PREFIX = "agent-os:hr-manual-data:";
 const LINKED_APPS_KEY_PREFIX = "agent-os:hr-linked-apps:";
 
 const SOURCES: DataSource[] = [
-  { id: "feishu", name: "飞书招聘", description: "候选人、面试评价与招聘流程", logoUrl: "/icons/feishu-logo.svg", fallback: "飞", appManaged: true },
-  { id: "boss-zhipin", name: "BOSS 直聘", description: "职位发布、沟通与候选人简历", logoUrl: "https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/18/f2/91/18f2917d-452a-a2fa-87d7-37012a288cab/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg", fallback: "B", appManaged: true },
-  { id: "beisen", name: "北森 iTalent", description: "招聘需求、职位、应聘者与 Offer 流程", logoUrl: "https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/65/e4/a2/65e4a2f4-0ac1-3297-bd7e-297e049476f0/AppIcon2-0-0-1x_U007emarketing-0-8-0-sRGB-85-220.png/512x512bb.jpg", fallback: "北", appManaged: true },
+  { id: "feishu", name: "飞书招聘", description: "候选人、面试评价与招聘流程", logoUrl: getChinaAppDefinition("feishu")?.logoUrl, fallback: "飞", appManaged: true },
+  { id: "boss-zhipin", name: "BOSS 直聘", description: "职位发布、沟通与候选人简历", logoUrl: getChinaAppDefinition("boss-zhipin")?.logoUrl, fallback: "B", appManaged: true },
+  { id: "beisen", name: "北森 iTalent", description: "招聘需求、职位、应聘者与 Offer 流程", logoUrl: getChinaAppDefinition("beisen")?.logoUrl, fallback: "北", appManaged: true },
   { id: "company-careers", name: "星流科技招聘官网", description: "官网职位、候选人投递与招聘流程", logoUrl: "/icons/company-careers-logo.svg", fallback: "招", appManaged: true },
 ];
 
@@ -499,7 +501,7 @@ export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice, publ
 
   return <div className="hr-recruiting-app os-workspace">
     <aside className="hr-recruiting-sidebar">
-      <header><span className="hr-recruiting-mark"><WorkspaceAppIcon name="recruiting" size={20}/></span><span><strong>人才招聘</strong></span></header>
+      <header><RecruitingBrandIcon/><span><strong>人才招聘</strong></span></header>
       <nav aria-label="人才招聘功能">
         {([
           ["overview", "招聘进展", icons.overview],
@@ -546,7 +548,7 @@ export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice, publ
           const stateLabel = status.loading ? "检测中" : status.error ? "检测失败" : connected ? "已连接" : status.authState === "authenticated" ? "可连接" : !status.installed ? "未安装" : !status.runtimeReady ? "待初始化" : status.authState === "unknown" ? "待验证" : "待授权";
           const presetUnavailable = presentation && source.id !== "boss-zhipin";
           const buttonLabel = presetUnavailable ? "暂不可用" : sourceBusy === source.id ? "处理中…" : connected ? "打开应用" : status.authState === "authenticated" || source.id === "company-careers" ? "连接应用" : !source.appManaged ? "需要专属连接器" : status.installed ? "完成授权" : "安装应用";
-          return <article key={source.id} className={status.error ? "has-error" : ""}><header><span className={`hr-source-logo is-${source.id}`}>{source.logoUrl ? <img src={source.logoUrl} alt="" referrerPolicy="no-referrer"/> : source.fallback}</span><em className={connected ? "connected" : status.error ? "error" : status.loading ? "loading" : ""}><i/>{stateLabel}</em></header><h2>{source.name}</h2><p>{source.description}</p><small>{status.account ?? status.error ?? status.detail}</small><div className="hr-source-actions"><button type="button" className={connected ? "connected" : ""} disabled={presetUnavailable || status.loading || sourceBusy === source.id || !source.appManaged} onClick={() => { void manageSource(source); }}>{buttonLabel}</button>{connected ? <button type="button" className="disconnect" disabled={sourceBusy === source.id} onClick={() => void disconnectRecruitingApp(source)}>断开</button> : null}</div></article>;
+          return <article key={source.id} className={status.error ? "has-error" : ""}><header><span className={`hr-source-logo is-${source.id}`}>{source.logoUrl ? <AppBrandImage appId={source.id} src={source.logoUrl}/> : source.fallback}</span><em className={connected ? "connected" : status.error ? "error" : status.loading ? "loading" : ""}><i/>{stateLabel}</em></header><h2>{source.name}</h2><p>{source.description}</p><small>{status.account ?? status.error ?? status.detail}</small><div className="hr-source-actions"><button type="button" className={connected ? "connected" : ""} disabled={presetUnavailable || status.loading || sourceBusy === source.id || !source.appManaged} onClick={() => { void manageSource(source); }}>{buttonLabel}</button>{connected ? <button type="button" className="disconnect" disabled={sourceBusy === source.id} onClick={() => void disconnectRecruitingApp(source)}>断开</button> : null}</div></article>;
         })}</section>
         {companyConnectOpen ? <aside className="hr-source-modal"><form onSubmit={(event) => void connectCompanyCareers(event)}><header><span className="hr-source-logo is-company-careers"><img src="/icons/company-careers-logo.svg" alt=""/></span><span><strong>星流科技招聘官网</strong><small>连接招聘应用</small></span><button type="button" aria-label="关闭连接配置" onClick={() => setCompanyConnectOpen(false)}>{icons.close}</button></header><label><span>招聘官网地址</span><input type="url" required value={companyBaseUrl} onChange={(event) => setCompanyBaseUrl(event.target.value)}/></label><label><span>访问令牌</span><input type="password" required autoComplete="off" value={companyToken} onChange={(event) => setCompanyToken(event.target.value)} placeholder="输入网站提供的访问令牌"/></label><footer><button type="button" onClick={() => setCompanyConnectOpen(false)}>取消</button><button type="submit" disabled={sourceBusy === "company-careers"}>{sourceBusy === "company-careers" ? "正在验证…" : "连接应用"}</button></footer></form></aside> : null}
       </> : null}

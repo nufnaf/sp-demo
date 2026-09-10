@@ -6,6 +6,7 @@ import { PresentationSchedule } from "./RecruitingPipeline";
 import { SyntropicMark } from "./SyntropicMark";
 import { useDesktopReady } from "@/hooks/useDesktopReady";
 import { DesktopDesignIcon } from "./DesktopDesignIcon";
+import { RecruitingBrandIcon } from "./RecruitingBrandIcon";
 import { DesktopStartStage } from "./DesktopStartStage";
 import { DesktopComposerInput } from "./DesktopComposerInput";
 import { DesktopDock } from "./DesktopDock";
@@ -145,7 +146,7 @@ const ICONS: Record<IconName, ReactNode> = {
   sales: <><rect x="3" y="7" width="18" height="14" rx="3"/><path d="M8 7V4h8v3M3 12h18M10 15h4"/></>,
   investment: APP_LOGO_GLYPHS.investment,
   plus: <path d="M12 5v14M5 12h14"/>,
-  recruiting: APP_LOGO_GLYPHS.recruiting,
+  recruiting: null,
   search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
   settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H3v-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V3h4v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></>,
   tasks: <><rect x="3" y="3" width="18" height="18" rx="3.5"/><path d="m6.5 8 1.2 1.2L10 7M13 8h4M6.5 14l1.2 1.2L10 13M13 14h4"/></>,
@@ -156,6 +157,7 @@ const ICONS: Record<IconName, ReactNode> = {
 const DICTATION_BARS = [0.35, 0.55, 0.8, 0.6, 1, 0.7, 0.45, 0.85, 0.65, 0.95, 0.5, 0.75, 0.4, 0.9, 0.6, 0.3];
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
+  if (name === "recruiting") return <RecruitingBrandIcon size={size}/>;
   return <svg className="agent-os-icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICONS[name]}</svg>;
 }
 
@@ -248,7 +250,7 @@ function AppLogo({ app, compact = false }: { app: LaunchpadApp; compact?: boolea
 function DockItemIcon({ item, launchpad = false }: { item: DockItem; launchpad?: boolean }) {
   if (item.kind !== "system") return launchpad ? <BrandAppIcon app={item}/> : <AppLogo app={item} compact/>;
   if (item.id === "system:calendar") return <DesktopDesignIcon name="calendar" size={launchpad ? 43 : 28}/>;
-  if (item.id === "system:hr") return <DesktopDesignIcon name="people" size={launchpad ? 43 : 28}/>;
+  if (item.id === "system:hr") return <RecruitingBrandIcon size={launchpad ? 64 : 42}/>;
   if (item.id === "system:store") return <AppStoreBrandIcon className={launchpad ? "agent-os-launchpad-system-store" : "agent-store-dock-icon"}/>;
   return <Icon name={item.icon} size={launchpad ? 46 : 22}/>;
 }
@@ -1354,7 +1356,7 @@ function DesktopWindow({
           <button className="minimize" type="button" aria-label="最小化" onClick={onClose}/>
           <button className="maximize" type="button" aria-label={maximized ? "还原" : "最大化"} onClick={() => setMaximized((value) => !value)}/>
         </span>
-        <strong>{kind === "store" ? <Image src="/design/app-store/window-sidebar.svg" width={20} height={20} alt="" unoptimized/> : <>{titleIcon ?? <Icon name={kind === "tasks" ? "tasks" : kind === "settings" ? "settings" : kind === "app" ? "grid" : "file"} size={15}/>} {title}</>}</strong>
+        <strong>{kind === "app" || kind === "settings" ? null : kind === "store" ? <Image src="/design/app-store/window-sidebar.svg" width={20} height={20} alt="" unoptimized/> : <>{titleIcon ?? <Icon name={kind === "tasks" ? "tasks" : "file"} size={15}/>} {title}</>}</strong>
         <span>{headerAccessory}</span>
       </header>
       <div className="agent-os-window-body">{children}</div>
@@ -1413,7 +1415,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
   const liveVoiceActiveRef = useRef(false);
   const [liveDispatches, setLiveDispatches] = useState<Array<{ task: JarvisTask; expiresAt: number }>>([]);
   const [prompt, setPrompt] = useState("");
-  const composerInputRef = useRef<HTMLInputElement>(null);
+  const composerInputRef = useRef<HTMLTextAreaElement>(null);
   const [startMode, setStartMode] = useState<"research" | "files" | "apps" | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
   const [openingStartResource, setOpeningStartResource] = useState(false);
@@ -2651,6 +2653,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
               else setSelectedInsight({ cwd: selectedInsight.cwd, id: item.id });
             }}
             onOpenFile={openArtifact}
+            onOpenRecruiting={() => { setHrRecruitingOpen(true); setFrontWindow("hr"); }}
           />
         </DesktopWindow>}
         {scheduleOpen && <DesktopWindow kind="app" title="团队日程" desktopHidden={hiddenWindowIds.has("schedule")} front={frontWindow === "schedule"} onFocus={() => setFrontWindow("schedule")} onClose={() => setScheduleOpen(false)}><PresentationSchedule recruiting={!presentationCwd || activeCwd === presentationCwd}/></DesktopWindow>}

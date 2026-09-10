@@ -67,7 +67,7 @@ test('desktop composer handles rejected, uncertain and concurrent sends and reco
       assert.equal(await h.input.inputValue(), text);
       assert.equal(attempts, 1);
       await h.send.click();
-      await h.page.waitForFunction(() => document.querySelector('input[aria-label="和 Syntropic 对话"]').value === '');
+      await h.page.waitForFunction(() => document.querySelector('textarea[aria-label="和 Syntropic 对话"]').value === '');
       assert.equal(attempts, 2);
       assert.deepEqual(h.errors, []);
     } finally { await h.context.close(); }
@@ -154,7 +154,7 @@ test('desktop composer handles rejected, uncertain and concurrent sends and reco
       await delay(200);
       assert.equal(attempts, 0, 'must subscribe before sending');
       held.release();
-      await h.page.waitForFunction(() => document.querySelector('input[aria-label="和 Syntropic 对话"]').value === '');
+      await h.page.waitForFunction(() => document.querySelector('textarea[aria-label="和 Syntropic 对话"]').value === '');
       assert.equal(attempts, 1);
       assert.ok(connections >= 2);
       assert.deepEqual(h.errors, []);

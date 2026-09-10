@@ -9,13 +9,12 @@
 .hr-recruiting-app.os-workspace .hr-recruiting-sidebar { width:260px; padding:28px 18px; background:#f7faf9; border-color:#e3ebe7; backdrop-filter:none; }
 .hr-recruiting-app.os-workspace .hr-recruiting-sidebar>header { padding:6px 0 20px; margin:0 0 20px; gap:12px; }
 .hr-recruiting-app.os-workspace .hr-recruiting-sidebar>header strong {font-size:20px; font-weight:600;}
-.hr-recruiting-app.os-workspace .hr-recruiting-mark { width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#44a48a,#6cb49e);box-shadow:none; }
 .hr-recruiting-app.os-workspace .hr-recruiting-sidebar nav {gap:8px;}
 .hr-recruiting-app.os-workspace .hr-recruiting-sidebar nav button {height:auto;min-height:64px;padding:12px;border-radius:16px;align-items:flex-start;gap:12px;}
 .hr-recruiting-app.os-workspace .hr-recruiting-sidebar nav button>svg {margin-top:3px;flex-shrink:0;}
 .hr-recruiting-app.os-workspace .hr-recruiting-sidebar nav button>span {display:grid;gap:4px;min-width:0;}
 .hr-recruiting-app.os-workspace .hr-recruiting-sidebar nav strong {font-size:15px;font-weight:500;}
-.hr-recruiting-app.os-workspace .hr-recruiting-sidebar nav small {font-size:12px;color:#77847f;}
+.hr-recruiting-app.os-workspace .hr-recruiting-sidebar nav button small {padding:0;font-size:12px;font-weight:400;line-height:1.5;color:#77847f;}
 .hr-recruiting-app.os-workspace .hr-recruiting-sidebar nav button.selected {background:#def2ed;color:#087457;box-shadow:none;}
 .hr-recruiting-app.os-workspace .hr-recruiting-roles {padding:24px 0 0;margin-top:8px;}
 .hr-recruiting-app.os-workspace .hr-recruiting-roles>span {padding:0 12px;font-size:12px;color:#77847f;}
@@ -94,11 +93,41 @@
 .insights-detail-toolbar button {border:0;background:transparent;color:#087457;cursor:pointer;font-size:12px;}
 .insights-report {min-height:0;flex:1;}
 .insights-item-status {display:inline-block;font-size:12px;color:#087457;}
-.insights-publication {display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 28px;border-bottom:1px solid #e3ebe7;background:#f7faf9;}
-.insights-publication h2 {margin:0 0 8px;font-size:18px;font-weight:600;}
-.insights-publication p {margin:0;color:#61746b;font-size:14px;line-height:1.7;}
-.insights-publication>button {flex-shrink:0;padding:10px 18px;border:0;border-radius:9px;background:#087457;color:#fff;font-size:14px;cursor:pointer;}
-.insights-publication>button:disabled {background:#e0eae5;color:#61746b;cursor:default;}
+/* Publication content shares the report's spacing and business hierarchy. */
+.insights-publication {min-height:0;overflow:auto;padding:28px;container:publication / inline-size;}
+.publication-heading {display:flex;align-items:flex-start;gap:14px;margin-bottom:24px;}
+.publication-heading h2 {margin:8px 0 10px;font-size:28px;font-weight:500;line-height:1.4;}
+.insights-publication p {margin:6px 0;color:#687773;font-size:13px;line-height:1.8;}
+.insights-publication small {display:block;color:#77847f;font-size:12px;line-height:1.6;font-weight:400;}
+.publication-heading > div > small {color:#087457;}
+.publication-status-icon {width:40px;height:40px;flex-shrink:0;border-radius:12px;display:grid;place-items:center;background:#00a67d12;color:#008b69;margin-top:25px;}
+.is-published .publication-status-icon {background:#00a67d;color:#fff;}
+.is-attention .publication-status-icon {background:#fff3df;color:#a56d19;}
+.publication-job {display:flex;align-items:center;gap:24px;flex-wrap:wrap;padding:18px 20px;background:#f7faf9;border:1px solid #e3ebe7;border-radius:16px;}
+.publication-job > div:first-child {flex:1;min-width:160px;}
+.publication-job strong {display:block;font-size:16px;font-weight:500;margin:4px 0;overflow-wrap:anywhere;}
+.publication-badge {font-size:12px;color:#008b69;background:#e7f5ef;border-radius:20px;padding:6px 10px;white-space:nowrap;}
+.publication-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:16px 0;}
+.publication-grid > article {padding:20px;border:1px solid #e3ebe7;border-radius:18px;}
+.insights-publication h3 {font-size:15px;font-weight:500;line-height:1.6;margin:6px 0 12px;}
+.publication-steps {list-style:none;margin:22px 0 0;padding:0;display:grid;gap:22px;}
+.publication-steps li {display:flex;align-items:flex-start;gap:12px;color:#77847f;}
+.publication-steps li > :first-child {width:22px;height:22px;flex-shrink:0;display:grid;place-items:center;border-radius:50%;background:#f2f5f4;padding:3px;font-size:11px;}
+.publication-steps li.is-done > :first-child {color:#008b69;background:#e7f5ef;}
+.publication-steps strong,.publication-channels strong {font-size:13px;font-weight:500;color:#14211e;}
+.publication-channels {display:grid;gap:12px;margin-top:22px;}
+.publication-channels > div {display:flex;align-items:center;gap:10px;padding:12px;background:#f7faf9;border-radius:12px;}
+.publication-channels > div > div {min-width:0;flex:1;}
+.publication-channels > div > svg {color:#008b69;flex-shrink:0;}
+.publication-channel-icon {width:32px;height:32px;flex-shrink:0;border-radius:9px;overflow:hidden;}
+.publication-next {padding:20px;background:linear-gradient(110deg,#eaf7f2,#f7fbf9);border:1px solid #e3ebe7;border-radius:18px;display:flex;gap:20px;align-items:center;justify-content:space-between;}
+.publication-next h3 {margin-bottom:4px;}
+.publication-next button {display:inline-flex;align-items:center;justify-content:center;gap:6px;flex-shrink:0;padding:11px 16px;border:0;border-radius:12px;background:#00a67d;color:#fff;font-size:13px;cursor:pointer;}
+.publication-next button:hover:not(:disabled) {background:#008b69;}
+.publication-next button:disabled {background:#e0eae5;color:#61746b;cursor:default;}
+.insights-detail-toolbar button {padding:6px;border-radius:6px;}
+.insights-detail-toolbar button:hover {background:#e7f5ef;}
+@container publication (max-width:580px) { .publication-grid {grid-template-columns:1fr;} .publication-next {align-items:flex-start;flex-direction:column;} .publication-heading h2 {font-size:24px;} }
 .insights-empty {margin:auto;padding:32px;max-width:440px;text-align:center;}
 .insights-empty h2 {font-size:18px;}
 .insights-empty p {font-size:14px;line-height:1.8;color:#77847f;}
@@ -114,7 +143,7 @@
  .insights-sidebar {width:160px;padding:22px 10px;}
  .insights-item-meta {flex-wrap:wrap;}
  .insights-detail-toolbar {padding:10px 14px;flex-wrap:wrap;}
- .insights-publication {padding:18px 14px;flex-direction:column;align-items:flex-start;gap:12px;}
+ .insights-publication {padding:18px 14px;}
  .hr-recruiting-app.os-workspace .hr-recruiting-main {padding:18px;}
  .hr-recruiting-app .presentation-metrics {grid-template-columns:repeat(3,minmax(0,1fr));}
  .hr-recruiting-app .recruiting-candidates>header {flex-direction:column;align-items:stretch;}

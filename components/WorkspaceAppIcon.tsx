@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 import "./WorkspaceApps.css";
+import { RecruitingBrandIcon } from "./RecruitingBrandIcon";
 import { APP_LOGO_GLYPHS } from "./AppLogoGlyphs";
 
 export type WorkspaceIconName = "recruiting" | "investment" | "sales" | "overview" | "customers" | "orders" | "sources";
 
 const paths: Record<WorkspaceIconName, ReactNode> = {
-  recruiting: APP_LOGO_GLYPHS.recruiting,
+  recruiting: null,
   investment: APP_LOGO_GLYPHS.investment,
   sales: <><rect x="3" y="6" width="18" height="15" rx="3"/><path d="M8 6V3h8v3M3 11a24 24 0 0 0 18 0m-11 1v3h4v-3"/></>,
   overview: <><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 10h18M10 10v11"/></>,
@@ -15,5 +16,6 @@ const paths: Record<WorkspaceIconName, ReactNode> = {
 };
 
 export function WorkspaceAppIcon({ name, size = 18 }: { name: WorkspaceIconName; size?: number }) {
+  if (name === "recruiting") return <RecruitingBrandIcon size={size}/>;
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }

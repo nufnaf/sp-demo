@@ -5,6 +5,7 @@ import { BriefcaseBusiness, Building2, CheckCircle2, MapPin, Users } from "lucid
 import { BOSS_DEMO_ACCOUNT } from "@/lib/boss-demo";
 import type { PublishedRecruitingJob } from "@/lib/recruiting-publication";
 import "./BossDemoApp.css";
+import { AppBrandImage } from "./AppBrandImage";
 
 export function BossDemoApp() {
   const [jobs, setJobs] = useState<PublishedRecruitingJob[]>([]);
@@ -35,7 +36,7 @@ export function BossDemoApp() {
 
   return <div className="boss-demo">
     <header className="boss-demo-header">
-      <div className="boss-demo-brand"><span aria-hidden="true">BOSS</span><div><h1>BOSS 直聘</h1><p>{BOSS_DEMO_ACCOUNT}</p></div></div>
+      <div className="boss-demo-brand"><span aria-hidden="true"><AppBrandImage appId="boss-zhipin"/></span><div><h1>BOSS 直聘</h1><p>{BOSS_DEMO_ACCOUNT}</p></div></div>
       <span className="boss-demo-connected"><CheckCircle2 size={15}/>已连接</span>
     </header>
     <main>

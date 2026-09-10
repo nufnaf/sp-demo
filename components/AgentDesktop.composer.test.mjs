@@ -12,11 +12,11 @@ test("restored Jarvis history does not appear as a fresh desktop reply", () => {
   assert.doesNotMatch(desktop, /tickerTurn|is-ticker/);
 });
 
-test("the desktop composer stays compact and swaps live voice for send when text exists", () => {
+test("the desktop composer expands for focus or drafts and retains voice/send semantics", () => {
   assert.doesNotMatch(desktop, /composerFocused|className=\"attach\"/);
   assert.match(desktop, /prompt\.trim\(\) \? \([\s\S]*?className="send"[\s\S]*?: \([\s\S]*?className="voice realtime"/);
-  assert.doesNotMatch(desktopCss, /agent-os-ai-surface\.expanded/);
-  assert.doesNotMatch(desktopCss, /agent-os-ai-surface:not\(\.expanded\)/);
+  assert.match(desktopCss, /:focus-within, :has\(\[data-has-draft="true"\]\)/);
+  assert.match(desktop, /useRef<HTMLTextAreaElement>/);
 });
 
 test("dictation returns stopped speech to the composer and only sends from the send control", () => {

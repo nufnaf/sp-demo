@@ -107,6 +107,7 @@ test("the dismissed widget can publish and becomes disabled while that same publ
   assert.equal(h.calls.length, 1);
   assert.equal(h.calls[0], "发布岗位", "only an application action is dispatched; no model copies a file path");
   assert.equal(surfaces.publicationInsight.disabled, true);
+  assert.equal(surfaces.insightItems[0].stage, "publishing");
   assert.equal(surfaces.publicationInsight.actionLabel, "正在发布…");
 });
 
@@ -169,6 +170,10 @@ test("failed final verification shows the failure once and does not rediscover t
   h.recognize().publicationInsight.onOpen(); const done=await h.settle();
   assert.equal(notices.length,1); assert.match(notices[0],/没有找到/);
   assert.ok(done.publicationInsight); assert.equal(done.notification,null);
+  assert.equal(done.insightItems[0].stage, "attention");
+  const restored = harness(JSON.parse(h.storage.get("syntropic:notifications:/fixture")));
+  assert.equal(restored.render().insightItems[0].stage, "attention");
+  assert.equal(restored.render().publicationInsight.detail, notices[0]);
 });
 
 
