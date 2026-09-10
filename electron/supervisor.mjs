@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LocalService } from './service.mjs';
 import { ServiceGroup } from './service-group.mjs';
+import { preparePresentationCalendar } from './prepare-presentation.mjs';
 const root = process.env.SYNTROPIC_APP_ROOT || resolve(dirname(fileURLToPath(import.meta.url)), '..');
 let service;
 let starting;
@@ -30,6 +31,7 @@ async function start() {
         })] : []),
       ]);
       const result = await service.start();
+      if (!stopping) await preparePresentationCalendar({ onStatus: callbacks.onStatus });
       if (!stopping) send({ type: 'ready', ...result });
     }
     catch (error) {

@@ -57,8 +57,36 @@ export function normalizeCalendarEvent(value: unknown, calendarId: string): Feis
   return { id: event.event_id, calendarId, title: typeof event.summary === "string" ? event.summary : "未命名日程", startsAt: start.value, endsAt: end.value, allDay: start.allDay, description: plainText(event.description), location: plainText((event.location as { name?: unknown } | undefined)?.name), appLink, status: typeof event.status === "string" ? event.status : "confirmed", source: "feishu" };
 }
 export class FeishuCalendarClient {
-  constructor(readonly calendarId: string, readonly identity: string, private request: CalendarRequest) {}
+  constructor(readonly calendarId: string, readonly identity: string, private request: CalendarRequest, readonly resetEventIds: readonly string[] = []) {}
   private path(suffix: string) { return `/calendar/v4/calendars/${encodeURIComponent(this.calendarId)}/events${suffix}`; }
+  /** Full pagination, including past events, so old demo runs do not accumulate. */
+  async allEvents(): Promise<FeishuCalendarEvent[]> {
+    const events = new Map<string, FeishuCalendarEvent>();
+    const seen = new Set<string>();
+    let token = "";
+    for (let page = 0; page < 100; page++) {
+      // Feishu only returns page_token when anchor_time is supplied.
+      const query = new URLSearchParams({ page_size: "500", anchor_time: "0" });
+      if (token) query.set("page_token", token);
+      const data = await this.request(this.path(`?${query}`));
+      if (data.items !== undefined && !Array.isArray(data.items)) throw new Error("飞书日程列表不完整，未重置演示日程。");
+      if (data.items === undefined && data.has_more) throw new Error("飞书日程列表不完整，未重置演示日程。");
+      for (const item of (data.items ?? []) as Record<string, unknown>[]) {
+        if (item.status === "cancelled") continue;
+        const event = normalizeCalendarEvent(item, this.calendarId);
+        events.set(event.id, event);
+      }
+      if (!data.has_more) return [...events.values()];
+      token = typeof data.page_token === "string" ? data.page_token : "";
+      if (!token || seen.has(token)) break;
+      seen.add(token);
+    }
+    throw new Error("飞书日程列表加载未完成，未重置演示日程。");
+  }
+  async remove(eventId: string): Promise<void> {
+    if (!eventId) throw new Error("日程标识无效。");
+    await this.request(this.path(`/${encodeURIComponent(eventId)}?need_notification=false`), { method: "DELETE" });
+  }
   async events(start: string, end: string): Promise<FeishuCalendarEvent[]> {
     const from = Date.parse(start), to = Date.parse(end);
     if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from || to - from >= 40 * 86400000) throw new Error("请选择小于 40 天的有效日程范围。");
