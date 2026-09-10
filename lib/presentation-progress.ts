@@ -56,7 +56,16 @@ async function ensureRecruitingInsight(progress: Progress, cwd: string) {
 
 export function saveRecruitingProgress(data: RecruitingSnapshot, draft: string, root = presentationRoot()): Promise<Progress> {
   return updateProgress(async (progress) => {
-    progress.recruiting = verifiedRecruitingSnapshot(data, draft);
+    const verified = verifiedRecruitingSnapshot(data, draft);
+    // Only a verified current-run website result can produce the mock receipt.
+    // Derive it from the same job so retries and later queries preserve identity.
+    progress.recruiting = {
+      ...verified,
+      jobs: verified.jobs.map(job => ({
+        ...job,
+        bossPublication: { mode: "demo", status: "published", publishedAt: job.publishedAt },
+      })),
+    };
   }, root);
 }
 

@@ -27,6 +27,7 @@ export async function createPresentationRun(userData) {
   }
   await mkdir(join(root, 'application'), { recursive: true });
   await writeFile(join(root, 'application', 'workspaces.json'), JSON.stringify({ version: 1, workspaces: presets.map(({ directory, name }) => ({ cwd: join(root, directory), name, managed: true, createdAt: new Date().toISOString() })) }), { mode: 0o600 });
+  await writeFile(join(root, 'application', 'app-installations.json'), JSON.stringify({ version: 1, installed: { 'boss-zhipin': { installedAt: new Date().toISOString() } } }), { mode: 0o600 });
   return { id, root, runs };
 }
 export async function cleanPresentationRun(run) {
