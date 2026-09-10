@@ -107,19 +107,22 @@ async function startSupervisor() {
   let root = join(here, '..');
   const env = { ...process.env, ELECTRON_RUN_AS_NODE: undefined };
   delete env.SYNTROPIC_DEMO_OPENROUTER;
+  delete env.SYNTROPIC_DEMO_DEEPSEEK_MODEL;
   if (packaged) {
     try {
       const manifest = JSON.parse(await readFile(join(process.resourcesPath, 'desktop-runtime.json'), 'utf8'));
-      if (manifest.demoAuth === 'openrouter') {
+      if (['openrouter', 'deepseek'].includes(manifest.demoAuth)) {
         try {
           Object.assign(env, await prepareDemoModelEnvironment({
-            configPath: join(process.resourcesPath, 'openrouter-demo.json'),
+            provider: manifest.demoAuth,
+            configPath: join(process.resourcesPath, `${manifest.demoAuth}-demo.json`),
             presentationRoot: presentation.root,
           }));
           // The bundled credential is authoritative; ignore inherited provider credentials.
           delete env.OPENROUTER_API_KEY;
+          delete env.DEEPSEEK_API_KEY;
         } catch {
-          await showStatus({ phase: 'error', title: '演示模型配置不可用', detail: '安装包缺少有效的 OpenRouter 配置，请联系提供者重新打包。无需登录 ChatGPT。', retry: false });
+          await showStatus({ phase: 'error', title: '演示模型配置不可用', detail: '安装包缺少有效的模型服务配置，请联系提供者重新打包。无需登录 ChatGPT。', retry: false });
           return;
         }
       }

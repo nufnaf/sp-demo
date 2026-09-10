@@ -2,24 +2,48 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 // Also used by the packager. Errors deliberately omit file contents.
-export async function readDemoApiKey(configPath) {
+export async function readDemoModelConfig(configPath, provider = 'openrouter') {
+  if (!['openrouter', 'deepseek'].includes(provider)) throw new Error('不支持的演示模型服务。');
+  const label = provider === 'deepseek' ? 'DeepSeek' : 'OpenRouter';
   let config;
   try { config = JSON.parse(await readFile(configPath, 'utf8')); }
-  catch { throw new Error('无法读取 OpenRouter 演示配置，请提供有效的 .env.openrouter-demo.json。'); }
+  catch { throw new Error(`无法读取 ${label} 演示配置，请提供有效的 .env.${provider}-demo.json。`); }
   if (typeof config?.apiKey !== 'string' || !config.apiKey.trim() || /\s/.test(config.apiKey.trim())) {
-    throw new Error('OpenRouter 演示配置缺少有效 apiKey。');
+    throw new Error(`${label} 演示配置缺少有效 apiKey。`);
   }
-  return config.apiKey.trim();
+  const modelId = provider === 'deepseek' ? (config.modelId || 'deepseek-flash') : 'openai/gpt-5.6-luna';
+  if (typeof modelId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9./_-]{0,127}$/.test(modelId)) {
+    throw new Error(`${label} 演示配置的 modelId 无效。`);
+  }
+  return { apiKey: config.apiKey.trim(), modelId };
 }
 
-export async function prepareDemoModelEnvironment({ configPath, presentationRoot }) {
-  const key = await readDemoApiKey(configPath);
+export async function readDemoApiKey(configPath) {
+  return (await readDemoModelConfig(configPath)).apiKey;
+}
+
+export async function prepareDemoModelEnvironment({ configPath, presentationRoot, provider = 'openrouter' }) {
+  const { apiKey: key, modelId } = await readDemoModelConfig(configPath, provider);
   const agentDir = join(presentationRoot, 'model-agent');
   await mkdir(agentDir, { recursive: true, mode: 0o700 });
-  await writeFile(join(agentDir, 'auth.json'), JSON.stringify({ openrouter: { type: 'api_key', key } }), { mode: 0o600 });
+  await writeFile(join(agentDir, 'auth.json'), JSON.stringify({ [provider]: { type: 'api_key', key } }), { mode: 0o600 });
+  if (provider === 'deepseek') {
+    // Register the official model even when the SDK's bundled catalog predates it.
+    await writeFile(join(agentDir, 'models.json'), JSON.stringify({ providers: { deepseek: {
+      baseUrl: 'https://api.deepseek.com', api: 'openai-completions',
+      models: [{ id: modelId, name: 'DeepSeek V4.1 Flash', reasoning: true,
+        input: ['text', 'image'], contextWindow: 1000000, maxTokens: 384000,
+        thinkingLevelMap: { low: 'low', high: 'high', max: 'max' },
+        compat: { supportsStore: false, supportsDeveloperRole: false, supportsStrictMode: false,
+          maxTokensField: 'max_tokens', requiresReasoningContentOnAssistantMessages: true, thinkingFormat: 'deepseek' },
+      }],
+    } } }), { mode: 0o600 });
+  }
   await writeFile(join(agentDir, 'settings.json'), JSON.stringify({
-    defaultProvider: 'openrouter', defaultModel: 'openai/gpt-5.6-luna', defaultThinkingLevel: 'low',
-    enabledModels: ['openrouter/openai/gpt-5.6-luna'],
+    defaultProvider: provider, defaultModel: modelId, defaultThinkingLevel: 'low',
+    enabledModels: [`${provider}/${modelId}`],
   }), { mode: 0o600 });
-  return { PI_CODING_AGENT_DIR: agentDir, SYNTROPIC_DEMO_OPENROUTER: '1' };
+  return { PI_CODING_AGENT_DIR: agentDir, ...(provider === 'deepseek'
+    ? { SYNTROPIC_DEMO_DEEPSEEK_MODEL: modelId }
+    : { SYNTROPIC_DEMO_OPENROUTER: '1' }) };
 }

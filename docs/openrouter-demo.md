@@ -17,10 +17,10 @@
 ```bash
 cd /Users/xiewannan/code/sp-demo-worktrees/openrouter-demo
 npm ci --legacy-peer-deps
-npm run package:desktop
+SYNTROPIC_DEMO_AUTH=openrouter npm run package:desktop
 ```
 
-默认构建 OpenRouter 版本；缺 Key 时在构建开始前报错。输出为 `build/desktop/release/Syntropic.app`，旁边有使用说明。源码复制到独立暂存目录后构建，不运行开发根目录的 `next build`。沿用现有 macOS Apple Silicon 打包、签名和分发方式。
+默认构建已切换为 [DeepSeek 版本](deepseek-demo.md)；显式选择 openrouter 可构建本文版本，缺 Key 时在构建开始前报错。输出为 `build/desktop/release/Syntropic.app`，旁边有使用说明。源码复制到独立暂存目录后构建，不运行开发根目录的 `next build`。沿用现有 macOS Apple Silicon 打包、签名和分发方式。
 
 如需保留原 ChatGPT OAuth 安装包，可显式运行 `SYNTROPIC_DEMO_AUTH=chatgpt npm run package:desktop`。普通 Web 和开发 Electron 默认仍走原 OAuth 配置。
 
