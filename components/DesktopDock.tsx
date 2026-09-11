@@ -174,7 +174,7 @@ export function DesktopDockItem({ children, open = false, animateOpening = true,
     if (typeof forwardedRef === "function") return forwardedRef(node);
     if (forwardedRef) forwardedRef.current = node;
   }} type={props.type ?? "button"} className={className}
-    style={{ ...props.style, transform }}
+    style={{ ...props.style, transform, "--dock-item-scale": scaleTransform } as HTMLMotionProps<"button">["style"]}
     onFocus={event => { keyboardFocus.set(event.currentTarget.matches(":focus-visible")); props.onFocus?.(event); }}
     onBlur={event => { keyboardFocus.set(false); props.onBlur?.(event); }}
   >

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, session, shell } from 'electron';
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Menu, net, session, shell, systemPreferences } from 'electron';
 import { fork } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -13,6 +13,8 @@ import { createAppLocationGuard } from './app-location.mjs';
 import { createSpaceThumbnailCapture } from './space-thumbnail.mjs';
 import { createSystemNetworkBridge } from './system-network.mjs';
 import { createUiPreferencesStore, registerUiPreferences } from './ui-preferences.mjs';
+import { createComputerPermissions, registerComputerPermissions } from './computer-permissions.mjs';
+import { createStartupState } from './startup-state.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const packaged = existsSync(join(process.resourcesPath, 'desktop-runtime.json'));
@@ -28,6 +30,8 @@ let presentation = null;
 let quitting = false;
 let ready = false;
 let packagedBuildId;
+let captureRuntime;
+let captureProbe;
 let systemNetwork;
 let status = STARTUP_STATE;
 let supervisorStopped = Promise.resolve();
@@ -139,7 +143,7 @@ async function startSupervisor() {
         SYNTROPIC_APP_ROOT: root,
         SYNTROPIC_WINDOW_CAPTURE_HELPER: join(process.resourcesPath, 'helpers/window-stream'),
         SYNTROPIC_INPUT_FOCUS_HELPER: join(process.resourcesPath, 'helpers/input-focus'),
-        SYNTROPIC_FEISHU_CONFIG: join(process.resourcesPath, 'feishu-demo.json'),
+        SYNTROPIC_FEISHU_CLI: join(process.resourcesPath, 'helpers/lark-cli'),
         SYNTROPIC_RECRUITING_URL: env.SYNTROPIC_RECRUITING_URL?.trim() || manifest.recruitingUrl || 'http://127.0.0.1:30143/',
         PI_WEB_BROWSER_EXECUTABLE: join(process.resourcesPath, manifest.browserExecutable),
         PI_WEB_BROWSER_HEADLESS: 'true',
@@ -150,7 +154,8 @@ async function startSupervisor() {
       return;
     }
   }
-  if (presentation) Object.assign(env, { SYNTROPIC_PRESENTATION_ROOT: presentation.root, SYNTROPIC_PRESENTATION_ID: presentation.id, RECRUITING_PRESENTATION: '1', RECRUITING_DATA_FILE: join(presentation.root, 'recruiting/state.json'), SYNTROPIC_FEISHU_CONFIG: packaged ? join(process.resourcesPath, 'feishu-demo.json') : join(root, '.env.feishu-demo.json') });
+  env.SYNTROPIC_FEISHU_HOME = join(app.getPath('userData'), 'feishu');
+  if (presentation) Object.assign(env, { SYNTROPIC_PRESENTATION_ROOT: presentation.root, SYNTROPIC_PRESENTATION_ID: presentation.id, RECRUITING_PRESENTATION: '1', RECRUITING_DATA_FILE: join(presentation.root, 'recruiting/state.json') });
   if (process.platform === 'darwin') try {
     if (!systemNetwork) {
       const networkSession = session.fromPartition(`syntropic-network-${presentation.id}`, { cache: false });
@@ -167,6 +172,7 @@ async function startSupervisor() {
     void showStatus({ phase: 'error', title: '缺少本机 Node 启动器', detail: '请从项目目录运行 npm run desktop。', retry: false });
     return;
   }
+  captureRuntime = { node, root, env };
   supervisor = fork(join(here, 'supervisor.mjs'), [], {
     execPath: node, execArgv: [], cwd: root, env,
     // Keep the cleanup supervisor alive when the Electron process group dies.
@@ -211,6 +217,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('before-quit', (event) => {
     if (quitting) return;
     event.preventDefault();
+    captureProbe?.kill('SIGTERM');
     quitting = true;
     if (supervisor?.connected) supervisor.send({ type: 'stop' });
     // The Node supervisor survives an Electron crash and cleans up on IPC disconnect.
@@ -243,6 +250,24 @@ if (!app.requestSingleInstanceLock()) {
       callback(result.response === 1);
     });
     registerUiPreferences(ipcMain, uiPreferences, () => window, isAppUrl);
+    registerComputerPermissions(ipcMain, createComputerPermissions({ systemPreferences, desktopCapturer, shell,
+      startupState: createStartupState(app.getPath('userData')),
+      verifyCapture: () => new Promise((resolve, reject) => {
+        if (!captureRuntime || quitting) { reject(new Error('应用仍在启动，请稍后重试。')); return; }
+        const { node, root, env } = captureRuntime;
+        const entry = packaged ? join(process.resourcesPath, 'runtime/electron/computer-use/permission-probe-worker.mjs') : join(here, 'computer-use/permission-probe-worker.mjs');
+        const child = captureProbe = fork(entry, [], { execPath: node, execArgv: [], cwd: root, env, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
+        let result;
+        const timer = setTimeout(() => child.kill('SIGTERM'), 90000);
+        child.on('message', message => { result = message; });
+        child.once('error', () => { clearTimeout(timer); reject(new Error('无法启动屏幕访问验证，请退出并重新打开 App。')); });
+        child.once('exit', () => {
+          clearTimeout(timer); captureProbe = undefined;
+          if (result?.ok) resolve();
+          else reject(new Error(result?.error?.startsWith('请打开飞书') ? result.error : '屏幕访问尚未验证。请在系统弹窗中允许访问，保持飞书主窗口打开后重试。'));
+        });
+      }),
+    }), () => window, isAppUrl);
     ipcMain.handle('desktop:space-thumbnail', createSpaceThumbnailCapture(() => window, isAppUrl));
     ipcMain.on('desktop:workbench-ready', event => {
       if (!ready || event.sender !== window?.webContents

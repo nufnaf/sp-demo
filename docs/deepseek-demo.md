@@ -20,7 +20,7 @@
 
 `modelId` 可省略或留空，默认使用 `deepseek-flash`。文件被 Git 忽略；也可用 `SYNTROPIC_DEEPSEEK_CONFIG` 指定私有配置文件的绝对路径。Key 不进入 Git、命令参数、构建日志或使用说明。
 
-准备同一 worktree 下已完成日历配置的 `.env.feishu-demo.json`，然后构建：
+飞书连接改为使用者首次启动时自行授权，不再准备或打包 `.env.feishu-demo.json`。构建：
 
 ```bash
 SYNTROPIC_DEMO_AUTH=deepseek \

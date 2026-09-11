@@ -42,6 +42,8 @@ function dateLabel(value?: string) {
 }
 
 export function FeishuDemoApp({ onOpen, recruiting = true }: { recruiting?: boolean; onOpen: (document: FeishuListResource) => void }) {
+  const [account, setAccount] = useState("飞书用户");
+  const [identity, setIdentity] = useState("");
   const [documents, setDocuments] = useState<FeishuListResource[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -50,29 +52,29 @@ export function FeishuDemoApp({ onOpen, recruiting = true }: { recruiting?: bool
   const [section, setSection] = useState<Section>("最近使用");
   const [favorites, setFavorites] = useState<string[]>([]);
   useEffect(() => {
-    try { const saved: unknown = JSON.parse(localStorage.getItem(favoriteKey) || "[]"); if (Array.isArray(saved)) setFavorites(saved.filter((id): id is string => typeof id === "string")); } catch { /* An unavailable cache does not prevent reading documents. */ }
-  }, []);
+    try { const saved: unknown = JSON.parse(localStorage.getItem(`${favoriteKey}:${identity}`) || "[]"); if (Array.isArray(saved)) setFavorites(saved.filter((id): id is string => typeof id === "string")); } catch { /* An unavailable cache does not prevent reading documents. */ }
+  }, [identity]);
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError("");
     void fetch("/api/apps/feishu/documents", { signal: controller.signal, cache: "no-store" }).then(async (r) => {
       const data = await r.json(); if (!r.ok) throw new Error(data.error || "暂时无法加载文档，请稍后重试。");
-      if (!controller.signal.aborted) setDocuments(data.items);
+      if (!controller.signal.aborted) { setDocuments(data.items); setAccount(data.account || "飞书用户"); setIdentity(data.identity || ""); }
     }).catch((e) => { if (!controller.signal.aborted) setError(e.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [revision]);
   function toggleFavorite(id: string) {
     const next = favorites.includes(id) ? favorites.filter((item) => item !== id) : [...favorites, id];
     setFavorites(next);
-    try { localStorage.setItem(favoriteKey, JSON.stringify(next)); } catch { /* Keep the current view usable without storage. */ }
+    try { localStorage.setItem(`${favoriteKey}:${identity}`, JSON.stringify(next)); } catch { /* Keep the current view usable without storage. */ }
   }
   const visible = documents.filter((doc) => (section !== "收藏" || favorites.includes(doc.id)) && doc.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
     .sort((a, b) => (b.modifiedAt || "").localeCompare(a.modifiedAt || ""));
   return <div className="feishu-workspace">
     <aside className="feishu-sidebar">
-      <div className="feishu-account"><Image src="/icons/feishu-logo.svg" width={36} height={36} alt="" unoptimized/><div><strong>飞书</strong><small><i/>星流科技</small></div></div>
+      <div className="feishu-account"><Image src="/icons/feishu-logo.svg" width={36} height={36} alt="" unoptimized/><div><strong>飞书</strong><small><i/>{account}</small></div></div>
       <nav aria-label="飞书导航">{sections.map((item) => <button type="button" key={item} aria-current={section === item ? "page" : undefined} onClick={() => { setSection(item); setQuery(""); }}><Glyph name={item}/>{item}</button>)}</nav>
-      <footer><Glyph name="团队空间"/><div><strong>团队资料</strong><small>星流科技 · 共享空间</small></div></footer>
+      <footer><Glyph name="团队空间"/><div><strong>团队资料</strong><small>招聘工作资料</small></div></footer>
     </aside>
     <main className="feishu-main">{section === "会议" ? <PresentationSchedule recruiting={recruiting}/> : <>
       <header className="feishu-home-header">
@@ -97,7 +99,7 @@ export function FeishuDemoApp({ onOpen, recruiting = true }: { recruiting?: bool
               <div className="feishu-doc-title"><strong title={doc.title}>{doc.title}</strong><button type="button" className="feishu-star" aria-label={`${favorites.includes(doc.id) ? "取消收藏" : "收藏"}${doc.title}`} aria-pressed={favorites.includes(doc.id)} onClick={() => toggleFavorite(doc.id)}><Glyph name="收藏"/></button></div>
               <small>{resource.label} · 团队资料</small>
             </div>
-            <span className="feishu-space">星流科技</span><time dateTime={doc.modifiedAt}>{dateLabel(doc.modifiedAt)}</time>
+            <span className="feishu-space">招聘工作资料</span><time dateTime={doc.modifiedAt}>{dateLabel(doc.modifiedAt)}</time>
           </div>; }) : <div className="feishu-empty"><Glyph name={query ? "search" : section === "收藏" ? "收藏" : "document"}/><strong>{query ? "没有找到文档" : section === "收藏" ? "还没有收藏的文档" : "这里还没有文档"}</strong><p>{query ? "尝试搜索其他文档名称。" : section === "收藏" ? "点击文档旁的星标，方便下次查找。" : "团队共享的资料会显示在这里。"}</p></div>}
       </section>
     </>}</main>
@@ -114,7 +116,7 @@ export function FeishuDemoDocument({ id }: { id: string }) {
     return () => controller.abort();
   }, [id, revision]);
   return <section className="feishu-preview">{error ? <div className="feishu-empty" role="alert"><strong>文档暂时无法加载</strong><p>{error}</p><button type="button" onClick={() => setRevision((n) => n + 1)}>重新加载</button></div> : !document ? <div className="feishu-empty" role="status"><span className="agent-os-spinner"/><p>正在加载文档…</p></div> : <>
-    <div className="feishu-document-toolbar"><span>团队空间 / 星流科技</span><button type="button" aria-label="刷新正文" onClick={() => setRevision((n) => n + 1)}><Glyph name="refresh"/>刷新</button></div>
+    <div className="feishu-document-toolbar"><span>工作资料 / 星流科技</span><button type="button" aria-label="刷新正文" onClick={() => setRevision((n) => n + 1)}><Glyph name="refresh"/>刷新</button></div>
     <article className="feishu-document"><header><span className="feishu-doc-icon"><Glyph name="document"/></span><div><h1>{document.title}</h1><p>星流科技 · 团队资料{document.modifiedAt ? ` · 更新于 ${dateLabel(document.modifiedAt)}` : ""}</p></div></header>
       <div className="feishu-document-content">{document.content.split(/\r?\n/).filter((line, index) => line.trim() && !(index === 0 && line.trim() === document.title)).map((line, index) => line.trim().length < 30 && !/[。；，：:]/.test(line) ? <h2 key={index}>{line}</h2> : <p key={index}>{line}</p>)}</div>
     </article>

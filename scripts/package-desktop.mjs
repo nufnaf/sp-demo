@@ -5,7 +5,9 @@ import { existsSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pruneUnsupportedPackages } from './desktop-package-files.mjs';
+import { prepareFeishuCli, copyFeishuCliLicenses } from './prepare-feishu-cli.mjs';
 import { readDemoModelConfig } from '../electron/demo-model.mjs';
+import { desktopUsage } from './desktop-usage.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new Error('此安装包构建目前仅支持 macOS Apple Silicon。');
@@ -15,9 +17,7 @@ const recruitingUrl = new URL(process.env.SYNTROPIC_RECRUITING_URL?.trim() || 'h
 if (!['http:', 'https:'].includes(recruitingUrl.protocol) || recruitingUrl.username || recruitingUrl.password) throw new Error('招聘网站地址必须是不含凭据的 HTTP/HTTPS 地址。');
 const demoConfig = demoAuth === 'chatgpt' ? undefined
   : await readDemoModelConfig(process.env[`SYNTROPIC_${demoAuth.toUpperCase()}_CONFIG`] || join(root, `.env.${demoAuth}-demo.json`), demoAuth);
-const feishuConfig = await readFile(join(root, '.env.feishu-demo.json'));
-const configCheck = JSON.parse(feishuConfig.toString('utf8'));
-if (!configCheck.appId || !configCheck.appSecret || !configCheck.folderToken || !configCheck.documentIds?.length || !configCheck.calendarId || configCheck.calendarId === "primary") throw new Error('请先完成 docs/feishu-demo-setup.md 中的专用飞书配置；未配置的包不能作为完整演示交付。');
+const feishuCli = await prepareFeishuCli();
 const build = join(root, 'build/desktop');
 const cache = join(build, 'cache');
 const source = join(build, 'source');
@@ -69,7 +69,7 @@ await mkdir(release, { recursive: true });
 await cp(join(root, 'node_modules/electron/dist/Electron.app'), app, { recursive: true, verbatimSymlinks: true });
 await rm(join(resources, 'default_app.asar'), { force: true });
 await mkdir(join(resources, 'app'), { recursive: true });
-await writeFile(join(resources, 'feishu-demo.json'), feishuConfig, { mode: 0o600 });
+
 if (demoConfig) await writeFile(join(resources, `${demoAuth}-demo.json`), JSON.stringify(demoConfig), { mode: 0o600 });
 await cp(join(root, 'electron'), join(resources, 'app/electron'), { recursive: true });
 await writeFile(join(resources, 'app/package.json'), JSON.stringify({ name: 'syntropic-desktop', productName: 'Syntropic', version: '0.8.11', main: 'electron/main.mjs' }, null, 2));
@@ -79,6 +79,8 @@ await cp(join(source, '.next/standalone'), runtime, { recursive: true, verbatimS
 // renderer. Compile at packaging time; installed Apps never need Xcode.
 await cp(join(root, 'electron/computer-use'), join(runtime, 'electron/computer-use'), { recursive: true });
 await mkdir(join(resources, 'helpers'), { recursive: true });
+await cp(feishuCli, join(resources, 'helpers/lark-cli'));
+await copyFeishuCliLicenses(join(resources, 'licenses/feishu-cli'));
 await run('/usr/bin/xcrun', ['swiftc', '-parse-as-library', join(root, 'electron/computer-use/window-stream.swift'), '-o', join(resources, 'helpers/window-stream')]);
 await run('/usr/bin/xcrun', ['swiftc', '-parse-as-library', join(root, 'electron/computer-use/input-focus.swift'), '-o', join(resources, 'helpers/input-focus')]);
 for (const entry of ['public', '.next/static']) await cp(join(source, entry), join(runtime, entry), { recursive: true, verbatimSymlinks: true });
@@ -135,5 +137,5 @@ await run('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', app]);
 await run('/usr/bin/codesign', ['--verify', '--deep', '--strict', app]);
 // The source snapshot is disposable build input, not another installed runtime.
 await rm(source, { recursive: true, force: true });
-await writeFile(join(release, '使用说明.txt'), '安装前如果已经打开过 Syntropic，请先按 ⌘Q 完全退出。将 Syntropic.app 拖到「应用程序」，等待复制完成，再双击启动。只关闭窗口不等于退出；移动或替换 App 前同样需要完全退出。\n招聘网站：' + recruitingUrl.href + '\n运行代码直接引用 App 内文件，只在用户目录保存清单和缓存；新版本启动成功后自动删除旧运行目录。内置网页通过 Chromium Headless Shell 显示和操作，无需预装 Chrome。\n' + (demoAuth === 'deepseek' ? '需要联网；已预置 DeepSeek 官方 API 演示配置，无需登录或填写 Key。主 Agent、后台任务与浏览器统一使用 DeepSeek V4.1 Flash（low）。额度耗尽或授权失效时请联系提供者。\n' : demoAuth === 'openrouter' ? '需要联网；已预置 OpenRouter 演示额度，无需登录或配置 Key。主 Agent、后台任务与浏览器统一使用 GPT-5.6 Luna（low）。额度耗尽或授权失效时请联系提供者。\n' : '需要联网及 Pi 中有效的 ChatGPT 授权才能执行 Agent 任务。\n') + '桌面本轮记录保存于 App 专属运行目录；刷新保留，完全退出后下次从空记录开始。线上招聘网站的数据持续保存，不会随 App 退出而清空。飞书演示资料通过随包专用应用配置读取。\n⌘Q 退出并停止本 App 启动的服务。\n此包为本机签名的 macOS Apple Silicon 内部演示版本，未做 Apple 公证。\n');
+await writeFile(join(release, '使用说明.txt'), desktopUsage({ demoAuth, recruitingUrl: recruitingUrl.href }));
 console.log(`完成：${app}`);
