@@ -450,7 +450,7 @@ function CollaborationCliAppView({ app, onNotice }: { app: ConnectorLaunchpadApp
     <main className={flow ? "is-authorizing" : ""}>
       {flow ? <>
         <div className="agent-os-onboarding-auth-visual">
-          {flow.requiresConfirmation ? <div className="agent-os-onboarding-browser" aria-label={`${app.name}授权窗口已打开`}><Icon name="browser" size={40}/><span className="agent-os-onboarding-live-dot"/><strong>授权窗口已打开</strong></div> : <Image src={flow.qrCodeDataUrl} width={208} height={208} unoptimized alt={`${app.name}授权二维码`}/>}
+          {flow.requiresConfirmation ? <div className="agent-os-onboarding-browser" aria-label={`${app.name}授权窗口已打开`}><Icon name="browser" size={40}/><span className="agent-os-onboarding-live-dot"/><strong>请在浏览器中继续</strong></div> : <Image src={flow.qrCodeDataUrl} width={208} height={208} unoptimized alt={`${app.name}授权二维码`}/>}
         </div>
         <section className="agent-os-onboarding-copy">
           <span className="agent-os-onboarding-step">账号授权</span>
@@ -683,7 +683,6 @@ interface FeishuAuthFlow {
   flowId?: string;
   kind: "configuration" | "permission" | "login";
   verificationUrl: string;
-  qrCodeDataUrl: string;
 }
 
 interface CollaborationCliStatus {
@@ -769,6 +768,8 @@ function FeishuAppView({ app, onNotice, onOpenDocument }: {
   const [busy, setBusy] = useState(false);
   const [flow, setFlow] = useState<FeishuAuthFlow | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const gesture = useRef(false);
+  const opened = useRef<string | undefined>(undefined);
   const [documentQuery, setDocumentQuery] = useState("");
   const [documents, setDocuments] = useState<FeishuDocument[]>([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
@@ -808,7 +809,9 @@ function FeishuAppView({ app, onNotice, onOpenDocument }: {
     return body;
   }, []);
 
-  const beginFlow = useCallback(async (action: "configure" | "login") => {
+  const beginFlow = useCallback(async (action: "configure" | "login", fromUser = true) => {
+    gesture.current = fromUser;
+    opened.current = undefined;
     setBusy(true);
     setError(null);
     try {
@@ -845,24 +848,47 @@ function FeishuAppView({ app, onNotice, onOpenDocument }: {
   useEffect(() => {
     if (!flow || flow.kind === "permission") return;
     let cancelled = false;
-    const poll = window.setInterval(() => {
-      void fetch("/api/apps/feishu", { cache: "no-store" }).then(async (response) => {
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        if (flow.kind === "login") {
+          const response = await postAction("login_status", { flowId: flow.flowId || "" });
+          const result = response as unknown as { state: string; message?: string };
+          if (cancelled) return;
+          if (result.state === "failed" || result.state === "expired") {
+            setError(result.message || "本次授权未完成，请重试。"); setFlow(null); return;
+          }
+          if (result.state !== "succeeded") { timer = setTimeout(poll, 1500); return; }
+        }
+        const response = await fetch("/api/apps/feishu", { cache: "no-store" });
         const next = await response.json() as FeishuCliStatus;
         if (cancelled || !response.ok) return;
         updateStatus(next);
-        if (flow.kind === "configuration" && next.configured) {
-          window.clearInterval(poll);
-          setFlow(null);
-          await beginFlow("login");
-        } else if (flow.kind === "login" && next.authState === "authenticated") {
-          window.clearInterval(poll);
-          setFlow(null);
-          onNotice("飞书账号已连接");
+        if (flow.kind === "configuration" && next.configured) { await beginFlow("login", false); return; }
+        if (flow.kind === "login" && next.authState === "authenticated") {
+          setFlow(null); onNotice("飞书账号已连接"); return;
         }
-      }).catch(() => undefined);
-    }, 1_500);
-    return () => { cancelled = true; window.clearInterval(poll); };
-  }, [beginFlow, flow, onNotice, updateStatus]);
+      } catch { /* A transient connection failure can be retried without a new authorization. */ }
+      if (!cancelled) timer = setTimeout(poll, 1500);
+    };
+    timer = setTimeout(poll, 1500);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [beginFlow, flow, onNotice, updateStatus, postAction]);
+
+  // After "连接飞书", hand the Feishu page to the system browser instead of
+  // asking for a phone scan. A step the App starts on its own still opens a
+  // moment later, and the visible link covers a blocked window.
+  useEffect(() => {
+    const url = flow?.verificationUrl;
+    const started = gesture.current;
+    gesture.current = false;
+    if (!url || opened.current === url) return;
+    opened.current = url;
+    const open = () => window.open(url, "_blank", "noopener");
+    if (started) { open(); return; }
+    const timer = window.setTimeout(open, 1_200);
+    return () => window.clearTimeout(timer);
+  }, [flow]);
 
   const authenticated = status?.authState === "authenticated";
 
@@ -918,14 +944,14 @@ function FeishuAppView({ app, onNotice, onOpenDocument }: {
   if (!documentWorkspace) return <div className="agent-os-native-onboarding">
     <main className={flow ? "is-authorizing" : ""}>
       {flow ? <>
-        <div className="agent-os-onboarding-auth-visual"><Image src={flow.qrCodeDataUrl} width={208} height={208} unoptimized alt={flow.kind === "configuration" ? "飞书应用配置二维码" : flow.kind === "permission" ? "飞书权限配置二维码" : "飞书账号登录二维码"}/></div>
+        <div className="agent-os-onboarding-auth-visual"><div className="agent-os-onboarding-browser" aria-label="飞书浏览器授权"><Icon name="browser" size={40}/><span className="agent-os-onboarding-live-dot"/><strong>请在浏览器中继续</strong></div></div>
         <section className="agent-os-onboarding-copy">
           <span className="agent-os-onboarding-step">{flow.kind === "configuration" ? "设置飞书" : flow.kind === "permission" ? "确认权限" : "账号授权"}</span>
-          <h1>{flow.kind === "permission" ? "启用云文档权限" : "扫描二维码继续"}</h1>
-          <p>{flow.kind === "permission" ? "在飞书开放平台启用权限，然后返回这里继续。" : "使用飞书扫描二维码，完成后会自动继续。"}</p>
+          <h1>{flow.kind === "configuration" ? "在浏览器中创建连接应用" : flow.kind === "permission" ? "在浏览器中确认权限" : "在浏览器中完成授权"}</h1>
+          <p>{flow.kind === "configuration" ? "在刚打开的飞书页面创建或选择连接应用，然后返回这里。" : flow.kind === "permission" ? "在飞书开放平台确认权限，然后返回这里继续。" : "在刚打开的飞书页面确认权限并完成授权，然后返回这里。"}</p>
           <div className="agent-os-onboarding-actions">
             <a className="is-primary" href={flow.verificationUrl} target="_blank" rel="noreferrer">在浏览器中继续</a>
-            {flow.kind === "permission" ? <button className="is-secondary" type="button" disabled={busy} onClick={() => { void beginFlow("login"); }}>我已完成</button> : <button className="is-secondary" type="button" onClick={() => setFlow(null)}>取消</button>}
+            {flow.kind === "permission" ? <button className="is-secondary" type="button" disabled={busy} onClick={() => { void beginFlow("login"); }}>我已完成</button> : <button className="is-secondary" type="button" onClick={() => { void postAction("cancel"); setFlow(null); }}>取消</button>}
           </div>
         </section>
       </> : <section className="agent-os-onboarding-welcome">
@@ -957,7 +983,7 @@ function FeishuAppView({ app, onNotice, onOpenDocument }: {
         <main>
           <header><span><h2>{documentQuery.trim() ? "搜索结果" : documentSections.find((section) => section.id === documentType)?.label}</h2><p>{visibleDocuments.length} 个项目 · 点击后在桌面打开</p></span></header>
           <div className="agent-os-feishu-library-columns" aria-hidden="true"><span>名称</span><span>类型</span></div>
-          {documentsError ? <div className="agent-os-feishu-documents-state is-error" role="alert"><span className="agent-os-feishu-state-icon">!</span><strong>{documentsError.kind === "missing_scope" ? "还需要云文档权限" : "文档加载失败"}</strong><p>{documentsError.error}</p><div>{documentsError.consoleUrl ? <a href={documentsError.consoleUrl} target="_blank" rel="noreferrer">在飞书开放平台启用权限 ↗</a> : null}<button type="button" disabled={busy} onClick={() => { void beginFlow("login"); }}>重新扫码授权</button></div></div> : documentsLoading && !documents.length ? <div className="agent-os-feishu-documents-state" role="status"><span className="agent-os-spinner"/>正在读取云文档…</div> : visibleDocuments.length ? <div className="agent-os-feishu-library-list" role="list">
+          {documentsError ? <div className="agent-os-feishu-documents-state is-error" role="alert"><span className="agent-os-feishu-state-icon">!</span><strong>{documentsError.kind === "missing_scope" ? "还需要云文档权限" : "文档加载失败"}</strong><p>{documentsError.error}</p><div>{documentsError.consoleUrl ? <a href={documentsError.consoleUrl} target="_blank" rel="noreferrer">在飞书开放平台启用权限 ↗</a> : null}<button type="button" disabled={busy} onClick={() => { void beginFlow("login"); }}>在浏览器中重新授权</button></div></div> : documentsLoading && !documents.length ? <div className="agent-os-feishu-documents-state" role="status"><span className="agent-os-spinner"/>正在读取云文档…</div> : visibleDocuments.length ? <div className="agent-os-feishu-library-list" role="list">
             {visibleDocuments.map((document) => <button key={document.id} type="button" role="listitem" disabled={!document.url} onClick={() => onOpenDocument(document)} aria-label={`在桌面打开 ${document.title}`}>
               <i className={`is-${document.type}`} aria-hidden="true">{(FEISHU_DOCUMENT_TYPES[document.type] ?? "文档").slice(0, 1)}</i>
               <span><strong>{document.title}</strong><small>{document.summary || "飞书云文档"}</small></span>
@@ -2930,7 +2956,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
                 recruiting={!!presentationCwd && activeCwd === presentationCwd} hasJd={artifacts.some(isJdDemoArtifact)}
                 jdRequested={jdRequested} progressReady={sessionsLoaded && !!jarvis.sessionId}
                 busy={jarvis.running || widgetTasks.some(task => task.running)} viewingRecruiting={hrRecruitingOpen && !hiddenWindowIds.has("hr") && frontWindow === "hr"}
-                placeholder={showStart ? startPlaceholder : jarvis.ready ? hasStartedWork ? "和 Syntropic 说点什么" : "发布今天的第一项任务吧～" : "Syntropic 正在启动…"}/>
+                placeholder={showStart ? startPlaceholder : hasStartedWork ? "和 Syntropic 说点什么" : "发布今天的第一项任务吧～"}/>
               <button className="voice dictate" type="button" aria-label="语音输入" onClick={() => { dictationCompletionRef.current = "draft"; dictation.toggle(); }}><DesktopDesignIcon name="microphone" size={20}/></button>
               {prompt.trim() ? (
                 <button className="send" type="submit" aria-label="发送给 Syntropic" disabled={!jarvis.sessionId || jarvis.sending}>{submitting || jarvis.sending ? <span className="agent-os-spinner"/> : <Icon name="arrow-up" size={19}/>}</button>

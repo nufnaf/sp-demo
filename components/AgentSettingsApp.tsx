@@ -2,6 +2,7 @@
 
 import { useDesktopPreferences } from "@/hooks/useDesktopPreferences";
 import { PREVIEW_WIDTH_SCALES } from "@/electron/ui-preferences-schema.mjs";
+import { FeishuConnectionStatus } from "./FeishuConnectionStatus";
 import { ConfigSwitch } from "./SettingsUi";
 import { SyntropicMark } from "./SyntropicMark";
 
@@ -111,6 +112,7 @@ function GeneralSettings({
         <p className="agent-settings-save-status" role="status">{error ?? (saving ? "正在保存…" : "设置自动保存，重启后继续生效。")}</p>
       </section>
 
+      <FeishuConnectionStatus/>
       <section className="agent-settings-group">
         <h2>Agent</h2>
         <div className="agent-settings-form-list">

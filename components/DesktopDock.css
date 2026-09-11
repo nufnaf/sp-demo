@@ -50,8 +50,8 @@
   box-shadow: 0 2px 4px rgba(0,0,0,.08);
 }
 .agent-os-dock.desktop-dock > i { align-self: center; flex-shrink: 0; }
-.agent-os-dock.desktop-dock > button::before { font-size: 10px; bottom: calc(100% + 30px); }
-.agent-os-dock.desktop-dock > button:is(:hover, :focus-visible)::before { opacity: 1; transform: translate(-50%, 0); }
+.agent-os-dock.desktop-dock > button::before { font-size: 10px; bottom: calc(100% + 30px); transform: translate(-50%, 4px) scale(var(--dock-item-scale, 1)); transform-origin: center bottom; }
+.agent-os-dock.desktop-dock > button:is(:hover, :focus-visible)::before { opacity: 1; transform: translate(-50%, 0) scale(var(--dock-item-scale, 1)); }
 .agent-os-dock.desktop-dock[data-crowded="true"] { overflow-x: auto; scrollbar-width: none; }
 @media (prefers-reduced-motion: reduce) {
   .desktop-dock-scale, .desktop-dock-icon, .desktop-dock-hit-area { transform: none !important; }

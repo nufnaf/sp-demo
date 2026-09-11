@@ -1,16 +1,27 @@
 "use client";
 
 import { useEffect } from "react";
+import type { ComputerPermission, ComputerPermissions } from "@/lib/computer-permissions";
 
 declare global {
   interface Window {
-    syntropicDesktop?: { ready: () => void; captureSpaceThumbnail?: () => Promise<string | null>; getUiPreferences?: () => Promise<unknown>; setUiPreferences?: (value: { desktopSpacesEnabled: boolean; previewWidthScale: number }) => Promise<unknown> };
+    syntropicDesktop?: {
+      ready: () => void;
+      showStartup?: () => Promise<void>;
+      captureSpaceThumbnail?: () => Promise<string | null>;
+      getUiPreferences?: () => Promise<unknown>;
+      setUiPreferences?: (value: { desktopSpacesEnabled: boolean; previewWidthScale: number }) => Promise<unknown>;
+      getComputerPermissions?: () => Promise<ComputerPermissions>;
+      requestComputerPermission?: (kind: ComputerPermission) => Promise<ComputerPermissions>;
+      completeInitialization?: (value: boolean) => Promise<ComputerPermissions>;
+    };
   }
 }
 
 /** Desktop only: wait for hydration, fonts, wallpaper and a painted frame. */
-export function useDesktopReady() {
+export function useDesktopReady(enabled = true) {
   useEffect(() => {
+    if (!enabled) return;
     const desktop = window.syntropicDesktop;
     if (!desktop) return;
     let cancelled = false;
@@ -24,5 +35,5 @@ export function useDesktopReady() {
       });
     });
     return () => { cancelled = true; cancelAnimationFrame(frame); };
-  }, []);
+  }, [enabled]);
 }

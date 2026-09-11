@@ -171,7 +171,11 @@
 .agent-os-window-file { width: min(960px, calc(100vw - 220px)); height: min(640px, calc(100vh - 226px)); }
 .agent-os-window-document { width:min(1180px,calc(100vw - 100px));height:min(760px,calc(100vh - 170px)); }
 .agent-os-window-library { width: min(900px, calc(100vw - 180px)); height: min(560px, calc(100vh - 226px)); }
-.agent-os-window-settings { width: min(980px, calc(100vw - 180px)); height: min(640px, calc(100vh - 220px)); }
+/* Settings scrolls inside a solid window. Nested translucent backdrop layers
+   can expose the desktop while Chromium recomposites scrolling tiles. */
+.agent-os-window-settings { width: min(980px, calc(100vw - 180px)); height: min(640px, calc(100vh - 220px)); background: var(--bg); backdrop-filter: none; }
+.agent-os-window-settings .agent-os-window-bar { background: var(--bg-panel); backdrop-filter: none; }
+.agent-os-window-settings .agent-os-window-body { background: var(--bg); }
 .agent-os-window-app { width:min(820px,calc(100vw - 240px));height:min(540px,calc(100vh - 270px));min-width:min(680px,calc(100vw - 32px));min-height:min(460px,calc(100vh - 156px)); }
 .agent-os-window-crm { width:min(1180px,calc(100vw - 100px));height:min(760px,calc(100vh - 170px)); }
 .agent-os-window-hr { width:min(1120px,calc(100vw - 110px));height:min(720px,calc(100vh - 170px)); }
@@ -244,9 +248,9 @@
 .agent-os-library-preview { min-height:0;overflow:hidden;background:white }.agent-os-library-preview .file-viewer-toolbar{display:none!important}.agent-os-library-preview .file-viewer-content{height:100%!important}.agent-os-library-preview iframe{pointer-events:none}
 
 /* Agent OS Settings — familiar macOS split view, backed by Pi's real config surfaces. */
-.agent-settings-app { width: 100%; height: 100%; display: grid; grid-template-columns: 238px minmax(0, 1fr); overflow: hidden; color: var(--text); background: color-mix(in srgb, var(--bg) 94%, transparent); }
+.agent-settings-app { width: 100%; height: 100%; display: grid; grid-template-columns: 238px minmax(0, 1fr); overflow: hidden; color: var(--text); background: var(--bg); }
 .agent-settings-loading { width:100%;height:100%;display:grid;place-items:center;color:var(--text-muted);background:var(--bg);font-size:11px }
-.agent-settings-sidebar { min-width: 0; min-height: 0; padding: 14px 10px 10px; display: flex; flex-direction: column; border-right: 1px solid color-mix(in srgb, var(--border) 72%, transparent); background: color-mix(in srgb, var(--bg-panel) 84%, transparent); backdrop-filter: blur(28px) saturate(1.35); }
+.agent-settings-sidebar { min-width: 0; min-height: 0; padding: 14px 10px 10px; display: flex; flex-direction: column; border-right: 1px solid color-mix(in srgb, var(--border) 72%, transparent); background: var(--bg-panel); }
 .agent-settings-search { position: relative; height: 30px; margin: 0 2px 13px; display: flex; align-items: center; }
 .agent-settings-search > svg { position: absolute; left: 8px; width: 14px; height: 14px; fill: none; stroke: var(--text-dim); stroke-width: 2; pointer-events: none; }
 .agent-settings-search input { width: 100%; height: 30px; border: 1px solid color-mix(in srgb, var(--border) 76%, transparent); border-radius: 8px; outline: 0; padding: 0 50px 0 28px; color: var(--text); background: color-mix(in srgb, var(--bg) 72%, transparent); box-shadow: inset 0 1px color-mix(in srgb, white 62%, transparent); font-size: 11px; transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease; }
@@ -268,7 +272,7 @@
 .agent-settings-content { min-width: 0; min-height: 0; overflow: hidden; background: var(--bg); }
 .agent-settings-section-host { width: 100%; height: 100%; overflow: hidden; }
 .agent-settings-section-host[hidden] { display: none; }
-.agent-settings-general { height: 100%; padding: 34px clamp(28px,5vw,64px) 42px; overflow-y: auto; scrollbar-gutter: stable; }
+.agent-settings-general { height: 100%; padding: 34px clamp(28px,5vw,64px) 42px; overflow-y: auto; scrollbar-gutter: stable;  background: var(--bg); overscroll-behavior: contain;}
 .agent-settings-detail-heading { margin-bottom: 32px; display: flex; align-items: center; gap: 14px; }
 .agent-settings-heading-icon { width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; color: white; background: linear-gradient(145deg,#929ba6,#65717e); box-shadow: inset 0 1px rgba(255,255,255,.38),0 8px 18px rgba(46,58,69,.16); }
 .agent-settings-detail-heading h1 { margin: 0; color: var(--text); font-size: 24px; font-weight: 650; line-height: 1.08; letter-spacing: -.025em; }.agent-settings-detail-heading p { margin: 5px 0 0; color: var(--text-muted); font-size: 11px; line-height: 1.45; }
@@ -414,7 +418,7 @@
 .agent-os-dock { position: absolute; z-index: 310; left: 50%; bottom: 16px; height: 74px; max-width: calc(100vw - 32px); border: 0; border-radius: 24px; padding: 15px 24px; display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,.3); backdrop-filter: blur(4px); transform: translateX(-50%); }
 .agent-os-dock > button { position: relative; width: 44px; height: 44px; flex: 0 0 44px; border: 0; border-radius: 12px; padding: 0; display: grid; place-items: center; color: #25382f; background: transparent; cursor: pointer; transform:translateY(0) scale(1); transform-origin: center bottom; transition: transform 140ms var(--os-ease-out), background 140ms ease, color 140ms ease; }
 .agent-os-dock > button:active { transform:translateY(0) scale(.94) }.agent-os-dock > button:focus-visible { outline:2px solid rgba(43,53,59,.72);outline-offset:3px }.agent-os-dock > i { width: 1px; height: 32px; margin: 0 4px 0 3px; background: rgba(48,66,76,.14); }
-.agent-os-dock > button::before { content: attr(data-label); position: absolute; left: 50%; bottom: calc(100% + 10px); border: 1px solid rgba(255,255,255,.88); border-radius: 7px; padding: 5px 8px; color: #252b2f; background: rgba(249,251,252,.94); box-shadow: 0 7px 20px rgba(48,72,85,.17); backdrop-filter:blur(12px); font-size: 8px; font-weight:560; line-height:1; white-space: nowrap; opacity: 0; pointer-events: none; transform: translate(-50%, 4px); transition: opacity 100ms ease, transform 150ms var(--os-ease-out); }
+.agent-os-dock > button::before { content: attr(data-label); position: absolute; left: 50%; bottom: calc(100% + 10px); border: 1px solid rgba(255,255,255,.88); border-radius: 7px; padding: 5px 8px; color: #252b2f; background: rgba(249,251,252,.94); box-shadow: 0 7px 20px rgba(48,72,85,.17); backdrop-filter:blur(12px); font-size: 8px; font-weight:560; line-height:1; white-space: nowrap; opacity: 0; pointer-events: none; transform: translate(-50%, 4px) scale(var(--dock-item-scale, 1)); transform-origin: center bottom; transition: opacity 100ms ease, transform 150ms var(--os-ease-out); }
 .agent-os-dock > button.is-open::after { content:"";position:absolute;left:50%;bottom:-6px;width:4px;height:4px;border-radius:50%;background:rgba(31,43,49,.72);box-shadow:0 0 0 1px rgba(255,255,255,.34);transform:translateX(-50%) }
 .agent-os-dock > button em { position: absolute; right: -4px; top: -4px; min-width: 16px; height: 16px; border: 2px solid rgba(239,246,248,.96); border-radius: 9px; padding: 0 3px; display: grid; place-items: center; color: white; background: #e75751; box-shadow:0 2px 5px rgba(113,42,39,.2); font-size: 7px; font-weight:700; line-height:1; font-style: normal; }
 .agent-os-dock > .dock-app .agent-os-app-logo{width:34px;height:34px;flex-basis:34px;border-radius:10px;box-shadow:inset 0 1px rgba(255,255,255,.5),0 3px 8px rgba(45,62,72,.12)}.agent-os-dock > .dock-app .agent-os-app-logo svg{width:22px;height:22px}.agent-os-dock > .dock-app .agent-os-app-logo img{width:78%;height:78%}.agent-os-dock > button.dock-app.is-official-icon .desktop-dock-icon{border:0;background:transparent;box-shadow:none}.agent-os-dock > .dock-app.is-official-icon .agent-os-app-logo{width:100%;height:100%;flex-basis:100%;border:0;border-radius:inherit;background:transparent;box-shadow:none}.agent-os-dock > .dock-app.is-official-icon .agent-os-app-logo img{width:100%;height:100%;border-radius:inherit;filter:drop-shadow(0 3px 5px rgba(45,62,72,.18))}.agent-os-dock > .dock-app.is-official-icon.is-huayu-law .agent-os-app-logo{background:#184d69}.agent-os-dock > .dock-app.is-official-icon.is-huayu-law .agent-os-app-logo img{width:86%;height:auto;border-radius:0;object-fit:contain}.agent-os-dock-app-divider{margin-left:4px!important}
@@ -515,7 +519,7 @@
   .agent-os-task-row:hover { background: rgba(255,255,255,.52); }
   .agent-os-insight-list > button:hover,.agent-os-notification-center > div > button:hover { background: rgba(255,255,255,.5); }
   .agent-os-library-files > [role="option"]:hover:not(.selected) { background:var(--bg-hover) }
-  .agent-os-dock > button:hover::before, .agent-os-dock > button:focus-visible::before { opacity: 1; transform: translate(-50%, 0); }
+.agent-os-dock > button:hover::before, .agent-os-dock > button:focus-visible::before { opacity: 1; transform: translate(-50%, 0) scale(var(--dock-item-scale, 1)); }
   .agent-os-dock-context-menu>button:hover{background:rgba(42,59,69,.07)}
   .agent-os-feishu-library-list>button:hover{background:rgba(51,112,255,.045)}.agent-os-feishu-library-body>aside nav button:hover:not([aria-current="page"]){background:rgba(255,255,255,.58)}
 }

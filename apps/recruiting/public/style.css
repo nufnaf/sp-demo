@@ -144,7 +144,7 @@ td small { display: block; line-height: 1.65; margin-top: 4px; }
 .edit-job { margin-top: 24px; }
 .notice { padding: 16px 20px; border-left: 3px solid var(--color-warning); border-radius: var(--radius-sm); background: var(--color-warning-soft); color: var(--color-warning); margin: 20px 0; font-size: 14px; }
 .notice span { display: block; font-size: 13px; margin-top: 4px; }
-.notice.success { color: var(--color-success); border-color: var(--color-success); background: var(--color-success-soft); }
+.notice.success { color: var(--color-primary); border-color: var(--color-primary); background: var(--color-primary-soft); }
 .error-panel [role="alert"] { color: var(--color-danger); margin: 16px 0 24px; }
 .candidate-heading { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
 .avatar.large { flex-basis: 60px; width: 60px; height: 60px; font-size: 22px; }

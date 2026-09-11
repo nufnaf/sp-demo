@@ -21,7 +21,7 @@ test("the Dock opens a searchable launchpad backed by built-in apps and the Pi p
 test("Feishu opens as a built-in CLI app instead of a Pi plugin", () => {
   assert.match(desktopSource, /function FeishuAppView/);
   assert.match(desktopSource, /fetch\("\/api\/apps\/feishu"/);
-  assert.match(desktopSource, /app\.kind === "builtin" \? \(\s*<FeishuAppView/);
+  assert.match(desktopSource, /<FeishuAppView app=\{app\} onNotice=\{setNotice\} onOpenDocument=\{openFeishuDocument\}\/>/);
   assert.match(desktopSource, /className="agent-os-native-onboarding"/);
   assert.match(desktopSource, /src="\/icons\/feishu-logo\.svg"/);
   assert.match(desktopSource, /使用飞书官方授权，凭据保存在本机/);
@@ -30,7 +30,8 @@ test("Feishu opens as a built-in CLI app instead of a Pi plugin", () => {
   assert.match(desktopSource, /if \(!status\) return <div className="agent-os-feishu-opening"/);
   assert.match(desktopSource, /正在打开飞书云文档…/);
   assert.match(cssSource, /\.agent-os-feishu-opening\{[^}]*height:100%/);
-  assert.match(desktopSource, /qrCodeDataUrl/);
+  assert.match(desktopSource, /className="agent-os-onboarding-browser" aria-label="飞书浏览器授权"/);
+  assert.match(desktopSource, /window\.open\(url, "_blank", "noopener"\)/);
   assert.match(desktopSource, /className="agent-os-feishu-sidebar-search"/);
   assert.match(desktopSource, /placeholder="搜索文档"/);
   assert.match(desktopSource, /\/api\/apps\/feishu\/documents/);

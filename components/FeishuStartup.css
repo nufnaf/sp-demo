@@ -1,0 +1,71 @@
+.feishu-startup {
+  height: 100dvh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 24px;
+  background: radial-gradient(ellipse at 20% 10%, #edf2ff, transparent 65%), linear-gradient(145deg, #f5f6fa, #f6f5fc);
+  color: #202a3a;
+  font-family: var(--font-sans), sans-serif;
+}
+.feishu-startup-card {
+  width: min(720px, 100%);
+  flex-shrink: 0;
+  margin-block: auto;
+  padding: 36px 40px 24px;
+  border: 1px solid #fff;
+  border-radius: 24px;
+  background: #ffffffed;
+  box-shadow: 0 16px 70px #3d527912;
+}
+.feishu-startup-brand { display: flex; align-items: center; gap: 9px; color: #4a5470; font-size: 16px; font-weight: 600; margin-bottom: 25px; }
+.feishu-startup-card h1 { font-size: 27px; font-weight: 650; letter-spacing: -.025em; margin: 0 0 8px; }
+.feishu-startup-intro { font-size: 14px; color: #788297; margin: 0; }
+.feishu-startup-count { margin: 28px 0 10px; font-size: 12px; color: #8891a2; }
+.feishu-startup-list { list-style: none; padding: 0; margin: 0; border: 1px solid #e8ecf2; border-radius: 14px; overflow: hidden; }
+.feishu-startup-list > li + li { border-top: 1px solid #edf0f5; }
+.feishu-startup-row { display: flex; gap: 14px; align-items: center; min-height: 78px; padding: 16px 18px; }
+.feishu-startup-icon { display: grid; place-items: center; width: 42px; height: 42px; flex-shrink: 0; background: #f3f6fa; border-radius: 12px; color: #63718a; }
+.feishu-startup-label { flex: 1; min-width: 0; }
+.feishu-startup-label h2 { font-size: 15px; font-weight: 600; margin: 0 0 5px; }
+.feishu-startup-label p { font-size: 12px; color: #8992a3; line-height: 1.6; margin: 0; overflow-wrap: anywhere; }
+.feishu-startup-card button { border: 0; border-radius: 8px; padding: 9px 14px; background: #3378f6; color: #fff; font-size: 12px; font-weight: 550; cursor: pointer; flex-shrink: 0; }
+.feishu-startup-card button:hover { filter: brightness(.96); }
+.feishu-startup-card button:focus-visible, .feishu-startup-card a:focus-visible { outline: 2px solid #3378f6; outline-offset: 3px; }
+.feishu-startup-card button:disabled { opacity: .45; cursor: default; }
+.feishu-startup-card .feishu-startup-secondary { background: #eef2f8; color: #51617c; }
+.feishu-startup-done, .feishu-startup-progress { display: flex; align-items: center; gap: 5px; font-size: 12px; flex-shrink: 0; color: #3b9474; }
+.feishu-startup-progress { color: #788297; }
+.feishu-startup-progress svg { animation: startup-spin 1s linear infinite; }
+@keyframes startup-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .feishu-startup-progress svg { animation: none; } }
+.feishu-startup-auth { padding: 0 18px 22px; text-align: center; }
+.feishu-startup-auth-window { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; width: 176px; height: 128px; margin: 0 auto 12px; border: 1px solid #e8ecf2; border-radius: 12px; background: #f7f9fc; color: #3378f6; }
+.feishu-startup-auth-window strong { font-size: 13px; font-weight: 600; color: #4a5568; }
+.feishu-startup-auth p, .feishu-startup-hint { font-size: 12px; line-height: 1.8; color: #788297; }
+.feishu-startup-auth-actions { display: flex; gap: 14px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.feishu-startup-auth a { color: #3378f6; font-size: 12px; }
+.feishu-startup-error { background: #fff0ef; color: #b64848; border-radius: 10px; padding: 12px; font-size: 12px; line-height: 1.8; margin: 12px 0 0; }
+.feishu-startup-list .feishu-startup-error { margin: 0 18px 18px; }
+.feishu-startup-error p { margin: 0; }
+.feishu-startup-error button { margin-top: 8px; }
+.feishu-startup-hint { margin: 14px 0 0; }
+@media (max-width: 540px) {
+  .feishu-startup { padding: 20px 12px; }
+  .feishu-startup-card { padding: 28px 18px 22px; }
+  .feishu-startup-card h1 { font-size: 23px; }
+  .feishu-startup-row { padding: 16px 12px; gap: 10px; }
+  .feishu-startup-icon { width: 34px; height: 38px; }
+  .feishu-startup-card button { padding: 9px 10px; }
+}
+
+.feishu-startup-steps { margin: 0; padding: 0 22px 18px 91px; list-style: decimal; color: #68758a; font-size: 12px; line-height: 1.8; }
+.feishu-startup-steps li { padding-left: 3px; }
+.feishu-startup-steps li + li { margin-top: 4px; }
+.feishu-startup-steps li::marker { color: #8e98aa; }
+@media (max-width: 540px) { .feishu-startup-steps { padding-left: 72px; padding-right: 16px; } }
+
+.startup-loading { flex-direction: column; justify-content: center; gap: 20px; color: #34415a; }
+.startup-loading > strong { font-size: 24px; font-weight: 550; }
+.startup-loading > p { margin: 0; }

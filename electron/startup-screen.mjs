@@ -6,6 +6,21 @@ const here = dirname(fileURLToPath(import.meta.url));
 const pageUrl = pathToFileURL(join(here, 'status.html')).href;
 export const STARTUP_STATE = { phase: 'starting', title: '', detail: '', retry: false };
 
+export function registerStartupControls(ipc, getWindow, getScreen, isWorkbenchUrl, isReady = () => true) {
+  const accepts = event => {
+    const contents = getWindow()?.webContents;
+    return isReady() && contents && event.sender === contents
+      && event.senderFrame === contents.mainFrame && isWorkbenchUrl(event.senderFrame.url);
+  };
+  ipc.handle('desktop:startup:show', event => {
+    if (!accepts(event)) throw new Error('Startup request is not allowed');
+    getScreen()?.waitForWorkbench();
+  });
+  ipc.on('desktop:workbench-ready', event => {
+    if (accepts(event)) getScreen()?.reveal();
+  });
+}
+
 // One local overlay covers the real page, including during navigation.
 // Status changes update it in place so the animation never restarts.
 export class StartupScreen {
