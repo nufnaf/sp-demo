@@ -7,6 +7,7 @@ declare global {
   interface Window {
     syntropicDesktop?: {
       ready: () => void;
+      showStartup?: () => Promise<void>;
       captureSpaceThumbnail?: () => Promise<string | null>;
       getUiPreferences?: () => Promise<unknown>;
       setUiPreferences?: (value: { desktopSpacesEnabled: boolean; previewWidthScale: number }) => Promise<unknown>;

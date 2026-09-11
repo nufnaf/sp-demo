@@ -7,7 +7,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const electronRoot = process.env.SYNTROPIC_TEST_ELECTRON_ROOT || join(here, '../../electron');
 const { createUiPreferencesStore, registerUiPreferences } = await import(pathToFileURL(join(electronRoot, 'ui-preferences.mjs')).href);
 const { createComputerPermissions, registerComputerPermissions } = await import(pathToFileURL(join(electronRoot, 'computer-permissions.mjs')).href);
-const { StartupScreen, STARTUP_STATE } = await import(pathToFileURL(join(electronRoot, 'startup-screen.mjs')).href);
+const { StartupScreen, STARTUP_STATE, registerStartupControls } = await import(pathToFileURL(join(electronRoot, 'startup-screen.mjs')).href);
 app.setPath('userData', process.env.SYNTROPIC_TEST_DATA);
 void app.whenReady().then(async () => {
 const win = new BrowserWindow({ width: 1000, height: 740, show: false, backgroundColor: '#273878', webPreferences: {
@@ -20,9 +20,8 @@ globalThis.startupFixture = { win, screen, retries: 0 };
 win.webContents.on('did-start-navigation', details => {
   if (details.isMainFrame && !details.isSameDocument && process.env.SYNTROPIC_TEST_WORKBENCH_URL) screen.waitForWorkbench();
 });
-ipcMain.on('desktop:workbench-ready', event => {
-  if (event.sender === win.webContents && event.senderFrame === win.webContents.mainFrame) screen.reveal();
-});
+registerStartupControls(ipcMain, () => win, () => screen,
+  url => process.env.SYNTROPIC_TEST_WORKBENCH_URL ? url === `${process.env.SYNTROPIC_TEST_WORKBENCH_URL}/` : url.startsWith('data:'));
 ipcMain.handle('desktop:retry', event => {
   if (!screen.accepts(event) || screen.state.phase !== 'error' || !screen.state.retry) return;
   globalThis.startupFixture.retries++;

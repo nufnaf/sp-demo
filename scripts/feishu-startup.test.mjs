@@ -63,7 +63,7 @@ test('startup gates the desktop through authorization, failed preparation, retry
   await page.locator('.feishu-startup').waitFor({state:'detached'});
   assert.equal(prepCount,2);
   await page.reload();
-  await page.getByRole('main',{name:'开屏加载'}).waitFor();
+  await page.locator('.startup-loading').waitFor();
   assert.equal(await page.getByRole('heading',{name:'演示前的一次性准备'}).count(),0,'completed startup must not flash checklist');
   await page.locator('.feishu-startup').waitFor({state:'detached'});
   assert.equal(prepCount,3);

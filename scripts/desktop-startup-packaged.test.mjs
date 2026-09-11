@@ -79,6 +79,67 @@ test('packaged preparation gate uses bundled CLI and native permission bridge on
     await desktop.evaluate(() => new Promise(resolve => setTimeout(resolve, 800)));
     assert.equal(await desktop.evaluate(() => globalThis.startupFixture.screen.state.phase), 'hidden');
     assert.deepEqual(errors, []);
+    // Exercise the real renderer + native splash transition with isolated
+    // permission/API fixtures. No OS grants or the user's Feishu data change.
+    await desktop.evaluate(({ ipcMain }) => {
+      const permissions = { supported: true, accessibility: true, screenRecording: true, captureVerified: false, initializationComplete: false };
+      for (const name of ['desktop:computer-permissions:get', 'desktop:computer-permissions:request', 'desktop:startup:complete']) ipcMain.removeHandler(name);
+      ipcMain.handle('desktop:computer-permissions:get', () => permissions);
+      ipcMain.handle('desktop:computer-permissions:request', () => { permissions.captureVerified = true; return permissions; });
+      ipcMain.handle('desktop:startup:complete', (_event, value) => { permissions.initializationComplete = value; return permissions; });
+    });
+    await main.route('**/api/apps/feishu', route => route.fulfill({ json: { installed: true, configured: true, authState: 'authenticated', account: 'Startup test' } }));
+    let finishPreparation, preparationStarted;
+    let prepCount = 0;
+    const waitForPreparation = () => new Promise(resolve => { preparationStarted = resolve; });
+    await main.route('**/api/desktop/prepare', async route => {
+      prepCount++;
+      const outcome = await new Promise(resolve => { finishPreparation = resolve; preparationStarted(); });
+      await route.fulfill(outcome);
+    });
+    const covered = async () => {
+      await splash.waitForFunction(() => document.querySelector('#splash').dataset.phase === 'starting' && getComputedStyle(document.querySelector('#splash')).opacity === '1');
+      assert.equal(await desktop.evaluate(() => globalThis.startupFixture.screen.view.getVisible()), true);
+      await new Promise(resolve => setTimeout(resolve, 1200));
+      assert.equal(await desktop.evaluate(() => globalThis.startupFixture.screen.state.phase), 'starting', 'no stale setup-ready callback dismisses the splash');
+    };
+    const uncovered = () => main.waitForFunction(async () => {
+      // The renderer is painted before the native overlay fades out.
+      return !!document.querySelector('.feishu-startup-card, .agent-os-desktop');
+    });
+    await main.reload();
+    await main.getByRole('button', { name: '验证屏幕访问', exact: true }).waitFor();
+    await splash.waitForFunction(() => document.querySelector('#splash').dataset.phase === 'revealing');
+    await new Promise(resolve => setTimeout(resolve, 800));
+    let started = waitForPreparation();
+    await main.getByRole('button', { name: '验证屏幕访问', exact: true }).click();
+    await started;
+    await covered();
+    await splash.screenshot({ path: join(output, 'packaged-after-capture-splash.png') });
+    finishPreparation({ status: 503, json: { error: '同步暂时失败，请重试。' } });
+    await main.getByRole('alert').filter({ hasText: '同步暂时失败' }).waitFor();
+    await uncovered();
+    await new Promise(resolve => setTimeout(resolve, 800));
+    assert.equal(await desktop.evaluate(() => globalThis.startupFixture.screen.view.getVisible()), false, 'failure reveals the retry page');
+    started = waitForPreparation();
+    await main.getByRole('button', { name: '重新准备', exact: true }).click();
+    await started;
+    await covered();
+    finishPreparation({ json: { ready: true } });
+    await main.locator('.agent-os-desktop').waitFor();
+    await new Promise(resolve => setTimeout(resolve, 800));
+    assert.equal(await desktop.evaluate(() => globalThis.startupFixture.screen.view.getVisible()), false);
+    started = waitForPreparation();
+    await main.reload();
+    await started;
+    await covered();
+    assert.equal(await main.getByRole('heading', { name: '演示前的一次性准备' }).count(), 0, 'completed startup skips setup');
+    finishPreparation({ json: { ready: true } });
+    await main.locator('.agent-os-desktop').waitFor();
+    await new Promise(resolve => setTimeout(resolve, 800));
+    assert.equal(await desktop.evaluate(() => globalThis.startupFixture.screen.view.getVisible()), false);
+    assert.equal(prepCount, 3);
+    assert.deepEqual(errors, []);
     if (process.env.SYNTROPIC_TEST_BROWSER_FLOWS === '1') {
       const browserEnv = { ...process.env, FEISHU_PREVIEW_ORIGIN: origin };
       delete browserEnv.NODE_TEST_CONTEXT;

@@ -28,7 +28,7 @@ const hooks = registerHooks({
     return nextResolve(specifier, context);
   },
 });
-const { StartupScreen } = await import(screenURL);
+const { StartupScreen, registerStartupControls } = await import(screenURL);
 hooks.deregister();
 
 function fixture(t) {
@@ -87,4 +87,27 @@ test('a new failure cancels timeout recovery while a new navigation starts a fre
   assert.equal(screen.state.phase, 'hidden');
   t.mock.timers.tick(45000);
   assert.equal(screen.state.phase, 'hidden');
+});
+
+test('trusted workbench can restore the splash after setup and hide it when preparation finishes', t => {
+  const { screen } = fixture(t);
+  const ipc = new EventEmitter();
+  const handlers = new Map();
+  ipc.handle = (name, handler) => handlers.set(name, handler);
+  const contents = { mainFrame: { url: 'https://workbench.test/' } };
+  const event = { sender: contents, senderFrame: contents.mainFrame };
+  registerStartupControls(ipc, () => ({ webContents: contents }), () => screen, url => url === 'https://workbench.test/');
+  const show = handlers.get('desktop:startup:show');
+  ipc.emit('desktop:workbench-ready', event);
+  t.mock.timers.tick(700);
+  assert.equal(screen.view.visible, false, 'setup page has dismissed the initial splash');
+  assert.throws(() => show({ ...event, sender: {} }), /not allowed/);
+  assert.throws(() => show({ ...event, senderFrame: { url: contents.mainFrame.url } }), /not allowed/);
+  show(event);
+  t.mock.timers.tick(5000);
+  assert.equal(screen.view.visible, true, 'slow preparation remains covered');
+  assert.equal(screen.state.phase, 'starting');
+  ipc.emit('desktop:workbench-ready', event);
+  t.mock.timers.tick(700);
+  assert.equal(screen.view.visible, false);
 });

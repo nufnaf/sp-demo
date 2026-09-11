@@ -37,7 +37,8 @@ export function FeishuStartup({ children }: { children: ReactNode }) {
   const attempt = useRef(0);
   const gestureRef = useRef(false);
   const openedRef = useRef<string | undefined>(undefined);
-  useDesktopReady(screen !== "loading");
+  // Stop pending setup-page readiness before bringing the splash back.
+  useDesktopReady(screen === "desktop" || (screen === "setup" && stage !== "preparing" && !(stage === "ready" && computer.ready)));
   useEffect(() => {
     if (!flow) return;
     const url = flow.verificationUrl;
@@ -52,12 +53,17 @@ export function FeishuStartup({ children }: { children: ReactNode }) {
     const timer = setTimeout(() => { if (mounted.current) open(); }, 1200);
     return () => clearTimeout(timer);
   }, [flow]);
-  const prepare = useCallback(async () => {
+  const prepare = useCallback(async (saveCompletion = false) => {
     if (preparing.current) return;
     preparing.current = true;
-    setScreen("loading");
     setStage("preparing"); setFlow(undefined); setError(""); setCanReauthorize(false);
     try {
+      // The checklist may already have dismissed the native splash. Restore it
+      // before removing the checklist, including on retry after a sync failure.
+      await window.syntropicDesktop?.showStartup?.();
+      if (!mounted.current) return;
+      setScreen("loading");
+      if (saveCompletion) await window.syntropicDesktop?.completeInitialization?.(true);
       const response = await fetch("/api/desktop/prepare", { method: "POST" });
       const data = await response.json();
       if (mounted.current) setCanReauthorize(data.requiresAuthorization === true);
@@ -115,15 +121,7 @@ export function FeishuStartup({ children }: { children: ReactNode }) {
   }, [stage, computer.permissions, computer.error, computer.ready, prepare]);
   useEffect(() => {
     if (screen !== "setup" || stage !== "ready" || !computer.ready) return;
-    setScreen("loading");
-    void (async () => {
-      try {
-        await window.syntropicDesktop?.completeInitialization?.(true);
-        if (mounted.current) await prepare();
-      } catch (e) {
-        if (mounted.current) { setError(e instanceof Error ? e.message : "无法保存准备状态，请重试。"); setStage("error"); setScreen("setup"); }
-      }
-    })();
+    void prepare(true);
   }, [screen, stage, computer.ready, prepare]);
   useEffect(() => {
     if (stage !== "authorizing" || !flow) return;

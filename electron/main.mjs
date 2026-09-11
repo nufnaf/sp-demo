@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createPresentationRun } from './presentation.mjs';
 import { prepareDemoModelEnvironment } from './demo-model.mjs';
 import { preparePackagedRuntime, removeOldPackagedRuntimes } from './packaged-runtime.mjs';
-import { StartupScreen, STARTUP_STATE } from './startup-screen.mjs';
+import { StartupScreen, STARTUP_STATE, registerStartupControls } from './startup-screen.mjs';
 import { APP_ORIGIN, isAppUrl, isExternalUrl } from './policy.mjs';
 import { createAppLocationGuard } from './app-location.mjs';
 import { createSpaceThumbnailCapture } from './space-thumbnail.mjs';
@@ -269,12 +269,8 @@ if (!app.requestSingleInstanceLock()) {
       }),
     }), () => window, isAppUrl);
     ipcMain.handle('desktop:space-thumbnail', createSpaceThumbnailCapture(() => window, isAppUrl));
-    ipcMain.on('desktop:workbench-ready', event => {
-      if (!ready || event.sender !== window?.webContents
-        || event.senderFrame !== window?.webContents.mainFrame
-        || !isAppUrl(event.senderFrame.url) || new URL(event.senderFrame.url).pathname !== '/') return;
-      startup?.reveal();
-    });
+    registerStartupControls(ipcMain, () => window, () => startup,
+      url => isAppUrl(url) && new URL(url).pathname === '/', () => ready && !quitting);
     ipcMain.handle('desktop:retry', event => {
       if (!startup?.accepts(event) || startup.state.phase !== 'error' || !startup.state.retry) return;
       showStatus(STARTUP_STATE);
