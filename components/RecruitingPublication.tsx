@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DesktopNotification } from "./DesktopNotification";
 import { isJdDemoArtifact, publicationPrompt, publicationDestinations, type JdArtifact, type PublishedRecruitingJob } from "@/lib/recruiting-publication";
+import { JD_PREVIEW_DURATION_MS } from "@/lib/recruiting-jd-timing";
 import { encodeFilePathForApi } from "@/lib/file-paths";
 import type { BrowserTaskState } from "@/lib/browser/types";
 
@@ -20,7 +21,7 @@ interface Props {
   cwd: string | null;
   children: (surfaces: { notification: ReactNode; widgetInsights: WorkspaceWidgetItem[]; insightItems: WorkspaceInsightItem[] }) => ReactNode;
   viewedArtifact: JdArtifact | null;
-  viewedArtifactReady?: boolean;
+  availableJd?: JdArtifact | null;
   onStartTask: (message: string) => Promise<string | null>;
   onTaskStarted: (sessionId: string) => void;
   onPublished: (job: PublishedRecruitingJob, sessionId: string) => void;
@@ -77,28 +78,34 @@ export function RecruitingPublication(props: Props) {
   const callbacks = useRef(props);
   useEffect(() => { callbacks.current = props; });
   const path = props.viewedArtifact?.filePath;
-  const artifactTitle = props.viewedArtifact?.taskTitle;
-  const artifactSessionId = props.viewedArtifact?.sessionId;
-  const viewedArtifactReady = props.viewedArtifactReady !== false;
+  const candidate = props.presentation ? props.availableJd : props.viewedArtifact;
+  const candidatePath = candidate?.filePath;
+  const candidateTitle = candidate?.taskTitle;
+  const candidateSessionId = candidate?.sessionId;
+  const writtenAt = candidate?.writtenAt;
   useEffect(() => {
     if (!loaded || !path || !props.insights.some((item) => item.filePath === path)) return;
     setReadInsights((items) => items.includes(path) ? items : [...items, path]);
   }, [loaded, path, props.insights]);
 
   useEffect(() => {
-    const artifact = callbacks.current.viewedArtifact;
-    if (!loaded || !viewedArtifactReady || !artifact || artifact.cwd !== props.cwd || !isJdDemoArtifact(artifact) || pending || preparing) return;
+    const artifact = callbacks.current.presentation ? callbacks.current.availableJd : callbacks.current.viewedArtifact;
+    if (!loaded || !artifact || artifact.cwd !== props.cwd || !isJdDemoArtifact(artifact) || pending || preparing) return;
     const identity = `${artifact.sessionId}:${artifact.filePath}`;
     if (seen.current.has(identity)) return;
+    // The persisted write-result timestamp survives reloads and keeps playback,
+    // window focus and later session messages from restarting the deadline.
+    if (props.presentation && !Number.isFinite(writtenAt)) return;
+    const delay = props.presentation ? Math.max(0, writtenAt! + JD_PREVIEW_DURATION_MS - Date.now()) : 1400;
     const timer = setTimeout(() => {
       seen.current.add(identity);
       setSuggestion({ ...artifact, recognizedAt: new Date().toISOString() });
       setCompletedJob(null);
       setPublicationError(null);
       setDismissed(false);
-    }, 1400);
+    }, delay);
     return () => clearTimeout(timer);
-  }, [path, artifactTitle, artifactSessionId, viewedArtifactReady, props.cwd, pending, preparing, loaded]);
+  }, [candidatePath, candidateTitle, candidateSessionId, writtenAt, props.presentation, props.cwd, pending, preparing, loaded]);
 
   useEffect(() => {
     if (!loaded || !suggestion || pending || preparing) return;
@@ -222,9 +229,8 @@ export function RecruitingPublication(props: Props) {
     setReadInsights((items) => [...items, nextInsight.filePath]);
     props.onOpenInsight(nextInsight);
   };
-  const previewInProgress = !viewedArtifactReady && suggestion?.filePath === path;
-  const visibleNotice = !viewedArtifactReady && props.notice?.includes("JD 已准备好") ? null : props.notice;
-  const publicationInsight: PublicationInsightItem | null = loaded && suggestion && !previewInProgress ? {
+  const visibleNotice = props.notice;
+  const publicationInsight: PublicationInsightItem | null = loaded && suggestion ? {
     kind: "publication",
     id: `publication:${suggestion.filePath}`,
     artifact: suggestion,

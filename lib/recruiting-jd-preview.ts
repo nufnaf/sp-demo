@@ -1,3 +1,5 @@
+import { JD_PREVIEW_DURATION_MS } from "./recruiting-jd-timing";
+
 /** Presentation-only additions. The saved HTML stays complete and script-free. */
 export function recruitingJdPreviewDocument(content: string): string {
   const style = `<style>
@@ -94,7 +96,7 @@ const REVEAL_SCRIPT = String.raw`<script>
     });
     const characters = units.reduce((sum, unit) => sum + unit.length, 0);
     const pauses = units.reduce((sum, unit) => sum + (unit.heading ? 180 : 55), 0);
-    const textTime = Math.max(1, 18000 - 300 - pauses);
+    const textTime = Math.max(1, ${JD_PREVIEW_DURATION_MS} - 300 - pauses);
     let cursor = 300;
     for (const unit of units) {
       unit.start = cursor;

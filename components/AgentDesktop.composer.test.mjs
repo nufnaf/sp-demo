@@ -12,10 +12,9 @@ test("restored Jarvis history does not appear as a fresh desktop reply", () => {
   assert.doesNotMatch(desktop, /tickerTurn|is-ticker/);
 });
 
-test("the desktop composer expands for focus or drafts and retains voice/send semantics", () => {
+test("the desktop composer retains voice/send semantics", () => {
   assert.doesNotMatch(desktop, /composerFocused|className=\"attach\"/);
   assert.match(desktop, /prompt\.trim\(\) \? \([\s\S]*?className="send"[\s\S]*?: \([\s\S]*?className="voice realtime"/);
-  assert.match(desktopCss, /:focus-within, :has\(\[data-has-draft="true"\]\)/);
   assert.match(desktop, /useRef<HTMLTextAreaElement>/);
 });
 

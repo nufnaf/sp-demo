@@ -5,6 +5,8 @@ import { isEditToolName, isWriteToolName } from "./tool-names";
 export interface WrittenFile {
   /** Resolved absolute path of a file this turn wrote. */
   filePath: string;
+  /** Completion time from the successful write result, independent of later session activity. */
+  writtenAt?: number;
 }
 
 function isFileWritingToolName(toolName: string): boolean {
@@ -53,7 +55,7 @@ export function extractTurnWrittenFiles(
 
     if (seen.has(filePath)) continue;
     seen.add(filePath);
-    writtenFiles.push({ filePath });
+    writtenFiles.push({ filePath, ...(Number.isFinite(result.timestamp) ? { writtenAt: result.timestamp } : {}) });
   }
 
   return writtenFiles;

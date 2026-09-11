@@ -177,6 +177,7 @@ interface Artifact {
   cwd: string;
   taskTitle: string;
   modified: string;
+  writtenAt?: number;
 }
 
 interface SessionDetailResponse {
@@ -1028,7 +1029,7 @@ function extractArtifacts(session: SessionInfo, messages: AgentMessage[]): Artif
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (message.role !== "assistant") continue;
-    for (const { filePath } of extractTurnWrittenFiles(message.content, results, session.cwd)) {
+    for (const { filePath, writtenAt } of extractTurnWrittenFiles(message.content, results, session.cwd)) {
       if (seen.has(filePath)) continue;
       seen.add(filePath);
       artifacts.push({
@@ -1037,6 +1038,7 @@ function extractArtifacts(session: SessionInfo, messages: AgentMessage[]): Artif
         cwd: session.cwd,
         taskTitle: taskTitle(session),
         modified: session.modified,
+        writtenAt: writtenAt ?? message.timestamp ?? Date.parse(session.modified),
       });
     }
   }
@@ -2472,7 +2474,8 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
         onOpenInsight={openInsightResult}
         cwd={activeCwd}
         viewedArtifact={frontWindow === "insights" && selectedInsight?.report ? { ...selectedInsight.report, taskTitle: "AI 洞察" } : openArtifacts.find((artifact) => `file:${artifactIdentity(artifact)}` === frontWindow) ?? null}
-        viewedArtifactReady={!openArtifacts.some(artifact => `file:${artifactIdentity(artifact)}` === frontWindow && pendingJdPreviews.has(artifactIdentity(artifact)))}
+        availableJd={presentationCwd ? artifacts.filter(artifact => artifact.cwd === presentationCwd && isJdDemoArtifact(artifact))
+          .sort((a, b) => (b.writtenAt ?? 0) - (a.writtenAt ?? 0))[0] ?? null : null}
         onStartTask={(message) => startTask(message, "publication")}
         onTaskStarted={(sessionId) => { publicationSessionRef.current = sessionId; }}
         onPublished={(job, sessionId) => {

@@ -855,12 +855,7 @@
 /* The shared Feishu artwork is an exact vector export with a non-square viewBox. */
 img[src="/icons/feishu-logo.svg"]{object-fit:contain}
 
-/* Focus and a retained draft share the same expanded composer; voice remains separate. */
-.agent-os-ai-surface:has(.agent-os-composer:not(.is-dictating):is(:focus-within, :has([data-has-draft="true"]))) { width: min(560px, calc(100vw - 28px)); }
-.agent-os-composer:not(.is-dictating):is(:focus-within, :has([data-has-draft="true"])) { height: auto; min-height: 132px; padding: 12px; display: grid; grid-template-columns: 36px minmax(0, 1fr) 32px 32px; gap: 8px; border-radius: 20px; }
-.agent-os-composer:not(.is-dictating):is(:focus-within, :has([data-has-draft="true"])) textarea { grid-column: 1 / -1; grid-row: 1; width: 100%; height: 72px; max-height: min(30vh, 180px); padding: 0 4px; overflow-y: auto; font-size: 14px; }
-.agent-os-composer:not(.is-dictating):is(:focus-within, :has([data-has-draft="true"])) > :is(.composer-brand, .jarvis-toggle) { grid-column: 1; grid-row: 2; }
-.agent-os-composer:not(.is-dictating):is(:focus-within, :has([data-has-draft="true"])) > .stage-resource-button { grid-column: 2; grid-row: 2; justify-self: start; }
-.agent-os-composer:not(.is-dictating):is(:focus-within, :has([data-has-draft="true"])) > .dictate { grid-column: 3; grid-row: 2; }
-.agent-os-composer:not(.is-dictating):is(:focus-within, :has([data-has-draft="true"])) > :is(.send, .realtime) { grid-column: 4; grid-row: 2; }
+/* Content determines height; focusing an empty composer keeps its single row. */
+.agent-os-composer:not(.is-dictating) { height: auto; min-height: 48px; padding-block: 5px; }
+.agent-os-composer:not(.is-dictating) textarea { field-sizing: content; height: auto; min-height: 24px; max-height: min(30vh, 180px); overflow-y: auto; }
 @media (prefers-reduced-motion: reduce) { .agent-os-ai-surface, .agent-os-composer { transition: none; } }

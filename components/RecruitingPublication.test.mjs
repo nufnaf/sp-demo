@@ -12,7 +12,12 @@ const compiled = ts.transpile(source, { module: ts.ModuleKind.CommonJS, jsx: ts.
 const require = createRequire(import.meta.url);
 
 // Exercise the component's effects and event handlers without business services.
-function harness(saved = {}) {
+function harness(saved = {}, initialTime = 1_800_000_000_000) {
+  let now = initialTime;
+  class ClockDate extends Date {
+    constructor(...args) { super(...(args.length ? args : [now])); }
+    static now() { return now; }
+  }
   const slots = [], storage = new Map(), timers = new Map();
   const publishedJobs = [];
   const browserTasks = [];
@@ -35,7 +40,7 @@ function harness(saved = {}) {
       }
     },
   };
-  const artifact = { cwd: "/fixture", sessionId: "jd-session", filePath: "/fixture/engineer-jd.md", taskTitle: "生成岗位 JD" };
+  const artifact = { cwd: "/fixture", sessionId: "jd-session", filePath: "/fixture/engineer-jd.md", taskTitle: "生成岗位 JD", writtenAt: now };
   const report = { cwd: "/fixture", sessionId: "report", filePath: "/fixture/report.html", title: "面试官评价标准不一致", summary: "5 位候选人的推进判断存在分歧。", modified: "2026-09-09" };
   storage.set("syntropic:notifications:/fixture", JSON.stringify(saved));
   const calls = [];
@@ -45,13 +50,13 @@ function harness(saved = {}) {
     onOpenInsight: insight => calls.push(insight.filePath), children: value => ({ ...value, publicationInsight: value.widgetInsights.find(item => item.id.startsWith("publication:")) ?? null }),
   };
   const testModule = { exports: {} };
-  vm.runInNewContext(compiled, { module: testModule, exports: testModule.exports, TextEncoder, crypto: webcrypto, URL, AbortSignal,
+  vm.runInNewContext(compiled, { module: testModule, exports: testModule.exports, TextEncoder, crypto: webcrypto, URL, AbortSignal, Date: ClockDate,
     localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) },
-    setTimeout: (fn, delay) => { const id = {}; timers.set(id, { fn, delay }); return id; }, clearTimeout: id => timers.delete(id),
+    setTimeout: (fn, delay) => { const id = {}; timers.set(id, { fn, delay, due: now + delay }); return id; }, clearTimeout: id => timers.delete(id),
     setInterval: () => { intervalCalls++; return {}; }, clearInterval() {},
     window: { addEventListener: (name, fn) => { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name).add(fn); }, removeEventListener: (name, fn) => listeners.get(name)?.delete(fn) },
     fetch: async url => ({ ok: true, json: async () => String(url).includes("/api/files/") ? { content: "# AI Agent 工程师\n岗位说明" } : String(url).includes("internal-recruiting") ? { baseUrl: "http://localhost", jobs: publishedJobs } : String(url).includes("/api/agent/running") ? { runningSessionIds } : String(url).includes("/api/sessions/") ? { context: { messages: taskMessages } } : { tasks: browserTasks } }),
-    require: id => id === "react" ? react : id === "react/jsx-runtime" ? require(id) : id === "./DesktopNotification" ? { DesktopNotification() {} } : id.includes("file-paths") ? { encodeFilePathForApi: encodeURIComponent } : { publicationDestinations, isJdDemoArtifact: item => item.filePath.endsWith("jd.md"), publicationPrompt: (url, title, path) => `${url} ${title} ${path}` },
+    require: id => id.includes("recruiting-jd-timing") ? { JD_PREVIEW_DURATION_MS: 18000 } : id === "react" ? react : id === "react/jsx-runtime" ? require(id) : id === "./DesktopNotification" ? { DesktopNotification() {} } : id.includes("file-paths") ? { encodeFilePathForApi: encodeURIComponent } : { publicationDestinations, isJdDemoArtifact: item => item.filePath.endsWith("jd.md"), publicationPrompt: (url, title, path) => `${url} ${title} ${path}` },
   });
   const render = () => {
     let count = 0;
@@ -66,7 +71,19 @@ function harness(saved = {}) {
     emitChange() { for (const fn of listeners.get("agent-os:presentation-changed") ?? []) fn(); },
     intervalCalls: () => intervalCalls,
     tick() { const ready = [...timers]; for (const [id, timer] of ready) if (timer.delay === 750) { timers.delete(id); timer.fn(); } },
-    recognize() { props.viewedArtifact = artifact; render(); for (const [id, timer] of timers) if (timer.delay === 1400) { timers.delete(id); timer.fn(); } return render(); },
+    advance(ms) {
+      now += ms;
+      const ready = [...timers];
+      for (const [id, timer] of ready) if (timer.due <= now) { timers.delete(id); timer.fn(); }
+      return render();
+    },
+    now: () => now,
+    recognize() {
+      props.availableJd = artifact; props.viewedArtifact = artifact; render();
+      now += props.presentation ? 18000 : 1400;
+      for (const [id, timer] of [...timers]) if (timer.due <= now) { timers.delete(id); timer.fn(); }
+      return render();
+    },
     async settle() { for (let i = 0; i < 10; i++) { await new Promise(resolve => setImmediate(resolve)); render(); } return output; },
   };
 }
@@ -238,26 +255,56 @@ test("publication and later reports share order and completed state, including r
   assert.equal(reloaded.insightItems[1].modified, publication.modified);
 });
 
-test("publication waits for preview completion and hides an existing suggestion during playback", () => {
-  const h = harness();
-  h.props.viewedArtifactReady = false;
-  assert.equal(h.recognize().publicationInsight, null);
-  h.props.viewedArtifactReady = true;
-  assert.ok(h.recognize().publicationInsight);
-  h.props.viewedArtifactReady = false;
-  const hidden = h.render();
-  assert.equal(hidden.publicationInsight, null);
-  assert.equal(hidden.notification, null);
+test("unopened JD triggers at the write deadline without starting publication", () => {
+  const h = harness(); h.props.availableJd = h.artifact;
+  assert.equal(h.render().publicationInsight, null);
+  assert.equal(h.advance(17999).publicationInsight, null);
+  assert.ok(h.advance(1).publicationInsight);
+  assert.equal(h.props.viewedArtifact, null);
+  assert.equal(h.calls.length, 0);
 });
 
-test("a new generation at the same path gets a suggestion after its own preview", () => {
-  const h = harness();
-  h.recognize().notification.props.onDismiss();
-  h.artifact.sessionId = "jd-generation-two";
-  h.props.viewedArtifactReady = false;
-  assert.equal(h.recognize().notification, null);
-  h.props.viewedArtifactReady = true;
-  assert.ok(h.recognize().notification);
+test("opening, switching away and closing the preview cannot delay or accelerate insight", () => {
+  const h = harness(); h.props.availableJd = h.artifact; h.props.viewedArtifact = h.artifact;
+  h.render(); h.advance(5000);
+  h.props.viewedArtifact = h.report;
+  assert.equal(h.render().publicationInsight, null);
+  h.advance(5000); h.props.viewedArtifact = null; h.render();
+  assert.equal(h.advance(7999).publicationInsight, null);
+  assert.ok(h.advance(1).publicationInsight);
+  h.props.viewedArtifact = h.artifact;
+  assert.ok(h.render().publicationInsight, "reopening cannot hide a ready insight");
+});
+
+test("reload uses the persisted write time and does not restart or skip the wait", () => {
+  const h = harness(); h.props.availableJd = h.artifact; h.render(); h.advance(7000);
+  const saved = JSON.parse(h.storage.get("syntropic:notifications:/fixture"));
+  const restored = harness(saved, h.now()); restored.props.availableJd = h.artifact;
+  assert.equal(restored.render().publicationInsight, null);
+  assert.equal(restored.advance(10999).publicationInsight, null);
+  const ready = restored.advance(1); assert.ok(ready.publicationInsight);
+  ready.notification.props.onDismiss(); restored.render();
+  const again = harness(JSON.parse(restored.storage.get("syntropic:notifications:/fixture")), restored.now());
+  again.props.availableJd = h.artifact; again.render();
+  assert.equal(again.advance(18000).notification, null, "same generation stays dismissed");
+});
+
+test("a deadline elapsed while the page was closed triggers on restoration", () => {
+  const h = harness(); h.props.availableJd = { ...h.artifact, writtenAt: h.now() - 20000 };
+  h.render(); assert.ok(h.advance(0).publicationInsight);
+});
+
+test("a new generation at the same path gets its own timed suggestion", () => {
+  const h = harness(); h.recognize().notification.props.onDismiss(); h.render();
+  h.props.availableJd = { ...h.artifact, sessionId: "jd-generation-two", writtenAt: h.now() };
+  h.render(); assert.equal(h.advance(17999).notification, null);
+  assert.ok(h.advance(1).notification);
+});
+
+test("later session activity and artifact refreshes preserve the original deadline", () => {
+  const h = harness(); h.props.availableJd = h.artifact; h.render(); h.advance(10000);
+  h.props.availableJd = { ...h.artifact, modified: new Date(h.now()).toISOString() }; h.render();
+  assert.ok(h.advance(8000).publicationInsight);
 });
 
 test("legacy path-based notification history restores without repeating a dismissed suggestion", () => {

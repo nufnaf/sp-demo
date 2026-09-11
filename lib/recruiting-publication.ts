@@ -3,6 +3,7 @@ export interface JdArtifact {
   filePath: string;
   sessionId: string;
   taskTitle: string;
+  writtenAt?: number;
 }
 
 export interface PublishedRecruitingJob {
@@ -20,7 +21,7 @@ export interface PublishedRecruitingJob {
 }
 
 // Deliberate scenario trigger, not an inference/insight engine. Only the local
-// JD document being viewed can offer this demo action.
+// JD document can offer this demo action; viewing it is not required.
 export function isJdDemoArtifact(artifact: JdArtifact): boolean {
   return /\.(html?|md|txt)$/i.test(artifact.filePath)
     && /(?:\bjd\b|职位描述|岗位描述|招聘简章)/i.test(`${artifact.filePath.replaceAll('_', '-')} ${artifact.taskTitle}`);
