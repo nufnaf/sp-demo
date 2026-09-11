@@ -119,7 +119,7 @@ test('packaged preparation gate uses bundled CLI and native permission bridge on
     await readyBeforeSync();
     await main.screenshot({ path: join(output, 'packaged-background-sync.png') });
     finishPreparation({ status: 503, json: { error: '同步暂时失败，请重试。' } });
-    await main.getByRole('alert').filter({ hasText: '同步暂时失败' }).waitFor();
+    await main.getByRole('alert').filter({ hasText: '同步暂时失败' }).last().waitFor();
     assert.equal(await main.locator('.agent-os-desktop').count(), 1, 'failure keeps desktop mounted');
     await new Promise(resolve => setTimeout(resolve, 800));
     assert.equal(await desktop.evaluate(() => globalThis.startupFixture.screen.view.getVisible()), false, 'failure stays on desktop');
