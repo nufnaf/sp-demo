@@ -7,6 +7,7 @@ declare global {
   interface Window {
     syntropicDesktop?: {
       ready: () => void;
+      startupMark?: (name: string, details?: unknown) => void;
       showStartup?: () => Promise<void>;
       captureSpaceThumbnail?: () => Promise<string | null>;
       getUiPreferences?: () => Promise<unknown>;

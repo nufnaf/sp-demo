@@ -20,13 +20,15 @@ export function useComputerPermissions() {
       if (mounted.current) {
         setPermissions(result ?? { supported: false, accessibility: false, screenRecording: false });
         setError("");
+        window.syntropicDesktop?.startupMark?.('permissions.check.end');
       }
     } catch {
-      if (mounted.current) { setPermissions(undefined); setError("暂时无法检查权限，请重新检查。"); }
+      if (mounted.current) { setPermissions(undefined); setError("暂时无法检查权限，请重新检查。"); window.syntropicDesktop?.startupMark?.('permissions.check.error'); }
     } finally { reading.current = false; }
   }, []);
   useEffect(() => {
     mounted.current = true;
+    window.syntropicDesktop?.startupMark?.('permissions.check.start');
     void check();
     const onFocus = () => { void check(); };
     const timer = ready ? undefined : setInterval(() => { if (!document.hidden) void check(); }, 2500);

@@ -53,25 +53,30 @@ export function FeishuStartup({ children }: { children: ReactNode }) {
     const timer = setTimeout(() => { if (mounted.current) open(); }, 1200);
     return () => clearTimeout(timer);
   }, [flow]);
-  const prepare = useCallback(async (saveCompletion = false) => {
+  const prepare = useCallback(async (saveCompletion = false, background = false) => {
     if (preparing.current) return;
     preparing.current = true;
+    window.syntropicDesktop?.startupMark?.('calendar.prepare.start', { background });
     setStage("preparing"); setFlow(undefined); setError(""); setCanReauthorize(false);
     try {
       // The checklist may already have dismissed the native splash. Restore it
       // before removing the checklist, including on retry after a sync failure.
-      await window.syntropicDesktop?.showStartup?.();
-      if (!mounted.current) return;
-      setScreen("loading");
+      if (!background) {
+        await window.syntropicDesktop?.showStartup?.();
+        if (!mounted.current) return;
+        setScreen("loading");
+      }
       if (saveCompletion) await window.syntropicDesktop?.completeInitialization?.(true);
       const response = await fetch("/api/desktop/prepare", { method: "POST" });
       const data = await response.json();
       if (mounted.current) setCanReauthorize(data.requiresAuthorization === true);
       if (!response.ok || !data.ready) throw new Error(data.error || "资料准备尚未完成，请重试。");
-      if (mounted.current) { setStage("ready"); setScreen("desktop"); }
+      window.syntropicDesktop?.startupMark?.('calendar.prepare.end');
+      if (mounted.current) { setStage("ready"); if (!background) setScreen("desktop"); }
     } catch (e) {
+      window.syntropicDesktop?.startupMark?.('calendar.prepare.error');
       await window.syntropicDesktop?.completeInitialization?.(false).catch(() => {});
-      if (mounted.current) { setError(e instanceof Error ? e.message : "资料准备失败"); setStage("error"); setScreen("setup"); }
+      if (mounted.current) { setError(e instanceof Error ? e.message : "资料准备失败"); setStage("error"); if (!background) setScreen("setup"); }
     }
     finally { preparing.current = false; }
   }, []);
@@ -98,7 +103,9 @@ export function FeishuStartup({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => {
     mounted.current = true;
+    window.syntropicDesktop?.startupMark?.('feishu.check.start');
     void check().then(data => {
+      window.syntropicDesktop?.startupMark?.('feishu.check.end');
       if (!mounted.current) return;
       if (data.authorization && data.authorization.result.state !== "succeeded") {
         setFlow(data.authorization.flow);
@@ -121,7 +128,8 @@ export function FeishuStartup({ children }: { children: ReactNode }) {
   }, [stage, computer.permissions, computer.error, computer.ready, prepare]);
   useEffect(() => {
     if (screen !== "setup" || stage !== "ready" || !computer.ready) return;
-    void prepare(true);
+    setScreen("desktop");
+    void prepare(true, true);
   }, [screen, stage, computer.ready, prepare]);
   useEffect(() => {
     if (stage !== "authorizing" || !flow) return;
