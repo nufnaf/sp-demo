@@ -97,16 +97,18 @@ test('packaged preparation gate uses bundled CLI and native permission bridge on
       const outcome = await new Promise(resolve => { finishPreparation = resolve; preparationStarted(); });
       await route.fulfill(outcome);
     });
-    const covered = async () => {
-      await splash.waitForFunction(() => document.querySelector('#splash').dataset.phase === 'starting' && getComputedStyle(document.querySelector('#splash')).opacity === '1');
-      assert.equal(await desktop.evaluate(() => globalThis.startupFixture.screen.view.getVisible()), true);
-      await new Promise(resolve => setTimeout(resolve, 1200));
-      assert.equal(await desktop.evaluate(() => globalThis.startupFixture.screen.state.phase), 'starting', 'no stale setup-ready callback dismisses the splash');
+    const readyBeforeSync = async () => {
+      await main.locator('.agent-os-desktop').waitFor();
+      await main.getByRole('status').filter({ hasText: '正在同步团队日程' }).waitFor();
+      await main.waitForFunction(async () => !!document.querySelector('.agent-os-desktop'));
+      // The preparation request is still held by the test. Revealing here proves
+      // neither initial authorization nor subsequent launches wait for the network.
+      for (let n = 0; n < 100; n++) {
+        if (await desktop.evaluate(() => globalThis.startupFixture.screen.state.phase) === 'hidden') return;
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      assert.fail('desktop stayed covered while calendar preparation was pending');
     };
-    const uncovered = () => main.waitForFunction(async () => {
-      // The renderer is painted before the native overlay fades out.
-      return !!document.querySelector('.feishu-startup-card, .agent-os-desktop');
-    });
     await main.reload();
     await main.getByRole('button', { name: '验证屏幕访问', exact: true }).waitFor();
     await splash.waitForFunction(() => document.querySelector('#splash').dataset.phase === 'revealing');
@@ -114,17 +116,17 @@ test('packaged preparation gate uses bundled CLI and native permission bridge on
     let started = waitForPreparation();
     await main.getByRole('button', { name: '验证屏幕访问', exact: true }).click();
     await started;
-    await covered();
-    await splash.screenshot({ path: join(output, 'packaged-after-capture-splash.png') });
+    await readyBeforeSync();
+    await main.screenshot({ path: join(output, 'packaged-background-sync.png') });
     finishPreparation({ status: 503, json: { error: '同步暂时失败，请重试。' } });
     await main.getByRole('alert').filter({ hasText: '同步暂时失败' }).waitFor();
-    await uncovered();
+    assert.equal(await main.locator('.agent-os-desktop').count(), 1, 'failure keeps desktop mounted');
     await new Promise(resolve => setTimeout(resolve, 800));
-    assert.equal(await desktop.evaluate(() => globalThis.startupFixture.screen.view.getVisible()), false, 'failure reveals the retry page');
+    assert.equal(await desktop.evaluate(() => globalThis.startupFixture.screen.view.getVisible()), false, 'failure stays on desktop');
     started = waitForPreparation();
-    await main.getByRole('button', { name: '重新准备', exact: true }).click();
+    await main.getByRole('button', { name: '重新同步', exact: true }).click();
     await started;
-    await covered();
+    await readyBeforeSync();
     finishPreparation({ json: { ready: true } });
     await main.locator('.agent-os-desktop').waitFor();
     await new Promise(resolve => setTimeout(resolve, 800));
@@ -132,7 +134,7 @@ test('packaged preparation gate uses bundled CLI and native permission bridge on
     started = waitForPreparation();
     await main.reload();
     await started;
-    await covered();
+    await readyBeforeSync();
     assert.equal(await main.getByRole('heading', { name: '演示前的一次性准备' }).count(), 0, 'completed startup skips setup');
     finishPreparation({ json: { ready: true } });
     await main.locator('.agent-os-desktop').waitFor();

@@ -5,6 +5,8 @@ import { Check, LoaderCircle, Monitor, MousePointer2 } from "lucide-react";
 import { SyntropicMark } from "./SyntropicMark";
 import { useComputerPermissions } from "@/hooks/useComputerPermissions";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { notifyCalendarChanged } from "@/hooks/useFeishuCalendar";
+import { CalendarPreparationProvider } from "@/hooks/useCalendarPreparation";
 import { useDesktopReady } from "@/hooks/useDesktopReady";
 import type { FeishuAuthFlow, FeishuCliStatus, FeishuLoginResult } from "@/lib/feishu-cli";
 import "./FeishuStartup.css";
@@ -38,7 +40,7 @@ export function FeishuStartup({ children }: { children: ReactNode }) {
   const gestureRef = useRef(false);
   const openedRef = useRef<string | undefined>(undefined);
   // Stop pending setup-page readiness before bringing the splash back.
-  useDesktopReady(screen === "desktop" || (screen === "setup" && stage !== "preparing" && !(stage === "ready" && computer.ready)));
+  useDesktopReady(screen === "setup" && stage !== "preparing" && !(stage === "ready" && computer.ready));
   useEffect(() => {
     if (!flow) return;
     const url = flow.verificationUrl;
@@ -53,30 +55,23 @@ export function FeishuStartup({ children }: { children: ReactNode }) {
     const timer = setTimeout(() => { if (mounted.current) open(); }, 1200);
     return () => clearTimeout(timer);
   }, [flow]);
-  const prepare = useCallback(async (saveCompletion = false, background = false) => {
+  const prepare = useCallback(async (saveCompletion = false) => {
     if (preparing.current) return;
     preparing.current = true;
-    window.syntropicDesktop?.startupMark?.('calendar.prepare.start', { background });
+    window.syntropicDesktop?.startupMark?.('calendar.prepare.start');
+    setScreen("desktop");
     setStage("preparing"); setFlow(undefined); setError(""); setCanReauthorize(false);
     try {
-      // The checklist may already have dismissed the native splash. Restore it
-      // before removing the checklist, including on retry after a sync failure.
-      if (!background) {
-        await window.syntropicDesktop?.showStartup?.();
-        if (!mounted.current) return;
-        setScreen("loading");
-      }
       if (saveCompletion) await window.syntropicDesktop?.completeInitialization?.(true);
       const response = await fetch("/api/desktop/prepare", { method: "POST" });
       const data = await response.json();
       if (mounted.current) setCanReauthorize(data.requiresAuthorization === true);
       if (!response.ok || !data.ready) throw new Error(data.error || "资料准备尚未完成，请重试。");
       window.syntropicDesktop?.startupMark?.('calendar.prepare.end');
-      if (mounted.current) { setStage("ready"); if (!background) setScreen("desktop"); }
+      if (mounted.current) { setStage("ready"); notifyCalendarChanged(); }
     } catch (e) {
       window.syntropicDesktop?.startupMark?.('calendar.prepare.error');
-      await window.syntropicDesktop?.completeInitialization?.(false).catch(() => {});
-      if (mounted.current) { setError(e instanceof Error ? e.message : "资料准备失败"); setStage("error"); if (!background) setScreen("setup"); }
+      if (mounted.current) { setError(e instanceof Error ? e.message : "资料准备失败"); setStage("error");  }
     }
     finally { preparing.current = false; }
   }, []);
@@ -112,7 +107,7 @@ export function FeishuStartup({ children }: { children: ReactNode }) {
         if (data.authorization.result.state === "pending") setStage("authorizing");
         else { setError(data.authorization.result.message || "请重新授权。"); setStage("error"); }
       } else if (data.authState === "authenticated") setStage("ready"); else setStage("connect");
-    }).catch(e => { if (mounted.current) { setError(e.message); setStage("error"); } });
+    }).catch(e => { window.syntropicDesktop?.startupMark?.('feishu.check.error'); if (mounted.current) { setError(e.message); setStage("error"); } });
     return () => { mounted.current = false; };
   }, [check]);
   // A durable completion record controls whether the checklist is shown.
@@ -128,8 +123,7 @@ export function FeishuStartup({ children }: { children: ReactNode }) {
   }, [stage, computer.permissions, computer.error, computer.ready, prepare]);
   useEffect(() => {
     if (screen !== "setup" || stage !== "ready" || !computer.ready) return;
-    setScreen("desktop");
-    void prepare(true, true);
+    void prepare(true);
   }, [screen, stage, computer.ready, prepare]);
   useEffect(() => {
     if (stage !== "authorizing" || !flow) return;
@@ -163,7 +157,14 @@ export function FeishuStartup({ children }: { children: ReactNode }) {
     timer = setTimeout(poll, 2500);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [flow, stage, check, begin, prepare]);
-  if (screen === "desktop" && computer.ready) return children;
+  if (screen === "desktop" && computer.ready) return <CalendarPreparationProvider value={{ pending: stage === "preparing", error: stage === "error" ? error : "" }}>
+    {children}
+    {(stage === "preparing" || stage === "error") && <aside className="startup-sync-notice" aria-label="团队日程同步">
+      <p role={stage === "error" ? "alert" : "status"}>{stage === "preparing" ? "正在同步团队日程…" : error}</p>
+      {stage === "error" && <button onClick={() => void prepare()}>重新同步</button>}
+      {stage === "error" && canReauthorize && <button onClick={() => void begin("login")}>重新授权</button>}
+    </aside>}
+  </CalendarPreparationProvider>;
   // The native Electron splash remains visible while the workspace is being
   // prepared. Keep this renderer layer visually empty so there is no second
   // loading screen after the splash.

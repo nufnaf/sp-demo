@@ -1,3 +1,4 @@
+import { startupMark } from './startup-timing.mjs';
 import { WebContentsView, ipcMain } from 'electron';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -87,6 +88,7 @@ export class StartupScreen {
       || (this.state.phase === 'error' && this.state.reason === 'workbench-timeout');
     if (this.disposed || !waiting) return;
     clearTimeout(this.readyTimer);
+    startupMark('splash.reveal');
     this.state = { ...STARTUP_STATE, phase: 'revealing' };
     this.publish();
     // Minimized windows may not deliver animation frames. Never leave an
@@ -99,6 +101,7 @@ export class StartupScreen {
     clearTimeout(this.fadeTimer);
     this.state = { ...STARTUP_STATE, phase: 'hidden' };
     this.view.setVisible(false);
+    startupMark('splash.hidden');
     this.window.webContents.focus();
   }
 

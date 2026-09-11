@@ -15,7 +15,7 @@ import { createSystemNetworkBridge } from './system-network.mjs';
 import { createUiPreferencesStore, registerUiPreferences } from './ui-preferences.mjs';
 import { createComputerPermissions, registerComputerPermissions } from './computer-permissions.mjs';
 import { createStartupState } from './startup-state.mjs';
-import { startupMark } from './startup-timing.mjs';
+import { startupMark, configureStartupLog, registerStartupTiming } from './startup-timing.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const packaged = existsSync(join(process.resourcesPath, 'desktop-runtime.json'));
@@ -86,6 +86,7 @@ function createWindow() {
     if (!currentWindow.isDestroyed()) void dialog.showMessageBox(currentWindow, { type: 'error', message: '启动画面加载失败', detail: '请重新打开应用；如果仍然失败，请重新安装完整 App。' });
   });
   const contents = window.webContents;
+  contents.on('did-finish-load', () => startupMark('workbench.load.end'));
   contents.on('did-start-navigation', details => {
     if (details.isMainFrame && !details.isSameDocument && isAppUrl(details.url) && ready) currentStartup.waitForWorkbench();
   });
@@ -139,7 +140,10 @@ async function startSupervisor() {
         }
       }
       packagedBuildId = manifest.buildId;
+      startupMark('runtime.prepare.start');
       root = await preparePackagedRuntime(process.resourcesPath, app.getPath('userData'), manifest.buildId);
+      configureStartupLog(join(app.getPath('logs')), packagedBuildId);
+      startupMark('runtime.prepare.end');
       node = join(process.resourcesPath, 'node/bin/node');
       Object.assign(env, {
         SYNTROPIC_PACKAGED: '1',
@@ -233,10 +237,12 @@ if (!app.requestSingleInstanceLock()) {
   // npm launcher died: don't leave a hidden desktop and backend running.
   process.on('disconnect', () => app.quit());
   void app.whenReady().then(async () => {
+    configureStartupLog(app.getPath('logs'));
     startupMark('electron.ready');
     if (process.platform === 'darwin') app.dock.setIcon(appIcon);
     startupMark('presentation.run.start');
     presentation = await createPresentationRun(app.getPath('userData'));
+    startupMark('presentation.run.end');
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       ...(process.platform === 'darwin' ? [{ label: 'Syntropic', submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] }] : []),
       { role: 'fileMenu' }, { role: 'editMenu' }, { role: 'viewMenu' }, { role: 'windowMenu' },
@@ -275,9 +281,7 @@ if (!app.requestSingleInstanceLock()) {
       }),
     }), () => window, isAppUrl);
     ipcMain.handle('desktop:space-thumbnail', createSpaceThumbnailCapture(() => window, isAppUrl));
-    ipcMain.on('desktop:startup-mark', (event, payload) => {
-      if (event.sender === window?.webContents && typeof payload?.name === 'string') startupMark(`renderer.${payload.name}`, payload.details);
-    });
+    registerStartupTiming(ipcMain, () => window, url => isAppUrl(url) && new URL(url).pathname === '/');
     registerStartupControls(ipcMain, () => window, () => startup,
       url => isAppUrl(url) && new URL(url).pathname === '/', () => ready && !quitting);
     ipcMain.handle('desktop:retry', event => {
