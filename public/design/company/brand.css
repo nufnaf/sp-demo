@@ -1,0 +1,109 @@
+/* Xingliu / NovaFlow. Adapted from the supplied LinkedIn color-system handoff.
+   Canonical source; run scripts/sync-company-brand.mjs after editing. */
+:root {
+  color-scheme: light;
+  --color-primary: #0a66c2;
+  --color-primary-hover: #004182;
+  --color-primary-pressed: #004182;
+  --color-primary-soft: #e8f3ff;
+  --color-background: #f3f2ef;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f8f8f7;
+  --color-text-main: rgb(0 0 0 / 90%);
+  --color-text-muted: rgb(0 0 0 / 60%);
+  --color-text-faint: rgb(0 0 0 / 44%);
+  --color-text-on-primary: #ffffff;
+  --color-border: #ebebeb;
+  --color-border-strong: #d9d9d9;
+  /* Form boundaries need stronger contrast than decorative card borders. */
+  --color-control-border: #858585;
+  --color-focus: #0a66c2;
+  --color-success: #24613c;
+  --color-success-soft: #edf6ef;
+  --color-warning: #835514;
+  --color-warning-soft: #fff4df;
+  --color-danger: #a52b30;
+  --color-danger-soft: #fff0f0;
+  --color-disabled: #e7e7e5;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --shadow-card: 0 2px 8px rgb(0 0 0 / 4%);
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-primary: #70b5f9;
+  --color-primary-hover: #9cccff;
+  --color-primary-pressed: #9cccff;
+  --color-primary-soft: #20364a;
+  --color-background: #17191c;
+  --color-surface: #22262a;
+  --color-surface-subtle: #2b3035;
+  --color-text-main: rgb(255 255 255 / 92%);
+  --color-text-muted: rgb(255 255 255 / 66%);
+  --color-text-faint: rgb(255 255 255 / 48%);
+  --color-text-on-primary: #101820;
+  --color-border: #3b4147;
+  --color-border-strong: #50575e;
+  --color-control-border: #7e8b96;
+  --color-focus: #70b5f9;
+  --color-success: #91d6a6;
+  --color-success-soft: #233a2c;
+  --color-warning: #efc77d;
+  --color-warning-soft: #3c3221;
+  --color-danger: #ffa6a9;
+  --color-danger-soft: #432a2e;
+  --color-disabled: #343a40;
+  --shadow-card: 0 2px 8px rgb(0 0 0 / 20%);
+}
+/* A script-free document or disabled JavaScript still follows the OS theme. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-primary: #70b5f9;
+    --color-primary-hover: #9cccff;
+    --color-primary-pressed: #9cccff;
+    --color-primary-soft: #20364a;
+    --color-background: #17191c;
+    --color-surface: #22262a;
+    --color-surface-subtle: #2b3035;
+    --color-text-main: rgb(255 255 255 / 92%);
+    --color-text-muted: rgb(255 255 255 / 66%);
+    --color-text-faint: rgb(255 255 255 / 48%);
+    --color-text-on-primary: #101820;
+    --color-border: #3b4147;
+    --color-border-strong: #50575e;
+    --color-control-border: #7e8b96;
+    --color-focus: #70b5f9;
+    --color-success: #91d6a6;
+    --color-success-soft: #233a2c;
+    --color-warning: #efc77d;
+    --color-warning-soft: #3c3221;
+    --color-danger: #ffa6a9;
+    --color-danger-soft: #432a2e;
+    --color-disabled: #343a40;
+    --shadow-card: 0 2px 8px rgb(0 0 0 / 20%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+@media print {
+  :root, :root:not([data-theme]), :root[data-theme] {
+    color-scheme: light;
+    --color-background: #ffffff;
+    --color-surface: #ffffff;
+    --color-surface-subtle: #f8f8f7;
+    --color-text-main: rgb(0 0 0 / 90%);
+    --color-text-muted: rgb(0 0 0 / 60%);
+    --color-border: #ebebeb;
+    --color-border-strong: #d9d9d9;
+    --color-primary: #0a66c2;
+    --color-success: #24613c;
+  }
+}

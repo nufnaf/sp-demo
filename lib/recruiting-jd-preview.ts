@@ -5,7 +5,7 @@ export function recruitingJdPreviewDocument(content: string): string {
   const style = `<style>
 html.jd-awaiting main{visibility:hidden}
 [data-jd-pending]{display:none!important}
-.jd-writing::after{content:"";display:inline-block;width:2px;height:1em;margin-left:4px;background:#087457;vertical-align:-.1em;animation:jd-caret .85s ease-in-out infinite}
+.jd-writing::after{content:"";display:inline-block;width:2px;height:1em;margin-left:4px;background:var(--color-primary, #0a66c2);vertical-align:-.1em;animation:jd-caret .85s ease-in-out infinite}
 .jd-enter{animation:jd-enter .45s ease-out both}
 @keyframes jd-caret{50%{opacity:.2}}
 @keyframes jd-enter{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}

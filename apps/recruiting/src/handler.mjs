@@ -20,7 +20,7 @@ export function createHandler(storeProvider = getStore) {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'",
+      "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'",
     );
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     const url = new URL(req.url, `http://${req.headers.host || "127.0.0.1"}`);
@@ -28,14 +28,18 @@ export function createHandler(storeProvider = getStore) {
     const prefix = scoped ? `/demo/${scoped[1]}` : "";
     if (scoped) url.pathname = scoped[2] || "/";
     // Every form/link and redirect stays in the same run, including a copied URL.
-    const html = page => prefix ? page.replace(/((?:href|action)=")\/(?!\/)/g, `$1${prefix}/`) : page;
+    const html = page => prefix ? page.replace(/((?:href|action|src)=")\/(?!\/)/g, `$1${prefix}/`) : page;
     try {
       if (!scoped && url.pathname.startsWith("/demo/")) { res.statusCode = 404; return res.end("招聘工作台地址无效"); }
-      if (url.pathname === "/style.css" && req.method === "GET") {
-        res.setHeader("Content-Type", "text/css; charset=utf-8");
-        return res.end(
-          await readFile(new URL("../public/style.css", import.meta.url)),
-        );
+      const assets = {
+        "/style.css": "text/css; charset=utf-8",
+        "/brand.css": "text/css; charset=utf-8",
+        "/company-logo.svg": "image/svg+xml",
+        "/ui.js": "text/javascript; charset=utf-8",
+      };
+      if (Object.hasOwn(assets, url.pathname) && req.method === "GET") {
+        res.setHeader("Content-Type", assets[url.pathname]);
+        return res.end(await readFile(new URL(`../public${url.pathname}`, import.meta.url)));
       }
       if (url.pathname === "/favicon.ico") {
         res.statusCode = 204;
@@ -152,7 +156,7 @@ export function createHandler(storeProvider = getStore) {
       res.end(
         html(layout(
           "操作未完成",
-          `<section class="panel"><h1>操作未完成</h1><p role="alert">${escape(message)}</p><a class="button" href="${escape(back)}">返回并读取最新数据</a></section>`,
+          `<section class="panel error-panel"><h1>操作未完成</h1><p role="alert">${escape(message)}</p><a class="button" href="${escape(back)}">返回并读取最新数据</a></section>`,
         )),
       );
     }

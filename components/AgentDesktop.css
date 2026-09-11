@@ -214,7 +214,7 @@
 .agent-os-window-jd .agent-os-window-bar>strong { justify-self:start;font-size:0; }
 .agent-os-window-jd .agent-os-window-bar>span:last-child { padding-right:16px; }
 .agent-os-window-jd .agent-os-window-body { height:calc(100% - 50px); }
-.jd-window-status { display:inline-block;padding:8px 13px;border-radius:999px;background:#e7f6f0;color:#087457;font-size:13px;font-weight:700;white-space:nowrap; }
+.jd-window-status { display:inline-block;padding:8px 13px;border-radius:999px;background:#e8f3ff;color:#0a66c2;font-size:13px;font-weight:700;white-space:nowrap; }
 
 /* Artifact Library — one calm file surface, with Quick Look as a temporary layer. */
 .agent-os-library { position:relative;width:100%;height:100%;display:grid;grid-template-rows:54px minmax(0,1fr);overflow:hidden;outline:0;color:var(--text);background:var(--bg) }

@@ -39,12 +39,23 @@ const chevron = '<span aria-hidden="true">↗</span>';
 const jobLink = (id) => `/jobs/${encodeURIComponent(id)}`;
 const candidateLink = (a) => `/candidates/${encodeURIComponent(a.id)}`;
 
+const navIcon = (name) => {
+  const paths = {
+    jobs: '<rect x="4" y="6" width="16" height="15" rx="2"/><path d="M9 6V3h6v3M4 11h16M10 11v3h4v-3"/>',
+    candidates: '<circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 4v2"/>',
+    reviews: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="m8 9 2 2 5-5M8 16h8"/>',
+  };
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]}</svg>`;
+};
+
 export function layout(title, body, active = "jobs") {
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>${e(title)} · 星流科技人才招聘</title><link rel="stylesheet" href="/style.css"></head><body>
-  <aside class="sidebar"><a class="brand" href="/"><span class="brand-mark">✦</span><span><b>星流科技</b><small>NOVAFLOW</small></span></a><div class="workspace-label">人才与组织 <span>内部工作台</span></div>
-  <nav aria-label="主导航"><a href="/" class="${active === "jobs" ? "active" : ""}"><span aria-hidden="true">▦</span> 招聘职位</a><a href="/candidates" class="${active === "candidates" ? "active" : ""}"><span aria-hidden="true">◎</span> 候选人</a><a href="/reviews" class="${active === "reviews" ? "active" : ""}"><span aria-hidden="true">☷</span> 面试评价</a></nav>
-  <div class="side-note"><span>BUILD THE FUTURE OF WORK</span><p>让智能真正<br>进入工作流。</p><i>✦</i></div><a href="/settings" class="settings-link">系统设置 <span>↗</span></a><div class="identity"><span class="avatar">陈</span><div><b>陈晓</b><small>招聘负责人</small></div></div></aside>
-  <div class="workspace"><header class="topbar"><span>人才招聘 <span class="slash">/</span> ${e(title)}</span><span class="environment"><i></i> 人才与组织 <span class="separator">|</span> 星流科技团队</span></header><main>${body}</main><footer>© 2026 星流科技 <span>星流科技 · 内部招聘系统</span></footer></div></body></html>`;
+  const nav = (key, url, label) => `<a href="${url}" class="${active === key ? "active" : ""}"${active === key ? ' aria-current="page"' : ""}>${navIcon(key)}${label}</a>`;
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark"><title>${e(title)} · 星流科技人才招聘</title><link rel="icon" type="image/svg+xml" href="/company-logo.svg"><link rel="stylesheet" href="/brand.css"><link rel="stylesheet" href="/style.css"><script src="/ui.js"></script></head><body>
+  <a class="skip-link" href="#main">跳至主要内容</a>
+  <aside class="sidebar"><a class="brand" href="/" aria-label="星流科技招聘首页"><img class="brand-mark" src="/company-logo.svg" width="38" height="38" alt=""><span><b>星流科技</b><small>NOVAFLOW</small></span></a><div class="workspace-label">人才与组织</div>
+  <nav aria-label="主导航">${nav("jobs", "/", "招聘职位")}${nav("candidates", "/candidates", "候选人")}${nav("reviews", "/reviews", "面试评价")}</nav>
+  <div class="sidebar-bottom"><nav aria-label="工作空间设置"><a href="/settings" class="${active === "settings" ? "active" : ""}"${active === "settings" ? ' aria-current="page"' : ""}>系统设置</a></nav><div class="identity"><span class="avatar">陈</span><div><b>陈晓</b><small>招聘负责人</small></div></div></div></aside>
+  <div class="workspace"><header class="topbar"><span class="breadcrumb">人才招聘 <span class="slash">/</span> ${e(title)}</span><label class="theme-control" hidden><span>外观</span><select data-theme-select aria-label="外观主题"><option value="system">跟随系统</option><option value="light">浅色模式</option><option value="dark">深色模式</option></select></label></header><main id="main" tabindex="-1">${body}</main><footer>© 2026 星流科技 <span>人才与组织 · 内部招聘系统</span></footer></div></body></html>`;
 }
 
 function heading(kicker, title, description, action = "") {
@@ -83,7 +94,7 @@ export function jobsPage(state, params) {
   );
   return layout(
     "招聘职位",
-    `${heading("HIRING WORKSPACE", "找到下一位，同行的人。", "从每一份简历到每一次判断，让招聘进展清晰可见。", '<a class="publish-link" href="/jobs/new">发布职位 ↗</a>')}
+    `${heading("HIRING WORKSPACE", "招聘职位", "管理在招岗位，跟进候选人与面试评价。", '<a class="publish-link" href="/jobs/new">发布职位 ↗</a>')}
   <section class="overview"><div><span>正在招聘</span><strong>${data.jobs.length}<small>个职位</small></strong></div><div><span>招聘目标</span><strong>${data.jobs.reduce((s, j) => s + j.target, 0)}<small>人</small></strong></div><div><span>候选人总数</span><strong>${m.applied}<small>人</small></strong></div><a href="/reviews?finished=1&missing=1"><span>面试结束 · 待补评价</span><strong>${m.missing}<small>人 ${chevron}</small></strong></a></section>
   <section class="section"><div class="section-title"><h2>已发布职位 <span>${data.jobs.length}</span></h2><span class="muted">优先关注招聘进展与评价完整度</span></div>
   <form class="filters" method="get"><label class="search"><span>搜索职位</span><input name="q" type="search" value="${e(params.get("q"))}" placeholder="职位、部门或负责人"></label><label><span>部门</span><select name="department">${option("", "全部部门", params.get("department"))}${[...new Set(data.jobs.map((j) => j.department))].map((d) => option(d, d, params.get("department"))).join("")}</select></label><button type="submit">搜索职位</button><a href="/" class="text-link">清除</a></form>
@@ -101,18 +112,18 @@ export function jobsPage(state, params) {
   );
 }
 
-function candidateFilters(data, params, jobId) {
+function candidateFilters(data, params, jobId, listPath = "/candidates") {
   return `<form class="filters candidate-filters" method="get"><label class="search"><span>搜索候选人</span><input name="q" type="search" value="${e(params.get("q"))}" placeholder="姓名、编号、学校或公司"></label>${!jobId ? `<label><span>职位</span><select name="job">${option("", "全部职位", params.get("job"))}${data.jobs.map((j) => option(j.id, j.title, params.get("job"))).join("")}</select></label>` : ""}<label><span>当前状态</span><select name="stage">${option("", "全部状态", params.get("stage"))}${Object.entries(
     STAGES,
   )
     .map(([key, label]) => option(key, label, params.get("stage")))
     .join(
       "",
-    )}</select></label><label class="checkbox"><input type="checkbox" name="finished" value="1"${params.has("finished") ? " checked" : ""}>面试全部结束</label><label class="checkbox"><input type="checkbox" name="missing" value="1"${params.has("missing") ? " checked" : ""}>缺少已提交评价</label><button type="submit">应用筛选</button><a class="text-link" href="${jobId ? jobLink(jobId) : "/candidates"}">清除</a></form>`;
+    )}</select></label><label class="checkbox"><input type="checkbox" name="finished" value="1"${params.has("finished") ? " checked" : ""}>面试全部结束</label><label class="checkbox"><input type="checkbox" name="missing" value="1"${params.has("missing") ? " checked" : ""}>缺少已提交评价</label><button type="submit">应用筛选</button><a class="text-link" href="${jobId ? jobLink(jobId) : listPath}">清除</a></form>`;
 }
 
 function candidateTable(applications, data) {
-  return `<div class="table-wrap"><table><thead><tr><th>候选人</th><th>应聘职位 / 背景</th><th>当前状态</th><th>面试进度</th><th>评价完整度</th><th>操作</th></tr></thead><tbody>${
+  return `<div class="table-wrap" role="region" aria-label="候选人列表，可横向滚动" tabindex="0"><table><thead><tr><th scope="col">候选人</th><th scope="col">应聘职位 / 背景</th><th scope="col">当前状态</th><th scope="col">面试进度</th><th scope="col">评价完整度</th><th scope="col">操作</th></tr></thead><tbody>${
     applications
       .map((a) => {
         const missing = missingReviews(a);
@@ -137,7 +148,7 @@ export function jobPage(state, id, params) {
   const filtered = filterApplications(data, filters);
   return layout(
     j.title,
-    `<a class="back" href="/">← 全部职位</a>${heading(j.department.toUpperCase(), j.title, `${j.location} · 全职 · ${j.owner}`, pill("已发布", "passed"))}
+    `<a class="back" href="/">← 全部职位</a>${heading(j.department.toUpperCase(), j.title, `${j.location} · 全职 · ${j.owner}`, pill("已发布", "published"))}
   ${params.has("published") ? '<div role="status" class="notice success">职位发布成功，已加入内部招聘系统。</div>' : ""}
   ${j.publishedAt ? `<p class="muted">发布时间：${fmt(j.publishedAt)} · 职位编号：${e(j.id)}</p>` : ""}
   <div class="role-summary"><p class="job-description">${e(j.description)}</p><div>${j.skills.map((s) => pill(s)).join(" ")}<span class="target-inline">招聘目标 <b>${j.target} 人</b> · 面试通过 ${count.passed} 人</span></div></div>
@@ -147,7 +158,7 @@ export function jobPage(state, id, params) {
   )
     .map(
       ([key, label]) =>
-        `<a href="${jobLink(id)}?stage=${key}"><b>${count.current[key]}</b><span>${label}</span></a>`,
+        `<a href="${jobLink(id)}?stage=${key}"${params.get("stage") === key ? ' aria-current="true"' : ""}><b>${count.current[key]}</b><span>${label}</span></a>`,
     )
     .join("")}</div></section>
   <section class="section"><div class="section-title"><h2>候选人 <span>${filtered.length}</span></h2><a class="text-link" href="${jobLink(id)}?finished=1&missing=1">查看面试结束且缺评价的候选人 (${count.missing}) →</a></div>${candidateFilters(data, params, id)}<p class="filter-summary" role="status">筛选结果：${filtered.length} 人${params.has("finished") ? " · 所有已安排面试均已结束" : ""}${params.has("missing") ? " · 至少一轮评价未提交（含草稿）" : ""}</p>${candidateTable(filtered, data)}</section>
@@ -159,7 +170,7 @@ export function candidatesPage(state, params, reviews = false) {
   const applications = filterApplications(state.data, params);
   return layout(
     reviews ? "面试评价" : "候选人",
-    `${heading(reviews ? "INTERVIEW FEEDBACK" : "TALENT PIPELINE", reviews ? "让每一次判断，有据可循。" : "每一份潜力，都值得看见。", reviews ? "跟进缺失评价，查看评分与面试结论。草稿不计入已提交评价。" : "统一查看全部职位的候选人、面试进度与流程记录。")}${candidateFilters(state.data, params)}<div class="section-title"><h2>${reviews ? "评价跟进" : "候选人列表"} <span>${applications.length}</span></h2><a class="text-link" href="/reviews?finished=1&missing=1">只看面试结束且缺评价</a></div><p role="status" class="filter-summary">筛选结果：${applications.length} 人${params.has("finished") ? " · 面试全部结束" : ""}${params.has("missing") ? " · 缺少已提交评价（含草稿）" : ""}</p>${candidateTable(applications, state.data)}`,
+    `${heading(reviews ? "INTERVIEW FEEDBACK" : "TALENT PIPELINE", reviews ? "面试评价" : "候选人", reviews ? "跟进缺失评价，查看评分与面试结论。草稿不计入已提交评价。" : "统一查看全部职位的候选人、面试进度与流程记录。")}${candidateFilters(state.data, params, undefined, reviews ? "/reviews" : "/candidates")}<div class="section-title"><h2>${reviews ? "评价跟进" : "候选人列表"} <span>${applications.length}</span></h2><a class="text-link" href="/reviews?finished=1&missing=1">只看面试结束且缺评价</a></div><p role="status" class="filter-summary">筛选结果：${applications.length} 人${params.has("finished") ? " · 面试全部结束" : ""}${params.has("missing") ? " · 缺少已提交评价（含草稿）" : ""}</p>${candidateTable(applications, state.data)}`,
     reviews ? "reviews" : "candidates",
   );
 }
