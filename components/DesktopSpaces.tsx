@@ -1,25 +1,28 @@
 "use client";
 import { createContext, useCallback, useEffect, useRef, useState } from "react";
-import { addSpace, initialSpaces, moveToSpace, removeSpace, restoreSpaces, spaceOf, focusSpaceWindow } from "@/lib/desktop-spaces";
+import { addSpace, initialSpaces, moveToSpace, removeSpace, restoreSpaces, spaceOf, focusSpaceWindow, collapseSpaces } from "@/lib/desktop-spaces";
 import { useSpaceThumbnails } from "@/hooks/useSpaceThumbnails";
 import "./DesktopSpaces.css";
 
-export function useDesktopSpaces() {
-  const [state, setState] = useState(initialSpaces);
+export function useDesktopSpaces(enabled = true, preferencesLoaded = true) {
+  const [storedState, setState] = useState(initialSpaces);
+  const state = enabled ? storedState : collapseSpaces(storedState);
   const [loaded, setLoaded] = useState(false);
   const [overview, setOverview] = useState(false);
   const [dragging, setDragging] = useState<string | null>(null);
   const latest = useRef(state);
   useEffect(() => { latest.current = state; }, [state]);
   useEffect(() => {
+    if (!preferencesLoaded) return;
     try { setState(restoreSpaces(JSON.parse(localStorage.getItem("syntropic:spaces:v1") ?? "null"))); } catch { /* clean desktop */ }
     setLoaded(true);
-  }, []);
+  }, [preferencesLoaded]);
+  useEffect(() => { if (loaded && !enabled) setState(collapseSpaces); }, [loaded, enabled]);
   useEffect(() => { if (loaded) try { localStorage.setItem("syntropic:spaces:v1", JSON.stringify(state)); } catch { /* storage unavailable */ } }, [loaded, state]);
   const select = useCallback((id: string) => { setState(current => current.spaces.some(space => space.id === id) ? { ...current, active: id } : current); setOverview(false); }, []);
   const focus = useCallback((id: string, reveal = true) => {
-    setState(current => focusSpaceWindow(current, id, reveal));
-  }, []);
+    setState(current => focusSpaceWindow(enabled ? current : collapseSpaces(current), id, reveal));
+  }, [enabled]);
   const create = useCallback(() => { setState(current => addSpace(current, `desktop-${crypto.randomUUID()}`)); }, []);
   const move = useCallback((windowId: string, target: string) => {
     setState(current => {
@@ -30,6 +33,7 @@ export function useDesktopSpaces() {
     setOverview(false); setDragging(null);
   }, []);
   useEffect(() => {
+    if (!enabled) return;
     const key = (event: KeyboardEvent) => {
       if (event.key === "Escape") { setOverview(false); setDragging(null); return; }
       if (!event.ctrlKey || event.metaKey || event.altKey) return;
@@ -43,15 +47,16 @@ export function useDesktopSpaces() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [select]);
+  }, [select, enabled]);
   const drag = useCallback((id: string, x: number, y: number, finish = false) => {
+    if (!enabled) return;
     if (!finish) { setDragging(id); if (y < 170) setOverview(true); return; }
     const tile = document.elementsFromPoint(x, y).map(element => element.closest<HTMLElement>("[data-space-target]")).find(Boolean);
     if (tile?.dataset.spaceTarget) { move(id, tile.dataset.spaceTarget); return true; }
     else { setDragging(null); setOverview(false); }
-  }, [move]);
+  }, [move, enabled]);
   const cancelDrag = useCallback(() => { setDragging(null); }, []);
-  return { state, overview, setOverview, dragging, select, focus, create, move, drag, cancelDrag,
+  return { enabled, state, overview: enabled && overview, setOverview, dragging, select, focus, create, move, drag, cancelDrag,
     remove: (id: string) => setState(current => removeSpace(current, id)),
     owner: (id: string) => spaceOf(state, id),
     offset: (id: string) => state.spaces.findIndex(space => space.id === spaceOf(state, id)) - state.spaces.findIndex(space => space.id === state.active),

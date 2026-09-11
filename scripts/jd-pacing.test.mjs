@@ -58,14 +58,22 @@ test('JD insights follow visible completion and retain closed/unopened/reload fa
       const viewer = page.locator('.agent-os-window-jd'); await viewer.waitFor();
       const frame = await viewer.locator('iframe').elementHandle().then(el => el.contentFrame());
       await frame.waitForSelector('main[aria-busy="true"]');
-      if (mode === 'closed') await viewer.getByRole('button', { name: '关闭', exact: true }).click();
+      const taskCard = page.locator('.workspace-widget-tasks').getByRole('button', { name: /生成岗位 JD/ });
+      await taskCard.getByText('正在生成 JD', { exact: true }).waitFor();
+      assert.equal(await taskCard.getByText('已完成', { exact: true }).count(), 0);
+      if (mode === 'closed') {
+        await viewer.getByRole('button', { name: '关闭', exact: true }).click();
+        await taskCard.getByText('已完成', { exact: true }).waitFor();
+      }
       else {
         // A slow/paused renderer must not be overtaken by the fallback deadline.
         await page.evaluate(() => document.querySelector('.agent-os-window-jd iframe').contentWindow.postMessage({ type: 'jd-preview-state', animate: true, active: false }, '*'));
         await page.waitForTimeout(Math.max(0, writtenAt + 20500 - Date.now()));
         assert.equal(await insight.count(), 0, 'visible playback must finish before the suggestion');
+        assert.equal(await taskCard.getByText('正在生成 JD', { exact: true }).count(), 1, 'paused first playback must not appear completed');
         await page.evaluate(() => document.querySelector('.agent-os-window-jd iframe').contentWindow.postMessage({ type: 'jd-preview-state', animate: true, active: true }, '*'));
         await frame.waitForSelector('main[aria-busy="false"]');
+        await taskCard.getByText('已完成', { exact: true }).waitFor();
         assert.equal(await insight.count(), 0, 'the completion event is followed by a two-second pause');
       }
     }

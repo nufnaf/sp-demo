@@ -111,7 +111,6 @@
 .workspace-task i { display: inline-block; width: 6px; height: 6px; margin: 0 6px 2px 0; border-radius: 50%; background: #00a67d; }
 .workspace-task.is-running i { box-shadow: 0 0 0 3px #00a67d1a; }
 .workspace-task small { color: #687773; font-size: 12px; }
-.workspace-artifact-mark { display: inline-block; width: 24px; height: 24px; background: #009c76; mask: url("/icons/catppuccin/latte/_file.svg") center / contain no-repeat; }
 .workspace-artifact-list { min-height: 0; overflow-y: auto; scrollbar-width: thin; display: flex; flex-direction: column; gap: 6px; }
 .workspace-artifact { display: flex; gap: 10px; align-items: center; flex-shrink: 0; width: 100%; border-radius: 12px; padding: 9px; background: #f7faf94d !important; }
 .workspace-artifact:hover { background: #f7faf999 !important; }
@@ -159,6 +158,19 @@
   .workspace-widget-schedule, .workspace-widget-tasks { --widget-column: 5; }
   .workspace-widget-insights { --widget-column: 1; }
   .workspace-widget-insights, .workspace-widget-tasks { --widget-row: calc(1 + var(--home-card-rows)); }
+}
+/* On a narrow App window, leave a real free column for the live preview. */
+@media (min-width: 761px) and (max-width: 1199px) {
+  .agent-os.has-computer-preview .workspace-widgets {
+    right: calc(50% + 8px);
+    --home-grid-columns: 4;
+    --home-artifact-row: calc(1 + var(--home-card-rows) * 4);
+    --home-occupied-rows: calc(var(--home-card-rows) * 4 + 3);
+  }
+  .agent-os.has-computer-preview .workspace-widget { --widget-column: 1; }
+  .agent-os.has-computer-preview .workspace-widget-schedule { --widget-row: calc(1 + var(--home-card-rows)); }
+  .agent-os.has-computer-preview .workspace-widget-insights { --widget-row: calc(1 + var(--home-card-rows) * 2); }
+  .agent-os.has-computer-preview .workspace-widget-tasks { --widget-row: calc(1 + var(--home-card-rows) * 3); }
 }
 @media (max-width: 760px) {
   .workspace-widgets { --home-grid-margin-x: 12px; bottom: 184px; padding: var(--home-grid-margin-y) var(--home-grid-margin-x); }

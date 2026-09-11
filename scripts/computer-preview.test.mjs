@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { chromium } from 'playwright-core';
+import { mkdir } from 'node:fs/promises';
 
 const url = process.env.SYNTROPIC_TEST_URL;
 // Real React/Spaces and browser events; all APIs are fixtures. No model, calendar
@@ -72,6 +73,7 @@ test('picture-in-picture keeps its task and recording across controls and Spaces
     });
     await page.goto(url);
     const pip = page.locator('.computer-preview');
+    await page.locator('.workspace-widgets').waitFor();
     const switchSpace = async (name) => {
       await page.getByRole('button', { name: `切换到${name}`, exact: true }).click();
       // Check actual in-flight movement, not just declared transition styles.
@@ -90,6 +92,35 @@ test('picture-in-picture keeps its task and recording across controls and Spaces
     await page.getByRole('textbox', { name: '和 Syntropic 对话', exact: true }).waitFor();
     await page.waitForTimeout(600);
     await page.getByRole('button', { name: '打开 浏览器', exact: true }).click();
+    // Default off, persisted settings, and disabling Spaces from a secondary desktop.
+    assert.equal(await page.getByRole('button', { name: '桌面总览', exact: true }).count(), 0);
+    await page.keyboard.press('Control+ArrowUp');
+    assert.equal(await page.locator('.spaces-overview').count(), 0);
+    await page.getByRole('button', { name: '打开 设置', exact: true }).click();
+    const scale = page.getByRole('combobox', { name: '悬浮窗宽度', exact: true });
+    const toggle = page.getByRole('switch', { name: '多桌面', exact: true });
+    await scale.waitFor(); assert.equal(await scale.inputValue(), '1.5');
+    await scale.selectOption('2');
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem('syntropic:ui-preferences:v1')).previewWidthScale === 2);
+    await toggle.click();
+    await page.getByRole('button', { name: '桌面总览', exact: true }).waitFor();
+    await page.reload();
+    await page.getByRole('button', { name: '打开 设置', exact: true }).click();
+    assert.equal(await scale.inputValue(), '2');
+    assert.equal(await toggle.getAttribute('aria-checked'), 'true');
+    await page.getByRole('combobox', { name: '将设置移到桌面', exact: true }).selectOption('new');
+    await page.waitForFunction(() => document.querySelector('.spaces-trigger span').textContent === '桌面 2');
+    await toggle.click();
+    await page.getByRole('button', { name: '桌面总览', exact: true }).waitFor({ state: 'detached' });
+    await page.waitForFunction(() => document.querySelector('.agent-os-window-settings').getAttribute('data-space-offset') === '0');
+    assert.equal(await page.locator('.space-window-menu').count(), 0);
+    await scale.selectOption('1.5');
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem('syntropic:ui-preferences:v1')).previewWidthScale === 1.5);
+    await toggle.click();
+    await page.getByRole('button', { name: '桌面总览', exact: true }).waitFor();
+    await page.locator('.agent-os-window-settings .close').click();
+    await page.getByRole('button', { name: '打开 浏览器', exact: true }).click();
+    assert.equal(await page.locator('.workspace-artifact-mark').count(), 0);
     // Seed overlapping application windows through the real widget callback.
     await page.getByRole('button', { name: /^查看全部 AI 洞察/ }).dispatchEvent('click');
     const insight = page.locator('.agent-os-window-insights');
@@ -108,6 +139,46 @@ test('picture-in-picture keeps its task and recording across controls and Spaces
     await page.evaluate(state => window.emitComputerState(state), state);
     await ready();
     await assertInsightFront();
+    // Review the unoccluded home layout, including the smallest supported App size.
+    await page.locator('.agent-os-window-insights .close').click();
+    await page.locator('.agent-os-window-browser .close').click();
+    await mkdir('build/verification/desktop-preferences', { recursive: true });
+    for (const viewport of [{ width: 1440, height: 1000 }, { width: 960, height: 640 }]) {
+      await page.setViewportSize(viewport);
+      await page.waitForTimeout(650);
+      const geometry = await page.evaluate(() => {
+        const box = element => { const r = element.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; };
+        return { preview: box(document.querySelector('.computer-preview')), cards: [...document.querySelectorAll('.workspace-widget')].map(box) };
+      });
+      await page.screenshot({ path: `build/verification/desktop-preferences/preview-${viewport.width}.png` });
+      const a = geometry.preview;
+      for (const b of geometry.cards) assert.ok(a.x >= b.x + b.width || a.x + a.width <= b.x || a.y >= b.y + b.height || a.y + a.height <= b.y, `cards stay clear at ${viewport.width}: ${JSON.stringify(geometry)}`);
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByRole('button', { name: '打开 设置', exact: true }).click();
+    await scale.selectOption('2');
+    await page.waitForFunction(() => Math.abs(document.querySelector('.computer-preview').getBoundingClientRect().width - document.querySelector('.workspace-widget').getBoundingClientRect().width * 2) < 1);
+    await scale.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: 'build/verification/desktop-preferences/settings.png' });
+    // Failed persistence must keep the previously saved choice and show an error.
+    await page.evaluate(() => { window.originalStorageWrite = Storage.prototype.setItem; Storage.prototype.setItem = function(key, value) { if (key === 'syntropic:ui-preferences:v1') throw new Error('fixture write failure'); return window.originalStorageWrite.call(this, key, value); }; });
+    await scale.selectOption('1');
+    await page.getByText('设置未能保存，请重试。', { exact: true }).waitFor();
+    assert.equal(await scale.inputValue(), '2');
+    await page.evaluate(() => { Storage.prototype.setItem = window.originalStorageWrite; });
+    await scale.selectOption('1.5');
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem('syntropic:ui-preferences:v1')).previewWidthScale === 1.5);
+    await page.evaluate(() => { window.livePreviewNode = document.querySelector('.computer-canvas img'); });
+    await toggle.click();
+    await page.getByRole('button', { name: '桌面总览', exact: true }).waitFor({ state: 'detached' });
+    assert.equal(await page.evaluate(() => document.querySelector('.computer-canvas img') === window.livePreviewNode), true);
+    await page.keyboard.press('Control+ArrowUp');
+    assert.equal(await page.locator('.spaces-overview').count(), 0);
+    await toggle.click();
+    await page.getByRole('button', { name: '桌面总览', exact: true }).waitFor();
+    await page.locator('.agent-os-window-settings .close').click();
+    await page.getByRole('button', { name: '打开 浏览器', exact: true }).click();
+    await page.getByRole('button', { name: /^查看全部 AI 洞察/ }).dispatchEvent('click');
     await page.evaluate(() => { window.previewFrameError = true; });
     await pip.locator('.computer-recovering').waitFor();
     assert.equal(await pip.locator('img').isVisible(), true, 'keep last frame during a short interruption');
@@ -123,7 +194,11 @@ test('picture-in-picture keeps its task and recording across controls and Spaces
     await page.mouse.move(750, 300);
     await page.waitForFunction(() => getComputedStyle(document.querySelector('.computer-controls')).opacity === '0');
     await page.waitForFunction(() => { const r = document.querySelector('.computer-preview').getBoundingClientRect(); return Math.abs(r.width / r.height - 720 / 410) < .002; });
-    const compact = await pip.boundingBox(); assert.equal(compact.width, 350);
+    const compact = await pip.boundingBox();
+    const cardWidth = await page.locator('.workspace-widget').first().evaluate(el => el.getBoundingClientRect().width);
+    assert.ok(Math.abs(compact.width - cardWidth * 1.5) < 1, 'default is 1.5 times card width');
+    const cards = await page.locator('.workspace-widget').evaluateAll(cards => cards.map(card => { const r = card.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }));
+    for (const card of cards) assert.ok(compact.x >= card.x + card.width || compact.x + compact.width <= card.x || compact.y >= card.y + card.height || compact.y + compact.height <= card.y, 'default placement must avoid desktop cards');
     assert.ok(Math.abs(compact.width / compact.height - 720 / 410) < .002);
     assert.equal(await pip.locator('.agent-os-window-bar, header, footer').count(), 0);
     assert.deepEqual(opens, []);
@@ -154,7 +229,7 @@ test('picture-in-picture keeps its task and recording across controls and Spaces
     await switchSpace('桌面 2');
     assert.ok(await page.evaluate(() => document.querySelector('.computer-canvas img') === window.previewNode && window.previewSubscriptions === window.subscriptionBaseline));
     await pip.hover(); await pip.getByRole('button', { name: '还原小窗', exact: true }).click();
-    await page.waitForFunction(() => Math.abs(document.querySelector('.computer-preview').getBoundingClientRect().width - 350) < .1);
+    await page.waitForFunction(width => Math.abs(document.querySelector('.computer-preview').getBoundingClientRect().width - width) < 1, cardWidth * 1.5);
     await pip.getByRole('button', { name: '打开飞书客户端', exact: true }).click(); assert.equal(opens.length, 1);
     assert.deepEqual(controls, ['pause', 'resume']);
     await pip.getByRole('button', { name: '小窗选项', exact: true }).click();

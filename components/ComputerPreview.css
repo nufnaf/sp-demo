@@ -1,7 +1,6 @@
 .computer-preview {
   position: absolute;
   z-index: 5;
-  width: 350px;
   aspect-ratio: 16 / 9;
   overflow: hidden;
   border: 0;

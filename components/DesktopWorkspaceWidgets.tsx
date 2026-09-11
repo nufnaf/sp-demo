@@ -98,7 +98,7 @@ export function DesktopWorkspaceWidgets({ cwd, recruiting, tasks, artifacts, ins
         <strong><i/>{item.title}</strong><small>{item.detail}</small>
       </button>)}</div> : emptyState(working ? "正在理解你的任务…" : "任务会在这里持续推进", "发送任务后，执行状态和结果会出现在这里"),
       <small>{working ? `${activeCount || 1} 项进行中` : tasks.length ? "执行记录" : "就绪"}</small>)}
-    {card("artifacts", "最近成果", <><span className="workspace-artifact-mark" aria-hidden="true"/><strong>最近成果</strong></>,
+    {card("artifacts", "最近成果", <strong>最近成果</strong>,
       fileItems.length ? <div className="workspace-artifact-list">{fileItems.map(item => <button type="button" className="workspace-artifact" key={item.id} onClick={item.onOpen} title={item.title}>
         <span className="workspace-file-type" aria-hidden="true">{item.title.split(".").at(-1)?.slice(0, 4).toUpperCase() || "FILE"}</span>
         <span><strong>{item.title}</strong><small>{item.detail}</small></span><span aria-hidden="true">↗</span>

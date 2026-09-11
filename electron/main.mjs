@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, session, shell } from 'electron';
 import { fork } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -11,6 +11,8 @@ import { StartupScreen, STARTUP_STATE } from './startup-screen.mjs';
 import { APP_ORIGIN, isAppUrl, isExternalUrl } from './policy.mjs';
 import { createAppLocationGuard } from './app-location.mjs';
 import { createSpaceThumbnailCapture } from './space-thumbnail.mjs';
+import { createSystemNetworkBridge } from './system-network.mjs';
+import { createUiPreferencesStore, registerUiPreferences } from './ui-preferences.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const packaged = existsSync(join(process.resourcesPath, 'desktop-runtime.json'));
@@ -18,6 +20,7 @@ const appIcon = join(here, 'assets/syntropic-app.png');
 app.setName(packaged ? 'Syntropic' : 'Syntropic Dev');
 // Renderer preferences. Preconfigured packages give Pi a separate per-run directory.
 app.setPath('userData', join(app.getPath('appData'), packaged ? 'Syntropic' : 'Syntropic Dev'));
+const uiPreferences = createUiPreferencesStore(app.getPath('userData'));
 let window = null;
 let startup = null;
 let supervisor = null;
@@ -25,6 +28,7 @@ let presentation = null;
 let quitting = false;
 let ready = false;
 let packagedBuildId;
+let systemNetwork;
 let status = STARTUP_STATE;
 let supervisorStopped = Promise.resolve();
 const locationAvailable = createAppLocationGuard(packaged ? process.resourcesPath : undefined, () => {
@@ -147,6 +151,17 @@ async function startSupervisor() {
     }
   }
   if (presentation) Object.assign(env, { SYNTROPIC_PRESENTATION_ROOT: presentation.root, SYNTROPIC_PRESENTATION_ID: presentation.id, RECRUITING_PRESENTATION: '1', RECRUITING_DATA_FILE: join(presentation.root, 'recruiting/state.json'), SYNTROPIC_FEISHU_CONFIG: packaged ? join(process.resourcesPath, 'feishu-demo.json') : join(root, '.env.feishu-demo.json') });
+  if (process.platform === 'darwin') try {
+    if (!systemNetwork) {
+      const networkSession = session.fromPartition(`syntropic-network-${presentation.id}`, { cache: false });
+      await networkSession.setProxy({ mode: 'system' });
+      systemNetwork = await createSystemNetworkBridge(options => net.request({ ...options, session: networkSession }));
+    }
+    env.SYNTROPIC_NETWORK_SOCKET = systemNetwork.socketPath;
+  } catch {
+    showStatus({ phase: 'error', title: '系统网络连接准备失败', detail: '请退出并重新打开应用。', retry: false });
+    return;
+  }
   if (quitting) return;
   if (!node) {
     void showStatus({ phase: 'error', title: '缺少本机 Node 启动器', detail: '请从项目目录运行 npm run desktop。', retry: false });
@@ -199,7 +214,9 @@ if (!app.requestSingleInstanceLock()) {
     quitting = true;
     if (supervisor?.connected) supervisor.send({ type: 'stop' });
     // The Node supervisor survives an Electron crash and cleans up on IPC disconnect.
-    void supervisorStopped.finally(() => app.quit());
+    void supervisorStopped.finally(async () => {
+      try { await Promise.all([systemNetwork?.close(), uiPreferences.flush()]); } finally { app.quit(); }
+    });
   });
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => app.quit());
   // npm launcher died: don't leave a hidden desktop and backend running.
@@ -225,6 +242,7 @@ if (!app.requestSingleInstanceLock()) {
       });
       callback(result.response === 1);
     });
+    registerUiPreferences(ipcMain, uiPreferences, () => window, isAppUrl);
     ipcMain.handle('desktop:space-thumbnail', createSpaceThumbnailCapture(() => window, isAppUrl));
     ipcMain.on('desktop:workbench-ready', event => {
       if (!ready || event.sender !== window?.webContents

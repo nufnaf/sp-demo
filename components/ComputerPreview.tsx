@@ -4,6 +4,8 @@ import { useContext, useEffect, useRef, useState, type CSSProperties, type Point
 import { ArrowUpRight, Ellipsis, Maximize2, Minimize2, Pause, Play, X } from "lucide-react";
 import { subscribeDesktopEvents } from "@/lib/desktop-events-client";
 import { DesktopSpacesContext } from "./DesktopSpaces";
+import { useDesktopPreferences } from "@/hooks/useDesktopPreferences";
+import type { WindowFrame } from "@/lib/window-geometry";
 import { previewFrame } from "@/lib/computer/preview-geometry";
 import type { ComputerFrame, ComputerState } from "@/lib/computer/types";
 import "./ComputerPreview.css";
@@ -13,13 +15,14 @@ const WINDOW_ID = "computer";
 export function ComputerPreview({ state, desktopHidden, onFocus, onClose }: {
   state: ComputerState; desktopHidden: boolean; onFocus: () => void; onClose: () => void;
 }) {
+  const { preferences } = useDesktopPreferences();
   const spaces = useContext(DesktopSpacesContext);
   const spaceOffset = spaces?.offset(WINDOW_ID) ?? 0;
   const surface = useRef<HTMLElement>(null);
   const image = useRef<HTMLImageElement>(null);
   const more = useRef<HTMLButtonElement>(null);
   const drag = useRef<{ id: number; x: number; y: number; left: number; top: number; moved: boolean } | null>(null);
-  const [area, setArea] = useState({ width: 0, height: 0 });
+  const [area, setArea] = useState({ width: 0, height: 0, cardWidth: 0, obstacles: [] as WindowFrame[] });
   const [ratio, setRatio] = useState(16 / 9);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -35,15 +38,43 @@ export function ComputerPreview({ state, desktopHidden, onFocus, onClose }: {
   const [busy, setBusy] = useState(false);
   const [opening, setOpening] = useState(false);
   const [controlError, setControlError] = useState<string | null>(null);
-  const frame = previewFrame(area, ratio, expanded, position);
+  const layout = { cardWidth: area.cardWidth, obstacles: spaceOffset === 0 && (!spaces?.enabled || spaces.state.active === spaces.state.spaces[0].id) ? area.obstacles : [], scale: preferences.previewWidthScale };
+  const frame = previewFrame(area, ratio, expanded, position, layout);
 
   useEffect(() => {
     const layer = surface.current?.parentElement;
     if (!layer) return;
-    const observer = new ResizeObserver(() => setArea({ width: layer.clientWidth, height: layer.clientHeight }));
+    const desktop = layer.parentElement?.querySelector<HTMLElement>(".agent-os-desktop");
+    const widgets = desktop?.querySelector<HTMLElement>(".workspace-widgets");
+    let scheduled = 0;
+    const measure = () => {
+      cancelAnimationFrame(scheduled);
+      scheduled = requestAnimationFrame(() => {
+        const bounds = layer.getBoundingClientRect();
+        const cards = [...(widgets?.querySelectorAll<HTMLElement>(".workspace-widget") ?? [])];
+        const obstacles = cards.filter(card => card.checkVisibility()).map(card => {
+          const rect = card.getBoundingClientRect();
+          return { x: rect.left - bounds.left, y: rect.top - bounds.top, width: rect.width, height: rect.height };
+        });
+        setArea({ width: layer.clientWidth, height: layer.clientHeight, cardWidth: cards[0]?.offsetWidth ?? 0, obstacles });
+      });
+    };
+    const observer = new ResizeObserver(measure);
     observer.observe(layer);
-    return () => observer.disconnect();
-  }, []);
+    if (widgets) observer.observe(widgets);
+    const mutations = new MutationObserver(() => {
+      widgets?.querySelectorAll(".workspace-widget").forEach(card => observer.observe(card));
+      measure();
+    });
+    if (widgets) {
+      widgets.querySelectorAll(".workspace-widget").forEach(card => observer.observe(card));
+      mutations.observe(widgets, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "class"] });
+      widgets.addEventListener("scroll", measure, { passive: true });
+    }
+    desktop?.addEventListener("transitionend", measure);
+    measure();
+    return () => { observer.disconnect(); mutations.disconnect(); desktop?.removeEventListener("transitionend", measure); widgets?.removeEventListener("scroll", measure); cancelAnimationFrame(scheduled); };
+  }, [spaces?.state.active]);
 
   useEffect(() => {
     if (!state.available) return;
@@ -120,7 +151,7 @@ export function ComputerPreview({ state, desktopHidden, onFocus, onClose }: {
     if (!current.moved && Math.hypot(event.clientX - current.x, event.clientY - current.y) < 5) return;
     current.moved = true;
     setDragging(true); setMenuOpen(false);
-    const fitted = previewFrame(area, ratio, false, { x: current.left + event.clientX - current.x, y: current.top + event.clientY - current.y });
+    const fitted = previewFrame(area, ratio, false, { x: current.left + event.clientX - current.x, y: current.top + event.clientY - current.y }, layout);
     setPosition({ x: fitted.x, y: fitted.y });
     spaces?.drag(WINDOW_ID, event.clientX, event.clientY);
   };
@@ -165,7 +196,7 @@ export function ComputerPreview({ state, desktopHidden, onFocus, onClose }: {
     <div className="computer-controls">
       <div className="computer-controls-top">
         <button type="button" aria-label="隐藏小窗" title="隐藏小窗，任务继续" onClick={onClose}><X size={15}/></button>
-        <button ref={more} type="button" aria-label="小窗选项" title="小窗选项" aria-expanded={menuOpen} aria-controls="computer-preview-options" onClick={() => setMenuOpen(value => !value)}><Ellipsis size={16}/></button>
+        {(spaces?.enabled || active) && <button ref={more} type="button" aria-label="小窗选项" title="小窗选项" aria-expanded={menuOpen} aria-controls="computer-preview-options" onClick={() => setMenuOpen(value => !value)}><Ellipsis size={16}/></button>}
       </div>
       <div className="computer-controls-bottom">
         <span className="computer-caption">{connected && !recovering && (active || state.phase === "verifying") && <i/>}飞书{state.phase === "running" ? " · 正在安排会议" : ""}</span>
@@ -175,8 +206,8 @@ export function ComputerPreview({ state, desktopHidden, onFocus, onClose }: {
       </div>
     </div>
     {notice && <div className="computer-notice" role="status"><strong>{controlError ? "操作未完成" : statusTitle}</strong><p title={notice}>{notice}</p></div>}
-    {menuOpen && <div id="computer-preview-options" className="computer-options" role="group" aria-label="小窗选项">
-      {spaces && <label>移到桌面<select aria-label="将飞书小窗移到桌面" value={spaces.owner(WINDOW_ID)} onChange={event => { spaces.move(WINDOW_ID, event.target.value); setPosition(null); setMenuOpen(false); }}>
+    {menuOpen && (spaces?.enabled || active) && <div id="computer-preview-options" className="computer-options" role="group" aria-label="小窗选项">
+      {spaces?.enabled && <label>移到桌面<select aria-label="将飞书小窗移到桌面" value={spaces.owner(WINDOW_ID)} onChange={event => { spaces.move(WINDOW_ID, event.target.value); setPosition(null); setMenuOpen(false); }}>
         {spaces.state.spaces.map(space => <option key={space.id} value={space.id}>{space.name}</option>)}
         {spaces.state.spaces.length < 6 && <option value="new">新桌面…</option>}
       </select></label>}

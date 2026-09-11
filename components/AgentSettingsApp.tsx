@@ -1,5 +1,8 @@
 "use client";
 
+import { useDesktopPreferences } from "@/hooks/useDesktopPreferences";
+import { PREVIEW_WIDTH_SCALES } from "@/electron/ui-preferences-schema.mjs";
+import { ConfigSwitch } from "./SettingsUi";
 import { SyntropicMark } from "./SyntropicMark";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -61,6 +64,7 @@ function GeneralSettings({
 }) {
   const { locale, setLocale, supportedLocales, t } = useI18n();
   const { preference, setThemePreference } = useTheme();
+  const { preferences, loaded, saving, error, updatePreferences } = useDesktopPreferences();
   const appearances: Array<{ id: ThemePreference; label: string }> = [
     { id: "light", label: t("settings.themeLight") },
     { id: "dark", label: t("settings.themeDark") },
@@ -96,6 +100,15 @@ function GeneralSettings({
         <div className="agent-settings-form-list">
           <label><span><strong>界面语言</strong><small>应用到 Syntropic 的桌面与任务界面</small></span><select value={locale} onChange={(event) => setLocale(event.target.value as typeof locale)}>{supportedLocales.map((item) => <option value={item.id} key={item.id}>{item.label}</option>)}</select></label>
         </div>
+      </section>
+
+      <section className="agent-settings-group">
+        <h2>桌面与悬浮窗</h2>
+        <div className="agent-settings-form-list">
+          <div><span><strong>多桌面</strong><small>开启桌面切换、总览和窗口移动；关闭后窗口集中显示</small></span><ConfigSwitch label="多桌面" checked={preferences.desktopSpacesEnabled} disabled={!loaded || saving} onChange={(enabled) => void updatePreferences({ desktopSpacesEnabled: enabled })}/></div>
+          <label><span><strong>悬浮窗宽度</strong><small>相对于桌面卡片的默认宽度，空间不足时自动缩小</small></span><select aria-label="悬浮窗宽度" value={preferences.previewWidthScale} disabled={!loaded || saving} onChange={event => void updatePreferences({ previewWidthScale: Number(event.target.value) })}>{PREVIEW_WIDTH_SCALES.map(scale => <option key={scale} value={scale}>{scale} 倍{scale === 1.5 ? "（默认）" : ""}</option>)}</select></label>
+        </div>
+        <p className="agent-settings-save-status" role="status">{error ?? (saving ? "正在保存…" : "设置自动保存，重启后继续生效。")}</p>
       </section>
 
       <section className="agent-settings-group">

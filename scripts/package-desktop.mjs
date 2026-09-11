@@ -55,6 +55,9 @@ await mkdir(source, { recursive: true });
 for (const entry of ['app', 'components', 'hooks', 'lib', 'public', 'bin', 'types', 'instrumentation.ts', 'proxy.ts', 'next.config.ts', 'tsconfig.json', 'tailwind.config.ts', 'postcss.config.mjs', 'package.json', 'package-lock.json']) {
   if (existsSync(join(root, entry))) await cp(join(root, entry), join(source, entry), { recursive: true, verbatimSymlinks: true });
 }
+// The renderer and native preference store share the same allowlisted schema.
+await mkdir(join(source, 'electron'), { recursive: true });
+await cp(join(root, 'electron/ui-preferences-schema.mjs'), join(source, 'electron/ui-preferences-schema.mjs'));
 // Clone dependency files on APFS. No symlink back into the source checkout.
 await run('/bin/cp', ['-cR', join(root, 'node_modules'), join(source, 'node_modules')]);
 await rm(join(source, 'node_modules/electron'), { recursive: true, force: true });

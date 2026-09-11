@@ -6,6 +6,7 @@ import { PresentationSchedule } from "./RecruitingPipeline";
 import { ComputerPreview } from "./ComputerPreview";
 import { useComposerWidth } from "@/hooks/useComposerWidth";
 import { useComputerTask } from "@/hooks/useComputerTask";
+import { useDesktopPreferences } from "@/hooks/useDesktopPreferences";
 import { DesktopSpaces, DesktopSpacesContext, useDesktopSpaces } from "./DesktopSpaces";
 import { SyntropicMark } from "./SyntropicMark";
 import { useDesktopReady } from "@/hooks/useDesktopReady";
@@ -1375,7 +1376,7 @@ function DesktopWindow({
           <button className="maximize" type="button" aria-label={maximized ? "还原" : "最大化"} onClick={() => setMaximized((value) => !value)}/>
         </span>
         <strong>{kind === "app" || kind === "settings" ? null : kind === "store" ? <Image src="/design/app-store/window-sidebar.svg" width={20} height={20} alt="" unoptimized/> : <>{titleIcon ?? <Icon name={kind === "tasks" ? "tasks" : "file"} size={15}/>} {title}</>}</strong>
-        <span>{spaces && <select className="space-window-menu" aria-label={`将${title}移到桌面`} value={spaces.owner(windowId)} onChange={event => spaces.move(windowId, event.target.value)}>{spaces.state.spaces.map(space => <option key={space.id} value={space.id}>{space.name}</option>)}{spaces.state.spaces.length < 6 && <option value="new">新桌面…</option>}</select>}{headerAccessory}</span>
+        <span>{spaces?.enabled && <select className="space-window-menu" aria-label={`将${title}移到桌面`} value={spaces.owner(windowId)} onChange={event => spaces.move(windowId, event.target.value)}>{spaces.state.spaces.map(space => <option key={space.id} value={space.id}>{space.name}</option>)}{spaces.state.spaces.length < 6 && <option value="new">新桌面…</option>}</select>}{headerAccessory}</span>
       </header>
       <div className="agent-os-window-body">{children}</div>
       {!maximized && (["n", "e", "s", "w", "ne", "se", "sw", "nw"] as ResizeEdge[]).map((edge) => (
@@ -1389,7 +1390,8 @@ function DesktopWindow({
 
 export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } = {}) {
   useDesktopReady();
-  const spaces = useDesktopSpaces();
+  const { preferences, loaded: preferencesLoaded } = useDesktopPreferences();
+  const spaces = useDesktopSpaces(preferences.desktopSpacesEnabled, preferencesLoaded);
   const computer = useComputerTask();
   const [computerOpen, setComputerOpen] = useState(false);
   const seenComputerTask = useRef<string | undefined>(undefined);
@@ -2488,7 +2490,14 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
     const running = parentTask ? parentTask.status === "running" : runningIds.has(session.id) || Boolean(browserTask && ["starting", "running", "stopping"].includes(browserTask.status));
     const status = parentTask ? ({ running: "进行中", completed: "已完成", failed: "执行失败", aborted: "已停止" })[parentTask.status]
       : running ? "进行中" : taskOutcomes[session.id] ?? (browserTask ? ({ completed: "已完成", failed: "执行失败", stopped: "已停止", starting: "正在准备", running: "进行中", stopping: "正在停止" })[browserTask.status] : "查看任务进展");
-    return { id: session.id, title: taskTitle(session), detail: status, running, onOpen: () => openTask(session.id) };
+    // The file is already durable while its first preview is still writing.
+    // Project that existing playback state onto this task card only; never
+    // change the persisted task outcome or mask a failure/cancellation.
+    const writingJd = status === "已完成" && artifacts.some(artifact =>
+      artifact.sessionId === session.id && artifact.cwd === presentationCwd
+      && pendingJdPreviews.has(artifactIdentity(artifact))
+      && openArtifacts.some(open => artifactIdentity(open) === artifactIdentity(artifact)));
+    return { id: session.id, title: taskTitle(session), detail: writingJd ? "正在生成 JD" : status, running: running || writingJd, onOpen: () => openTask(session.id) };
   });
   for (const task of browserTasks.filter((task) => task.cwd === activeCwd && !workspaceSessions.some((session) => session.id === task.parentSessionId))) {
     widgetTasks.push({ id: task.id, title: /发布/.test(task.task) ? "发布 AI Agent 工程师岗位" : "查询招聘进展", detail: ({ completed: "已完成", failed: "执行失败", stopped: "已停止", starting: "正在准备", running: "进行中", stopping: "正在停止" })[task.status], running: ["starting", "running", "stopping"].includes(task.status), onOpen: () => { if (task.pageId) { setBrowserPageId(task.pageId); setBrowserOpen(true); setFrontWindow("browser"); } } });
@@ -2532,7 +2541,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
         onNotice={setNotice}
     >
       {({ notification, widgetInsights, insightItems }) => (
-    <DesktopSpacesContext value={spaces}><main className={`agent-os${showStart ? " has-start-guide" : ""}`}>
+    <DesktopSpacesContext value={spaces}><main className={`agent-os${showStart ? " has-start-guide" : ""}${computerOpen && !hiddenWindowIds.has("computer") && spaces.owner("computer") === spaces.state.spaces[0].id ? " has-computer-preview" : ""}`}>
       <div className="agent-os-wallpaper" aria-hidden="true"/>
 
       <header className="agent-os-menu-bar">
@@ -2562,7 +2571,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
           </section>}
         </div>
         <div className="agent-os-system-status">
-          <DesktopSpaces controller={spaces}/>
+          {spaces.enabled && <DesktopSpaces controller={spaces}/>}
           <button
             type="button"
             className={`agent-os-status-button${notificationCenterOpen ? " is-active" : ""}`}

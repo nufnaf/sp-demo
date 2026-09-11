@@ -39,3 +39,12 @@ export function restoreSpaces(value: unknown): SpacesState {
   const windows = Object.fromEntries(Object.entries(candidate.windows ?? {}).filter(([key, id]) => key.length < 500 && typeof id === "string" && ids.has(id)));
   return { spaces: candidate.spaces, active: ids.has(candidate.active) ? candidate.active : candidate.spaces[0].id, windows, fronts: {} };
 }
+
+/** Gather existing windows without closing their work when Spaces is disabled. */
+export function collapseSpaces(state: SpacesState): SpacesState {
+  if (state.spaces.length === 1) return state;
+  const id = state.spaces[0].id;
+  return { spaces: [state.spaces[0]], active: id,
+    windows: Object.fromEntries(Object.keys(state.windows).map(window => [window, id])),
+    fronts: { [id]: state.fronts[state.active] ?? state.fronts[id] ?? "tasks" } };
+}

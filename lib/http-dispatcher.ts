@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import * as undici from "undici";
 import { macOSProxyForUrl, readMacOSProxySettings, type MacOSProxySettings } from "./macos-proxy";
+import { createSystemNetworkDispatcher } from "./system-network-dispatcher";
 
 export const DEFAULT_HTTP_IDLE_TIMEOUT_MS = 300_000;
 
@@ -71,8 +72,17 @@ export function createHttpDispatcher(timeoutMs: number, systemProxy?: MacOSProxy
   };
   // Explicit environment settings retain their original precedence and dynamic
   // NO_PROXY behavior. GUI-launched Apps commonly have none of these variables.
-  const explicitProxy = ["http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY"]
+  const explicitProxy = ["http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY", "all_proxy", "ALL_PROXY"]
     .some(key => process.env[key] !== undefined);
+  if (!explicitProxy && process.env.SYNTROPIC_NETWORK_SOCKET) {
+    return withUndiciErrorListener(createSystemNetworkDispatcher(process.env.SYNTROPIC_NETWORK_SOCKET, normalizedTimeoutMs, createUndiciOriginDispatcher));
+  }
+  const allProxy = process.env.all_proxy ?? process.env.ALL_PROXY;
+  if (allProxy) return withUndiciErrorListener(new undici.EnvHttpProxyAgent({
+    ...options,
+    httpProxy: process.env.http_proxy ?? process.env.HTTP_PROXY ?? allProxy,
+    httpsProxy: process.env.https_proxy ?? process.env.HTTPS_PROXY ?? allProxy,
+  }));
   if (!systemProxy || explicitProxy) return withUndiciErrorListener(new undici.EnvHttpProxyAgent(options));
   // Let EnvHttpProxyAgent keep ownership of environment NO_PROXY matching even
   // when the proxy endpoint itself comes from macOS. Its direct agent factory
@@ -93,7 +103,7 @@ export function configureHttpDispatcher(
   timeoutMs: number = DEFAULT_HTTP_IDLE_TIMEOUT_MS,
 ): void {
   if (dispatcherGlobal.__piWebHttpDispatcherConfigured) return;
-  const dispatcher = createHttpDispatcher(timeoutMs, readMacOSProxySettings());
+  const dispatcher = createHttpDispatcher(timeoutMs, process.env.SYNTROPIC_NETWORK_SOCKET ? undefined : readMacOSProxySettings());
   undici.setGlobalDispatcher(dispatcher);
 
   // Keep fetch and the dispatcher on the same undici implementation. Preserve

@@ -871,3 +871,5 @@ img[src="/icons/feishu-logo.svg"]{object-fit:contain}
 .agent-os-composer:not(.is-dictating) { height: auto; min-height: 48px; padding-block: 5px; }
 .agent-os-composer:not(.is-dictating) textarea { field-sizing: content; height: auto; min-height: 24px; max-height: min(30vh, 180px); overflow-y: auto; }
 @media (prefers-reduced-motion: reduce) { .agent-os-ai-surface, .agent-os-composer { transition: none; } }
+
+.agent-settings-save-status { margin: 8px 12px 0; color: var(--text-muted); font-size: 11px; line-height: 1.5; }
