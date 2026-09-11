@@ -1,0 +1,26 @@
+.spaces-overview { position:fixed;inset:44px 0 auto;z-index:240;padding:16px 30px 22px;color:#fff;background:rgba(14,21,36,.86);backdrop-filter:blur(28px);box-shadow:0 16px 42px #0003; }
+.spaces-overview>header { display:flex;align-items:center;gap:18px;margin-bottom:14px;font-size:13px; }
+.spaces-overview>header>button { margin-left:auto;background:transparent;border:0;color:#fff;font-size:22px;cursor:pointer; }
+/* Safe centering keeps the first card reachable when six desktops overflow. */
+.spaces-strip { display:flex;gap:18px;justify-content:safe center;overflow-x:auto;padding:12px; }
+.spaces-tile,.spaces-add { box-sizing:border-box;width:176px;height:136px;flex-shrink:0;border-radius:12px; }
+.spaces-tile { position:relative;border:2px solid transparent;padding:4px; }
+.spaces-tile.is-active { border-color:#89b9ff; }.spaces-tile:hover { background:#ffffff12; }
+.spaces-select { display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;border:0;padding:0;background:transparent;color:inherit;cursor:pointer; }
+.spaces-select strong,.spaces-add strong { font-size:11px;line-height:20px;font-weight:500; }
+.spaces-thumbnail { display:block;position:relative;width:100%;height:96px;overflow:hidden;border-radius:7px;background:#273878; }
+.spaces-thumbnail::before { content:"";position:absolute;inset:0;background:url('/design/home/wallpaper.png') center/cover no-repeat; }
+.spaces-thumbnail img { position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover; }
+.spaces-remove { position:absolute;right:-7px;top:-7px;display:grid;place-items:center;width:22px;height:22px;padding:0;border:1px solid #ffffff30;border-radius:50%;background:#3b465a;color:white;cursor:pointer; }
+.spaces-remove svg { display:block;flex:none; }
+.spaces-remove:hover { background:#53627c; }
+.spaces-add { display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border:1px dashed #ffffff50;padding:4px;background:#ffffff08;color:#e4ecf7;cursor:pointer; }
+.spaces-add span { display:block;font-size:26px;line-height:32px; }
+.spaces-add:hover { background:#ffffff12; }
+.agent-os-window[data-space-offset] { transform:translateX(calc(var(--space-offset,0) * 105vw)) scale(.992); }
+.agent-os-window.is-front[data-space-offset] { transform:translateX(calc(var(--space-offset,0) * 105vw)) scale(1); }
+.agent-os-window.is-other-space { pointer-events:none; }
+.agent-os-window.is-space-dragging { z-index:250;opacity:.9; }
+.space-window-menu { margin-right:7px;max-width:75px;border:0;background:transparent;font-size:10px;color:#637184;cursor:pointer; }
+.agent-os-desktop.is-other-space { pointer-events:none; }
+@media(prefers-reduced-motion:reduce){.agent-os-window[data-space-offset],.agent-os .agent-os-desktop{transition:none;}}

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { FeishuCalendarClient } from "./feishu-calendar";
 
-interface Config { appId: string; appSecret: string; folderToken: string; documentIds: string[]; resourceIds?: string[]; wikiNodeIds?: string[]; calendarId?: string; calendarResetEventIds?: string[] }
+interface Config { appId: string; appSecret: string; folderToken: string; documentIds: string[]; resourceIds?: string[]; wikiNodeIds?: string[]; calendarId?: string; calendarName?: string; calendarResetEventIds?: string[] }
 interface Envelope { code?: number; msg?: string; expire?: number; tenant_access_token?: string; data?: Record<string, unknown> }
 export class FeishuDemoError extends Error {
   constructor(public kind: "configuration" | "authorization" | "network", message: string) { super(message); }
@@ -59,7 +59,9 @@ export class FeishuDemoClient {
   calendar(): FeishuCalendarClient {
     const id = this.config.calendarId;
     if (typeof id !== "string" || !id.trim() || id.trim() === "primary") throw new FeishuDemoError("configuration", "团队日历尚未配置，请联系管理员设置日历并完成授权。");
-    return new FeishuCalendarClient(id.trim(), `${this.config.appId}:${id.trim()}`, (path, init) => this.get(path, init, true), this.config.calendarResetEventIds);
+    const name = this.config.calendarName;
+    if (name !== undefined && (typeof name !== "string" || !name.trim() || name.length > 200 || /[\r\n]/.test(name))) throw new FeishuDemoError("configuration", "日历名称配置无效，请核对飞书客户端中的日历名称。");
+    return new FeishuCalendarClient(id.trim(), `${this.config.appId}:${id.trim()}`, (path, init) => this.get(path, init, true), this.config.calendarResetEventIds, name?.trim());
   }
   private async folderDocuments(query = ""): Promise<DemoDocument[]> {
     const items: DemoDocument[] = [];

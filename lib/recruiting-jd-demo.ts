@@ -1,3 +1,4 @@
+import { JD_PREPARATION_MS } from "./recruiting-jd-timing";
 import { presentationAction } from "./presentation-actions";
 import { randomUUID } from "node:crypto";
 import { readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
@@ -49,7 +50,7 @@ export function createRecruitingJdDemoTask(cwd: string, jarvisSessionId: string,
   manager.appendMessage(demoAssistant("正在准备岗位 JD…"));
   return { task, manager, async run(signal: AbortSignal) {
     try {
-      await delay(1500, undefined, { signal });
+      await delay(JD_PREPARATION_MS, undefined, { signal });
       const saved = await saveRecruitingJdDemo(cwd, signal);
       const toolCallId = randomUUID();
       manager.appendMessage(demoAssistant("", { stopReason: "toolUse", content: [{ type: "toolCall", id: toolCallId, name: "save_recruiting_jd", arguments: { path: saved.path } }] }));

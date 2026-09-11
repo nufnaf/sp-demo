@@ -25,8 +25,12 @@ export type CalendarRequest = (path: string, init?: RequestInit) => Promise<Reco
 
 function plainText(value: unknown): string {
   if (typeof value !== "string") return "";
-  if (!/<\/?[a-z][\s\S]*>/i.test(value)) return value;
-  const tree = fromHtml(value, { fragment: true });
+  // The native Feishu rich-text input preserves multi-line AX insertion via
+  // Unicode line separators. Expose normal newlines to display, matching and
+  // ownership-marker handling; the remote event itself remains unchanged.
+  const content = value.replace(/\u2028/g, "\n");
+  if (!/<\/?[a-z][\s\S]*>/i.test(content)) return content;
+  const tree = fromHtml(content, { fragment: true });
   function visit(node: { type: string; value?: string; tagName?: string; children?: typeof tree.children }): string {
     if (node.type === "text") return node.value ?? "";
     if (["script", "style"].includes(node.tagName ?? "")) return "";
@@ -57,7 +61,7 @@ export function normalizeCalendarEvent(value: unknown, calendarId: string): Feis
   return { id: event.event_id, calendarId, title: typeof event.summary === "string" ? event.summary : "未命名日程", startsAt: start.value, endsAt: end.value, allDay: start.allDay, description: plainText(event.description), location: plainText((event.location as { name?: unknown } | undefined)?.name), appLink, status: typeof event.status === "string" ? event.status : "confirmed", source: "feishu" };
 }
 export class FeishuCalendarClient {
-  constructor(readonly calendarId: string, readonly identity: string, private request: CalendarRequest, readonly resetEventIds: readonly string[] = []) {}
+  constructor(readonly calendarId: string, readonly identity: string, private request: CalendarRequest, readonly resetEventIds: readonly string[] = [], readonly calendarName?: string) {}
   private path(suffix: string) { return `/calendar/v4/calendars/${encodeURIComponent(this.calendarId)}/events${suffix}`; }
   /** Full pagination, including past events, so old demo runs do not accumulate. */
   async allEvents(): Promise<FeishuCalendarEvent[]> {

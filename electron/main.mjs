@@ -10,6 +10,7 @@ import { preparePackagedRuntime, removeOldPackagedRuntimes } from './packaged-ru
 import { StartupScreen, STARTUP_STATE } from './startup-screen.mjs';
 import { APP_ORIGIN, isAppUrl, isExternalUrl } from './policy.mjs';
 import { createAppLocationGuard } from './app-location.mjs';
+import { createSpaceThumbnailCapture } from './space-thumbnail.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const packaged = existsSync(join(process.resourcesPath, 'desktop-runtime.json'));
@@ -105,7 +106,7 @@ function createWindow() {
 async function startSupervisor() {
   let node = process.env.SYNTROPIC_NODE;
   let root = join(here, '..');
-  const env = { ...process.env, ELECTRON_RUN_AS_NODE: undefined };
+  const env = { ...process.env, ELECTRON_RUN_AS_NODE: undefined, SYNTROPIC_COMPUTER_USE: process.platform === "darwin" ? "1" : "0" };
   delete env.SYNTROPIC_DEMO_OPENROUTER;
   delete env.SYNTROPIC_DEMO_DEEPSEEK_MODEL;
   if (packaged) {
@@ -132,6 +133,8 @@ async function startSupervisor() {
       Object.assign(env, {
         SYNTROPIC_PACKAGED: '1',
         SYNTROPIC_APP_ROOT: root,
+        SYNTROPIC_WINDOW_CAPTURE_HELPER: join(process.resourcesPath, 'helpers/window-stream'),
+        SYNTROPIC_INPUT_FOCUS_HELPER: join(process.resourcesPath, 'helpers/input-focus'),
         SYNTROPIC_FEISHU_CONFIG: join(process.resourcesPath, 'feishu-demo.json'),
         SYNTROPIC_RECRUITING_URL: env.SYNTROPIC_RECRUITING_URL?.trim() || manifest.recruitingUrl || 'http://127.0.0.1:30143/',
         PI_WEB_BROWSER_EXECUTABLE: join(process.resourcesPath, manifest.browserExecutable),
@@ -222,6 +225,7 @@ if (!app.requestSingleInstanceLock()) {
       });
       callback(result.response === 1);
     });
+    ipcMain.handle('desktop:space-thumbnail', createSpaceThumbnailCapture(() => window, isAppUrl));
     ipcMain.on('desktop:workbench-ready', event => {
       if (!ready || event.sender !== window?.webContents
         || event.senderFrame !== window?.webContents.mainFrame

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DesktopNotification } from "./DesktopNotification";
 import { isJdDemoArtifact, publicationPrompt, publicationDestinations, type JdArtifact, type PublishedRecruitingJob } from "@/lib/recruiting-publication";
-import { JD_PREVIEW_DURATION_MS } from "@/lib/recruiting-jd-timing";
+import { jdInsightReadyAt } from "@/lib/recruiting-jd-timing";
 import { encodeFilePathForApi } from "@/lib/file-paths";
 import type { BrowserTaskState } from "@/lib/browser/types";
 
@@ -22,6 +22,9 @@ interface Props {
   children: (surfaces: { notification: ReactNode; widgetInsights: WorkspaceWidgetItem[]; insightItems: WorkspaceInsightItem[] }) => ReactNode;
   viewedArtifact: JdArtifact | null;
   availableJd?: JdArtifact | null;
+  jdPlaybackActive?: boolean;
+  jdPlaybackCompletedAt?: number;
+  onJdReady?: (identity: string) => void;
   onStartTask: (message: string) => Promise<string | null>;
   onTaskStarted: (sessionId: string) => void;
   onPublished: (job: PublishedRecruitingJob, sessionId: string) => void;
@@ -93,19 +96,19 @@ export function RecruitingPublication(props: Props) {
     if (!loaded || !artifact || artifact.cwd !== props.cwd || !isJdDemoArtifact(artifact) || pending || preparing) return;
     const identity = `${artifact.sessionId}:${artifact.filePath}`;
     if (seen.current.has(identity)) return;
-    // The persisted write-result timestamp survives reloads and keeps playback,
-    // window focus and later session messages from restarting the deadline.
-    if (props.presentation && !Number.isFinite(writtenAt)) return;
-    const delay = props.presentation ? Math.max(0, writtenAt! + JD_PREVIEW_DURATION_MS - Date.now()) : 1400;
+    const readyAt = props.presentation ? jdInsightReadyAt(writtenAt!, { active: props.jdPlaybackActive === true, completedAt: props.jdPlaybackCompletedAt }) : Date.now() + 1400;
+    if (readyAt === null) return;
+    const delay = Math.max(0, readyAt - Date.now());
     const timer = setTimeout(() => {
       seen.current.add(identity);
+      callbacks.current.onJdReady?.(identity);
       setSuggestion({ ...artifact, recognizedAt: new Date().toISOString() });
       setCompletedJob(null);
       setPublicationError(null);
       setDismissed(false);
     }, delay);
     return () => clearTimeout(timer);
-  }, [candidatePath, candidateTitle, candidateSessionId, writtenAt, props.presentation, props.cwd, pending, preparing, loaded]);
+  }, [candidatePath, candidateTitle, candidateSessionId, writtenAt, props.presentation, props.cwd, props.jdPlaybackActive, props.jdPlaybackCompletedAt, pending, preparing, loaded]);
 
   useEffect(() => {
     if (!loaded || !suggestion || pending || preparing) return;

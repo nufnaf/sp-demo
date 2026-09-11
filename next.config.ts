@@ -22,6 +22,8 @@ const nextConfig: NextConfig = {
     outputFileTracingIncludes: {
       "/*": [
         "node_modules/@earendil-works/pi-*/**/*",
+        "node_modules/@trycua/**/*",
+        "node_modules/@ubjs/**/*",
         "node_modules/playwright-core/**/*",
         "node_modules/agent-browser/package.json",
         "node_modules/agent-browser/bin/agent-browser-darwin-arm64",

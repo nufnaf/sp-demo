@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { calendarDate } from "./calendar-view";
 import type { CalendarEventDraft, FeishuCalendarClient } from "./feishu-calendar";
-import { DEMO_CALENDAR_MARKER, demoCalendarDescription } from "./feishu-demo-calendar-marker";
+import { DEMO_CALENDAR_MARKER, COMPUTER_CALENDAR_MARKER, demoCalendarDescription } from "./feishu-demo-calendar-marker";
 import { ensureFeishuMeeting } from "./feishu-meeting";
 
 interface ResetState { date: string; staleIds: string[]; complete: boolean }
@@ -45,7 +45,7 @@ export async function resetPresentationCalendar(root: string, calendar: FeishuCa
     if (!state) {
       state = {
         date: calendarDate(now), complete: false,
-        staleIds: events.filter(event => event.description.split("\n").some(line => line.trim() === DEMO_CALENDAR_MARKER) || calendar.resetEventIds.includes(event.id)).map(event => event.id),
+        staleIds: events.filter(event => event.description.split("\n").some(line => [DEMO_CALENDAR_MARKER, COMPUTER_CALENDAR_MARKER].includes(line.trim())) || calendar.resetEventIds.includes(event.id)).map(event => event.id),
       };
       await save(state);
     }

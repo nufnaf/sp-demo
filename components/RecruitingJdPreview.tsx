@@ -6,7 +6,7 @@ import { recruitingJdPreviewDocument } from "@/lib/recruiting-jd-preview";
 export interface JdPreviewPlayback {
   animate: boolean;
   active: boolean;
-  onComplete: () => void;
+  onComplete: (reason: "finished" | "dismissed") => void;
 }
 
 export function RecruitingJdPreview({ content, animate, active, onComplete }: JdPreviewPlayback & { content: string }) {
@@ -19,13 +19,13 @@ export function RecruitingJdPreview({ content, animate, active, onComplete }: Jd
   useEffect(() => {
     const receive = (event: MessageEvent) => {
       if (event.source !== frame.current?.contentWindow || event.origin !== "null") return;
-      if (event.data?.type === "jd-preview-complete") complete();
+      if (event.data?.type === "jd-preview-complete") complete("finished");
     };
     window.addEventListener("message", receive);
     return () => {
       window.removeEventListener("message", receive);
       // Closing or switching to source consumes this viewing; reopening is instant.
-      if (started.current) complete();
+      if (started.current) complete("dismissed");
     };
   }, [content]);
 

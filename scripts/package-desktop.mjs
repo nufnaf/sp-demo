@@ -72,6 +72,12 @@ await cp(join(root, 'electron'), join(resources, 'app/electron'), { recursive: t
 await writeFile(join(resources, 'app/package.json'), JSON.stringify({ name: 'syntropic-desktop', productName: 'Syntropic', version: '0.8.11', main: 'electron/main.mjs' }, null, 2));
 const runtime = join(resources, 'runtime');
 await cp(join(source, '.next/standalone'), runtime, { recursive: true, verbatimSymlinks: true });
+// Native execution runs next to the server's Node dependencies, outside the
+// renderer. Compile at packaging time; installed Apps never need Xcode.
+await cp(join(root, 'electron/computer-use'), join(runtime, 'electron/computer-use'), { recursive: true });
+await mkdir(join(resources, 'helpers'), { recursive: true });
+await run('/usr/bin/xcrun', ['swiftc', '-parse-as-library', join(root, 'electron/computer-use/window-stream.swift'), '-o', join(resources, 'helpers/window-stream')]);
+await run('/usr/bin/xcrun', ['swiftc', '-parse-as-library', join(root, 'electron/computer-use/input-focus.swift'), '-o', join(resources, 'helpers/input-focus')]);
 for (const entry of ['public', '.next/static']) await cp(join(source, entry), join(runtime, entry), { recursive: true, verbatimSymlinks: true });
 await rm(join(runtime, '.next/cache'), { recursive: true, force: true });
 // Source maps and other platforms' native executables are not used by this

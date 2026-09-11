@@ -4,6 +4,8 @@
   --os-line: rgba(255, 255, 255, .82);
   --os-mint: #159b68;
   --os-ease-out: cubic-bezier(.23, 1, .32, 1);
+  --os-space-duration: 520ms;
+  --os-space-ease: cubic-bezier(.4, 0, .2, 1);
   position: relative;
   width: 100%;
   height: var(--app-viewport-height, 100dvh);
@@ -70,15 +72,20 @@
 .agent-os-workspace-copy{height:28px;padding:7px 4px 0;display:flex;align-items:flex-start;justify-content:center}.agent-os-workspace-copy strong{max-width:100%;font-size:8px;font-weight:600;line-height:1.2;text-align:center}
 .agent-os-workspace-tile>button.delete{left:6px;right:auto;top:6px;width:18px;height:18px;border-radius:50%;padding:0;color:white;background:rgba(39,43,48,.66);box-shadow:none;backdrop-filter:none;transform:scale(.82);transition:opacity 130ms ease,transform 180ms cubic-bezier(.2,.85,.28,1.18),background 130ms ease}.agent-os-workspace-tile:hover>button.delete,.agent-os-workspace-tile>button.delete:focus-visible{opacity:1;transform:scale(1)}.agent-os-workspace-tile>button.delete:hover{color:white;background:#e8524b}
 .agent-os-workspace-empty{min-height:150px}
-.agent-os-system-status { position: relative; justify-self: end; display: flex; align-items: center; gap: 12px; color: white; font-size: 14px; font-weight: 500; }
-.agent-os-system-status > button:not(.agent-os-avatar) { position: relative; width: 30px; height: 30px; border: 0; border-radius: 9px; padding: 6px; color: inherit; background: transparent; cursor: pointer; transition: transform 110ms var(--os-ease-out), background 150ms ease; }
-.agent-os-system-status > button:not(.agent-os-avatar):active { transform: scale(.92); }
-.agent-os-system-status > button:not(.agent-os-avatar).is-active { background: rgba(255,255,255,.18); }
+.agent-os-system-status { position: relative; justify-self: end; display: flex; align-items: center; gap: 6px; color: white; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.agent-os-system-status > .agent-os-status-button { position: relative; display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 6px; min-width: 32px; height: 32px; border: 0; border-radius: 7px; padding: 0 7px; font-size: 12px; line-height: 1; color: inherit; background: transparent; cursor: pointer; transition: transform 110ms var(--os-ease-out), background 150ms ease; }
+.agent-os-status-button > svg { display: block; flex: none; width: 18px; height: 18px; }
+.agent-os-system-status > .agent-os-status-button:active { transform: scale(.96); }
+.agent-os-system-status > .agent-os-status-button.is-active { background: rgba(255,255,255,.18); }
+.agent-os-system-status > .agent-os-status-button:hover { background: rgba(255,255,255,.12); }
+.agent-os-system-status > .agent-os-status-button.is-active:hover { background: rgba(255,255,255,.23); }
+.agent-os-system-status > .agent-os-status-button:focus-visible { outline: 2px solid #a7cbff; outline-offset: 1px; }
+.agent-os-status-clock { display: flex; flex: none; align-items: center; gap: 8px; margin-left: 6px; padding-left: 12px; border-left: 1px solid #ffffff30; font-variant-numeric: tabular-nums; line-height: 1; }
 .agent-os-system-status > button > i { position: absolute; right: 4px; top: 4px; width: 5px; height: 5px; border: 1.5px solid #eff4f6; border-radius: 50%; background: #df5b53; }
 .agent-os-system-status > button > i.is-insight { background: #34a875; box-shadow: 0 0 0 2px rgba(52,168,117,.12); }
-.agent-os-avatar { width: 28px; height: 28px; border: 1px solid rgba(255,255,255,.8); border-radius: 50%; color: white; background: #30343a; font-size: 10px; font-weight: 700; }
+.agent-os-avatar { display: grid; place-items: center; flex: none; width: 28px; height: 28px; margin-left: 6px; border: 1px solid rgba(255,255,255,.45); border-radius: 50%; color: white; background: #30343a; }
 
-.agent-os-desktop { position: absolute; z-index: 2; inset: 44px 0 0; }
+.agent-os-desktop { position: absolute; z-index: 2; inset: 44px 0 0; transform: translateX(calc(var(--space-offset, 0) * 105vw)); transition: transform var(--os-space-duration) var(--os-space-ease); }
 .agent-os-desktop-widget { position: absolute; will-change: transform; }
 .agent-os-desktop-widget > .agent-os-card { transition: opacity 160ms ease, box-shadow 220ms var(--os-ease-out), scale 180ms var(--os-ease-out); }
 .agent-os-desktop-widget > .agent-os-card > header { cursor: grab; touch-action: none; user-select: none; }
@@ -155,7 +162,7 @@
 
 .agent-os-window-layer { position: absolute; z-index: 30; inset: 44px 0 112px; pointer-events: none; }
 /* All desktop app windows share this outer radius; the mobile layout uses square corners. */
-.agent-os-window { position: absolute; width: min(1080px, calc(100vw - 160px)); height: min(690px, calc(100vh - 220px)); min-width: 680px; min-height: 460px; overflow: hidden; border: 1px solid rgba(255,255,255,.88); border-radius: 15px; color: var(--os-text); background: rgba(246,249,250,.82); box-shadow: inset 0 1px rgba(255,255,255,.9), 0 24px 72px rgba(45,67,80,.22); pointer-events: auto; backdrop-filter: blur(34px) saturate(1.22); transform: scale(.992); transition: transform 260ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms ease; font-optical-sizing:auto; -webkit-font-smoothing:antialiased; }
+.agent-os-window { position: absolute; width: min(1080px, calc(100vw - 160px)); height: min(690px, calc(100vh - 220px)); min-width: 680px; min-height: 460px; overflow: hidden; border: 1px solid rgba(255,255,255,.88); border-radius: 15px; color: var(--os-text); background: rgba(246,249,250,.82); box-shadow: inset 0 1px rgba(255,255,255,.9), 0 24px 72px rgba(45,67,80,.22); pointer-events: auto; backdrop-filter: blur(34px) saturate(1.22); transform: scale(.992); transition: transform var(--os-space-duration) var(--os-space-ease), box-shadow 180ms ease; font-optical-sizing:auto; -webkit-font-smoothing:antialiased; }
 /* Preserve layout and mounted app state while exposing the desktop. */
 .agent-os-window.is-desktop-hidden { visibility: hidden; pointer-events: none; }
 .agent-os-desktop:focus { outline: none; }
@@ -340,7 +347,7 @@
 .agent-os-feishu-editor{width:100%;height:100%;background:white}.agent-os-feishu-editor>div{position:relative;width:100%;height:100%;min-height:0;background:white}.agent-os-feishu-editor iframe{width:100%;height:100%;border:0;display:block;background:white}.agent-os-feishu-editor>div>p{position:absolute;z-index:1;inset:0;margin:0;display:flex;align-items:center;justify-content:center;gap:8px;color:rgba(37,48,56,.5);background:white;font-size:8px}.agent-os-feishu-editor>div>p .agent-os-spinner{border-color:rgba(51,112,255,.16);border-top-color:#3370ff}.agent-os-feishu-editor-empty{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:rgba(37,48,56,.45);background:white}.agent-os-feishu-editor-empty strong{font-size:10px}
 
 /* Keep AI above app windows; Dock icons, labels and menus remain above it. */
-.agent-os-ai-surface { position: absolute; z-index: 300; left: 50%; bottom: 114px; width: min(362px, calc(100vw - 28px)); transform: translateX(-50%); transition: width 240ms var(--os-ease-out); }
+.agent-os-ai-surface { position: absolute; z-index: 300; left: 50%; bottom: 114px; width: min(var(--composer-width, 362px), calc(100vw - 28px)); transform: translateX(-50%); transition: width 240ms var(--os-ease-out); }
 .agent-os-ai-surface.voice-active { width: min(560px, calc(100vw - 28px)); }
 .agent-os-ai-surface:has(.agent-os-jarvis-panel) { width: min(560px, calc(100vw - 28px)); }
 .agent-os-composer { height: 48px; border: 1px solid white; border-radius: 16px; padding: 0 8px 0 10px; display: flex; align-items: center; gap: 4px; background: rgba(255,255,255,.82); box-shadow: 2px 4px 8px rgba(0,0,0,.08); backdrop-filter: blur(4px); transition: height 240ms var(--os-ease-out), border-radius 240ms var(--os-ease-out), box-shadow 180ms ease; }
@@ -515,18 +522,23 @@
 
 @media (prefers-reduced-motion: reduce) {
   .agent-os-insight-notification,.agent-os-notification-center { animation: none; }
-  .agent-os-insight-list > button,.agent-os-notification-center > div > button,.agent-os-system-status > button:not(.agent-os-avatar) { transition: opacity 120ms ease, background 120ms ease; }
+  .agent-os-insight-list > button,.agent-os-notification-center > div > button,.agent-os-system-status > .agent-os-status-button { transition: opacity 120ms ease, background 120ms ease; }
 }
 
 @media (prefers-reduced-transparency: reduce) {
   .agent-os-insight-card,.agent-os-insight-notification,.agent-os-notification-center { background: #f7faf9; backdrop-filter: none; }
 }
 
+@media (max-width: 480px) {
+  .spaces-trigger > span { display: none; }
+}
+
 @media (max-width: 1100px) {
+  .agent-os-status-clock > span:first-child { display: none; }
 }
 
 @media (max-width: 760px) {
-  .agent-os-menu-bar { padding: 0 10px; grid-template-columns: auto minmax(0,1fr) auto; gap: 6px; }.agent-os-brand strong { display:none }.agent-os-workspace-wrap { display: block; min-width:0; justify-self:center }.agent-os-workspace { width:min(180px,46vw); min-width:0; padding-inline:10px }.agent-os-workspace-name { min-width:0 }.agent-os-workspace-grid { grid-template-columns:repeat(2,minmax(0,1fr)) }.agent-os-system-status { gap:2px }.agent-os-system-status > span { display: none; }.agent-os-system-status > button:not(.agent-os-avatar) { display:none }
+  .agent-os-menu-bar { padding: 0 10px; grid-template-columns: auto minmax(0,1fr) auto; gap: 6px; }.agent-os-brand strong { display:none }.agent-os-workspace-wrap { display: block; min-width:0; justify-self:center }.agent-os-workspace { width:min(180px,46vw); min-width:0; padding-inline:10px }.agent-os-workspace-name { min-width:0 }.agent-os-workspace-grid { grid-template-columns:repeat(2,minmax(0,1fr)) }.agent-os-system-status { gap:2px }.agent-os-system-status > .agent-os-avatar,.agent-os-status-clock { display: none; }
   .agent-os-desktop-widget { display: none; }
   .agent-os-window-layer { inset: 44px 0 92px; }.agent-os-window, .agent-os-window-file, .agent-os-window-document, .agent-os-window-library, .agent-os-window-settings, .agent-os-window-store { inset: 0 !important; width: 100%; min-width: 0; height: 100%; min-height: 0; border-radius: 0; translate: none !important; }.agent-os-window.is-maximized { inset: 0 !important; width: 100%; height: 100%; }
   .agent-os-library-toolbar{grid-template-columns:1fr auto auto}.agent-os-library-toolbar>label{display:none}.agent-os-library-files.is-grid{grid-template-columns:repeat(auto-fill,minmax(94px,1fr));padding:16px;gap:12px}.agent-os-library-quicklook{width:calc(100% - 24px);height:min(340px,calc(100% - 42px))}

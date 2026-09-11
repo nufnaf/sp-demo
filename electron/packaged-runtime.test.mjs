@@ -17,12 +17,12 @@ test('Node uses linked code with a separate writable cache; upgrades preserve da
   const resources = join(base, 'Resources');
   const user = join(base, 'user');
   const bundled = join(resources, 'runtime');
-  for (const name of ['.next/server', '.next/static', 'node_modules', 'public', 'apps']) await mkdir(join(bundled, name), { recursive: true });
+  for (const name of ['.next/server', '.next/static', 'node_modules', 'public', 'apps', 'electron/computer-use']) await mkdir(join(bundled, name), { recursive: true });
   await writeFile(join(bundled, 'package.json'), JSON.stringify({ name: '@agegr/pi-web' }));
   await writeFile(join(bundled, 'server.js'), `const fs = require('node:fs'); const path = require('node:path'); process.chdir(__dirname); fs.writeFileSync(path.join(__dirname, '.next/cache/probe'), 'cached'); console.log(JSON.stringify({ cwd: process.cwd(), dir: __dirname }));`);
   await writeFile(join(bundled, '.next/BUILD_ID'), 'build');
   const root = await preparePackagedRuntime(resources, user, current);
-  for (const name of ['server.js', 'node_modules', 'public', 'apps', '.next/server', '.next/static', '.next/BUILD_ID']) {
+  for (const name of ['server.js', 'node_modules', 'public', 'apps', 'electron', '.next/server', '.next/static', '.next/BUILD_ID']) {
     assert.ok((await lstat(join(root, name))).isSymbolicLink());
     assert.equal(await realpath(join(root, name)), await realpath(join(bundled, name)));
   }
@@ -47,7 +47,7 @@ test('Node uses linked code with a separate writable cache; upgrades preserve da
   await mkdir(join(base, 'Moved App'));
   await rename(resources, relocated);
   assert.equal(await preparePackagedRuntime(relocated, user, current), root);
-  for (const name of ['server.js', 'node_modules', 'public', 'apps', '.next/server', '.next/static', '.next/BUILD_ID']) {
+  for (const name of ['server.js', 'node_modules', 'public', 'apps', 'electron', '.next/server', '.next/static', '.next/BUILD_ID']) {
     assert.equal(await realpath(join(root, name)), await realpath(join(relocated, 'runtime', name)));
   }
   assert.equal(await readFile(join(root, '.next/cache/probe'), 'utf8'), 'cached');

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 const versionName = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 async function linkResources(root, bundled) {
-  for (const entry of ['server.js', 'node_modules', 'public', 'apps']) {
+  for (const entry of ['server.js', 'node_modules', 'public', 'apps', 'electron']) {
     // Refresh on launch so moving the same App to another folder remains safe.
     // Non-recursive removal refuses to erase a real directory here.
     await rm(join(root, entry), { force: true });

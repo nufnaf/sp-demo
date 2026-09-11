@@ -1,10 +1,13 @@
 // A dedicated marker, not a title match: never delete a user's similarly named meeting.
 export const DEMO_CALENDAR_MARKER = "[Syntropic 演示日程]";
+// GUI previews expose the native description, so use a natural attribution.
+export const COMPUTER_CALENDAR_MARKER = "由 Syntropic 安排";
+export function computerCalendarDescription(description: string): string { return `${description}\n\n${COMPUTER_CALENDAR_MARKER}`; }
 export function demoCalendarDescription(description: string): string {
   return `${description}\n\n${DEMO_CALENDAR_MARKER}`;
 }
 
 /** Hide the ownership marker only in the UI; reset still needs the original description. */
 export function calendarDescriptionForDisplay(description: string): string {
-  return description.split(/\r?\n/).filter(line => line.trim() !== DEMO_CALENDAR_MARKER).join("\n").trim();
+  return description.split(/\r?\n/).filter(line => ![DEMO_CALENDAR_MARKER, COMPUTER_CALENDAR_MARKER].includes(line.trim())).join("\n").trim();
 }
