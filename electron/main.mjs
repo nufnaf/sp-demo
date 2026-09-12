@@ -15,6 +15,7 @@ import { createSystemNetworkBridge } from './system-network.mjs';
 import { createUiPreferencesStore, registerUiPreferences } from './ui-preferences.mjs';
 import { createComputerPermissions, registerComputerPermissions } from './computer-permissions.mjs';
 import { createStartupState } from './startup-state.mjs';
+import { startupMark, configureStartupLog, registerStartupTiming } from './startup-timing.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const packaged = existsSync(join(process.resourcesPath, 'desktop-runtime.json'));
@@ -45,6 +46,7 @@ function showStatus(next) {
   startup?.show(status);
 }
 function loadWorkbench() {
+  startupMark('workbench.load.start');
   if (!window || window.isDestroyed()) return;
   status = STARTUP_STATE;
   void window.loadURL(APP_ORIGIN).catch(() => {});
@@ -84,6 +86,7 @@ function createWindow() {
     if (!currentWindow.isDestroyed()) void dialog.showMessageBox(currentWindow, { type: 'error', message: '启动画面加载失败', detail: '请重新打开应用；如果仍然失败，请重新安装完整 App。' });
   });
   const contents = window.webContents;
+  contents.on('did-finish-load', () => startupMark('workbench.load.end'));
   contents.on('did-start-navigation', details => {
     if (details.isMainFrame && !details.isSameDocument && isAppUrl(details.url) && ready) currentStartup.waitForWorkbench();
   });
@@ -112,6 +115,7 @@ function createWindow() {
   else void showStatus(status);
 }
 async function startSupervisor() {
+  startupMark('supervisor.start');
   let node = process.env.SYNTROPIC_NODE;
   let root = join(here, '..');
   const env = { ...process.env, ELECTRON_RUN_AS_NODE: undefined, SYNTROPIC_COMPUTER_USE: process.platform === "darwin" ? "1" : "0" };
@@ -136,7 +140,10 @@ async function startSupervisor() {
         }
       }
       packagedBuildId = manifest.buildId;
+      startupMark('runtime.prepare.start');
       root = await preparePackagedRuntime(process.resourcesPath, app.getPath('userData'), manifest.buildId);
+      configureStartupLog(join(app.getPath('logs')), packagedBuildId);
+      startupMark('runtime.prepare.end');
       node = join(process.resourcesPath, 'node/bin/node');
       Object.assign(env, {
         SYNTROPIC_PACKAGED: '1',
@@ -188,6 +195,7 @@ async function startSupervisor() {
     if (quitting) return;
     if (message.type === 'ready') {
       ready = true;
+      startupMark('services.ready', { owned: message.owned });
       if (packagedBuildId) void removeOldPackagedRuntimes(app.getPath('userData'), packagedBuildId)
         .catch(() => console.warn('[desktop] 旧运行文件清理未完成，下次启动将重试。'));
       console.info(`[desktop] 后台已就绪（${message.owned ? '由 App 管理' : '复用外部服务'}）。`);
@@ -229,8 +237,12 @@ if (!app.requestSingleInstanceLock()) {
   // npm launcher died: don't leave a hidden desktop and backend running.
   process.on('disconnect', () => app.quit());
   void app.whenReady().then(async () => {
+    configureStartupLog(app.getPath('logs'));
+    startupMark('electron.ready');
     if (process.platform === 'darwin') app.dock.setIcon(appIcon);
+    startupMark('presentation.run.start');
     presentation = await createPresentationRun(app.getPath('userData'));
+    startupMark('presentation.run.end');
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       ...(process.platform === 'darwin' ? [{ label: 'Syntropic', submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] }] : []),
       { role: 'fileMenu' }, { role: 'editMenu' }, { role: 'viewMenu' }, { role: 'windowMenu' },
@@ -269,6 +281,7 @@ if (!app.requestSingleInstanceLock()) {
       }),
     }), () => window, isAppUrl);
     ipcMain.handle('desktop:space-thumbnail', createSpaceThumbnailCapture(() => window, isAppUrl));
+    registerStartupTiming(ipcMain, () => window, url => isAppUrl(url) && new URL(url).pathname === '/');
     registerStartupControls(ipcMain, () => window, () => startup,
       url => isAppUrl(url) && new URL(url).pathname === '/', () => ready && !quitting);
     ipcMain.handle('desktop:retry', event => {
@@ -279,6 +292,7 @@ if (!app.requestSingleInstanceLock()) {
       else if (supervisor?.connected) supervisor.send({ type: 'start' });
     });
     createWindow();
+    startupMark('window.created');
     void startSupervisor();
   });
 }

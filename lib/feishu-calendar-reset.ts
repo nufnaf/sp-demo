@@ -16,7 +16,7 @@ export function presetCalendarDrafts(date: string): CalendarEventDraft[] {
   ];
 }
 
-/** Called before the desktop becomes ready, once per run and calendar identity.
+/** Called in the background after desktop entry, once per run and calendar identity.
  * Persist the old-event snapshot BEFORE deleting: a retry must never delete the
  * presets it already created. Creation requests themselves are durable/idempotent.
  */

@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('syntropicDesktop', Object.freeze({
   getUiPreferences: () => ipcRenderer.invoke('desktop:ui-preferences:get'),
   setUiPreferences: value => ipcRenderer.invoke('desktop:ui-preferences:set', value),
   ready: () => ipcRenderer.send('desktop:workbench-ready'),
+  startupMark: name => ipcRenderer.send('desktop:startup-mark', name),
   showStartup: () => ipcRenderer.invoke('desktop:startup:show'),
   captureSpaceThumbnail: () => ipcRenderer.invoke('desktop:space-thumbnail'),
   getComputerPermissions: () => ipcRenderer.invoke('desktop:computer-permissions:get'),

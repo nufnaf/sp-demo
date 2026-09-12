@@ -7,6 +7,7 @@ declare global {
   interface Window {
     syntropicDesktop?: {
       ready: () => void;
+      startupMark?: (name: string) => void;
       showStartup?: () => Promise<void>;
       captureSpaceThumbnail?: () => Promise<string | null>;
       getUiPreferences?: () => Promise<unknown>;
@@ -24,14 +25,16 @@ export function useDesktopReady(enabled = true) {
     if (!enabled) return;
     const desktop = window.syntropicDesktop;
     if (!desktop) return;
+    desktop.startupMark?.('assets.wait.start');
     let cancelled = false;
     let frame = 0;
     const wallpaper = new Image();
     wallpaper.src = "/design/home/wallpaper.png";
     void Promise.allSettled([wallpaper.decode(), document.fonts.ready]).then(() => {
       if (cancelled) return;
+      desktop.startupMark?.('assets.wait.end');
       frame = requestAnimationFrame(() => {
-        frame = requestAnimationFrame(() => { if (!cancelled) desktop.ready(); });
+        frame = requestAnimationFrame(() => { if (!cancelled) { desktop.startupMark?.('frame.ready'); desktop.ready(); } });
       });
     });
     return () => { cancelled = true; cancelAnimationFrame(frame); };
