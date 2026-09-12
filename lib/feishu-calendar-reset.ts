@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { calendarDate } from "./calendar-view";
 import type { CalendarEventDraft, FeishuCalendarClient } from "./feishu-calendar";
-import { DEMO_CALENDAR_MARKER, COMPUTER_CALENDAR_MARKER, demoCalendarDescription } from "./feishu-demo-calendar-marker";
+import { DEMO_CALENDAR_MARKER, COMPUTER_CALENDAR_MARKER, demoCalendarDescription, syntropicEventTitle } from "./feishu-demo-calendar-marker";
 import { ensureFeishuMeeting } from "./feishu-meeting";
 
 interface ResetState { date: string; staleIds: string[]; complete: boolean }
@@ -11,8 +11,8 @@ declare global { var __syntropicCalendarResetLocks: Map<string, Promise<void>> |
 
 export function presetCalendarDrafts(date: string): CalendarEventDraft[] {
   return [
-    { title: "招聘进展周会", startsAt: `${date}T10:00:00+08:00`, endsAt: `${date}T10:30:00+08:00`, description: demoCalendarDescription("梳理招聘进展、候选人状态及本周重点。") },
-    { title: "用人需求沟通", startsAt: `${date}T15:00:00+08:00`, endsAt: `${date}T15:30:00+08:00`, description: demoCalendarDescription("沟通岗位需求、能力要求及招聘优先级。") },
+    { title: syntropicEventTitle("招聘进展周会"), startsAt: `${date}T10:00:00+08:00`, endsAt: `${date}T10:30:00+08:00`, description: demoCalendarDescription("梳理招聘进展、候选人状态及本周重点。") },
+    { title: syntropicEventTitle("用人需求沟通"), startsAt: `${date}T15:00:00+08:00`, endsAt: `${date}T15:30:00+08:00`, description: demoCalendarDescription("沟通岗位需求、能力要求及招聘优先级。") },
   ];
 }
 
