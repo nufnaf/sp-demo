@@ -5,7 +5,7 @@ import { getFeishuDemoClient } from "./feishu-demo-client";
 import type { CalendarEventDraft, FeishuCalendarClient, FeishuCalendarEvent } from "./feishu-calendar";
 import type { RecruitingScene } from "./recruiting-scene";
 import { addCalendarDays, calendarDate } from "./calendar-view";
-import { demoCalendarDescription, computerCalendarDescription } from "./feishu-demo-calendar-marker";
+import { demoCalendarDescription, computerCalendarDescription, SYNTROPIC_ALIGNMENT_EVENT_TITLE } from "./feishu-demo-calendar-marker";
 import { computerAvailable } from "./computer/runtime";
 import { ensureFeishuGuiMeeting } from "./computer/meeting";
 import { presentationRoot } from "./presentation-runtime";
@@ -51,9 +51,9 @@ export function alignmentMeetingDraft(scene: RecruitingScene, now = new Date()):
   const date = addCalendarDays(calendarDate(now), 1);
   const agenda = ["对齐生产级 Agent 工程能力的证据标准", `讨论 ${insight.candidates.map(c => c.name).join("、")} 的评价分歧`, "确定共同评分表和候选人复核分工"];
   return {
-    title: `星流科技 · ${job.title}面试标准对齐`,
+    title: SYNTROPIC_ALIGNMENT_EVENT_TITLE,
     startsAt: `${date}T14:00:00+08:00`, endsAt: `${date}T14:30:00+08:00`,
-    description: "",
+    description: `参会人：${[...new Set([job.owner, ...(insight.interviewers ?? [])].filter(Boolean))].join("、")}\n议程：${agenda.join("；")}`,
   };
 }
 export async function scheduleFeishuAlignmentMeeting(root: string, scene: RecruitingScene): Promise<FeishuCalendarEvent> {

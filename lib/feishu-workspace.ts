@@ -7,6 +7,7 @@ import { getFeishuCliStatus } from "./feishu-cli";
 import { userCommand, userRequest, FeishuUserError } from "./feishu-user-api";
 import { RECRUITING_JD_DEMO } from "./recruiting-jd-fixture";
 import { BUSINESS_SECTIONS } from "./feishu-business-template";
+import { SYNTROPIC_CALENDAR_NAME } from "./feishu-demo-calendar-marker";
 
 export interface FeishuWorkspace {
   version: 1;
@@ -62,6 +63,14 @@ async function files(command: Command, identity: string, folder: string) {
 function unique(items: Record<string, unknown>[], key: string): string | undefined {
   if (items.length > 1) throw new Error("发现重复的工作资料，已停止自动准备，请检查飞书中的工作资料文件夹。");
   return items.length ? field(items[0], "", key) : undefined;
+}
+const SYNTROPIC_CALENDAR_LEGACY_NAME = /^招聘日程 · [a-f0-9]{8}$/;
+const SYNTROPIC_CALENDAR_LEGACY_DESCRIPTION = /^Syntropic [a-f0-9-]{36}$/;
+function isOwnedSyntropicCalendar(value: Record<string, unknown>): boolean {
+  return value.type === "shared" && value.role === "owner" && value.permissions === "private"
+    && (value.summary === SYNTROPIC_CALENDAR_NAME && value.description === "Syntropic"
+      || typeof value.summary === "string" && SYNTROPIC_CALENDAR_LEGACY_NAME.test(value.summary)
+        && typeof value.description === "string" && SYNTROPIC_CALENDAR_LEGACY_DESCRIPTION.test(value.description));
 }
 async function calendars(command: Command, identity: string): Promise<Record<string, unknown>[]> {
   const items: Record<string, unknown>[] = [];
@@ -156,14 +165,28 @@ export async function prepareWorkspace(state: FeishuWorkspace, save: (state: Fei
     if (data.has_more) throw new Error("工作知识空间已发生变化，请检查后重试。");
     return unique(((data.items ?? []) as Record<string, unknown>[]).filter(i => i.title === "招聘与面试 FAQ"), "node_token");
   });
-  const name = `招聘日程 · ${state.nonce.slice(0, 8)}`;
-  await step("calendar", async () => field(await command(state.identity, ["calendar", "calendars", "create", "--data", JSON.stringify({ summary: name, description: `Syntropic ${state.nonce}`, permissions: "private" })]), "calendar", "calendar_id"), async () => unique((await calendars(command, state.identity)).filter(c => c.description === `Syntropic ${state.nonce}` && c.type === "shared" && c.role === "owner"), "calendar_id"));
+  const name = SYNTROPIC_CALENDAR_NAME;
+  // Migrate old nonce-based calendars and collapse duplicate fixed-name
+  // calendars before resolving the current resource. Calendar creation remains
+  // an API resource-preparation step; only meeting/event creation uses CUA.
+  const listedCalendars = await calendars(command, state.identity);
+  const fixed = listedCalendars.filter(calendar => calendar && calendar.summary === name && calendar.description === "Syntropic" && calendar.type === "shared" && calendar.role === "owner" && calendar.permissions === "private");
+  const legacy = listedCalendars.filter(calendar => calendar && isOwnedSyntropicCalendar(calendar) && calendar.summary !== name);
+  const stale = [...legacy, ...(fixed.length > 1 ? fixed : [])];
+  for (const calendar of stale) {
+    const id = field(calendar, "", "calendar_id");
+    await command(state.identity, ["calendar", "calendars", "delete", "--calendar-id", id, "--yes"]);
+    if (r.calendar === id) { delete r.calendar; delete r.calendarName; }
+  }
+  if (fixed.length > 1) { delete r.calendar; delete r.calendarName; }
+  if (stale.length) await save(state);
+  await step("calendar", async () => field(await command(state.identity, ["calendar", "calendars", "create", "--data", JSON.stringify({ summary: name, description: "Syntropic", permissions: "private" })]), "calendar", "calendar_id"), async () => unique((await calendars(command, state.identity)).filter(c => c.summary === name && c.description === "Syntropic" && c.type === "shared" && c.role === "owner"), "calendar_id"));
   if (r.calendar === "primary") throw new Error("工作日历无效，已停止准备。");
   r.calendarName = name;
   // Verify ownership and visibility every startup before allowing calendar reset.
   // calendar.get returns the calendar directly in data; calendar.create wraps it.
   const calendar = await command(state.identity, ["calendar", "calendars", "get", "--params", JSON.stringify({ calendar_id: r.calendar })]);
-  if (calendar.calendar_id !== r.calendar || calendar.type !== "shared" || calendar.role !== "owner" || calendar.permissions !== "private" || calendar.description !== `Syntropic ${state.nonce}` || calendar.is_deleted) throw new Error("工作日历信息与准备记录不一致，请检查日历的所有者和可见范围后重试。");
+  if (calendar.calendar_id !== r.calendar || calendar.summary !== name || calendar.type !== "shared" || calendar.role !== "owner" || calendar.permissions !== "private" || calendar.description !== "Syntropic" || calendar.is_deleted) throw new Error("工作日历信息与准备记录不一致，请检查日历的所有者和可见范围后重试。");
   if (typeof calendar.summary === "string" && calendar.summary.trim()) r.calendarName = calendar.summary.trim();
   // Created calendars already appear in the user's calendar list. Re-subscribing
   // asks for an extra scope absent from CLI's all-domain set and is unnecessary.
