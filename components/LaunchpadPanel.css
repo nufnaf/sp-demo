@@ -43,7 +43,7 @@
 .agent-os-launchpad-icon.is-huayu-law{background:#184d69}
 .agent-os-launchpad-icon.is-github,.agent-os-launchpad-icon.is-notion{color:#181717;background:white}
 .agent-os-launchpad-icon.is-figma{background:#242424}.agent-os-launchpad-icon.is-slack{background:#611f69}.agent-os-launchpad-icon.is-linear{background:#5e6ad2}.agent-os-launchpad-icon.is-google,.agent-os-launchpad-icon.is-feishu{background:white}
-.agent-os-launchpad-icon.is-system{color:#25382f;background:white}
+.agent-os-launchpad-icon.is-system{color:#25382f;padding:0;border:0;background:transparent;box-shadow:none;overflow:visible}
 .agent-os-launchpad-icon.is-system > svg{width:60%;height:60%;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .agent-os-launchpad-app[data-pressed] .agent-os-launchpad-icon{transform:scale(.94);filter:brightness(.96)}
 .agent-os-launchpad-app[data-focus-visible]{outline:2px solid #52826b;outline-offset:-2px;background:#83a98f16}

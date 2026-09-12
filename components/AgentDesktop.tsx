@@ -12,6 +12,7 @@ import { SyntropicMark } from "./SyntropicMark";
 import { useDesktopReady } from "@/hooks/useDesktopReady";
 import { DesktopDesignIcon } from "./DesktopDesignIcon";
 import { RecruitingBrandIcon } from "./RecruitingBrandIcon";
+import { SystemAppIcon, type SystemAppIconName } from "./SystemAppIcon";
 import { DesktopStartStage } from "./DesktopStartStage";
 import { DesktopComposerInput } from "./DesktopComposerInput";
 import { DesktopDock, DesktopDockItem, DesktopDockSeparator } from "./DesktopDock";
@@ -260,9 +261,13 @@ function AppLogo({ app, compact = false }: { app: LaunchpadApp; compact?: boolea
 
 function DockItemIcon({ item, launchpad = false }: { item: DockItem; launchpad?: boolean }) {
   if (item.kind !== "system") return launchpad ? <BrandAppIcon app={item}/> : <AppLogo app={item} compact/>;
-  if (item.id === "system:calendar") return <DesktopDesignIcon name="calendar" size={launchpad ? 43 : 28}/>;
-  if (item.id === "system:hr") return <RecruitingBrandIcon size={launchpad ? 64 : 42}/>;
-  if (item.id === "system:store") return <AppStoreBrandIcon className={launchpad ? "agent-os-launchpad-system-store" : "agent-store-dock-icon"}/>;
+  const iconNames: Partial<Record<SystemDockAppId, SystemAppIconName>> = {
+    "system:tasks": "tasks", "system:library": "files", "system:hr": "hr",
+    "system:browser": "browser", "system:files": "file", "system:store": "store",
+    "system:calendar": "calendar",
+  };
+  const iconName = iconNames[item.id];
+  if (iconName) return <SystemAppIcon name={iconName} className={launchpad ? "system-app-icon-launchpad" : "system-app-icon-dock"}/>;
   return <Icon name={item.icon} size={launchpad ? 46 : 22}/>;
 }
 
@@ -2698,10 +2703,10 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
 
       <section className="agent-os-window-layer">
         {computerOpen && <ComputerPreview state={computer} desktopHidden={hiddenWindowIds.has("computer")} onFocus={() => setFrontWindow("computer")} onClose={() => setComputerOpen(false)}/>}
-        {!presentationCwd && taskSessionId && <DesktopWindow title="任务" kind="tasks" windowId={"tasks"} desktopHidden={hiddenWindowIds.has("tasks")} front={frontWindow === "tasks"} onFocus={() => setFrontWindow("tasks")} onClose={() => { setTaskSessionId(null); window.history.replaceState(null, "", "/"); }}>
+        {!presentationCwd && taskSessionId && <DesktopWindow title="任务" kind="tasks" titleIcon={<SystemAppIcon name="tasks" size={16}/>} windowId={"tasks"} desktopHidden={hiddenWindowIds.has("tasks")} front={frontWindow === "tasks"} onFocus={() => setFrontWindow("tasks")} onClose={() => { setTaskSessionId(null); window.history.replaceState(null, "", "/"); }}>
           <div className="agent-os-pi-app"><AppShell key={taskSessionId} initialSessionId={taskSessionId}/></div>
         </DesktopWindow>}
-        {artifactLibraryOpen && <DesktopWindow title="产物库" kind="library" windowId={"library"} desktopHidden={hiddenWindowIds.has("library")} front={frontWindow === "library"} onFocus={() => setFrontWindow("library")} onClose={closeArtifactLibrary}>
+        {artifactLibraryOpen && <DesktopWindow title="产物库" kind="library" titleIcon={<SystemAppIcon name="files" size={16}/>} windowId={"library"} desktopHidden={hiddenWindowIds.has("library")} front={frontWindow === "library"} onFocus={() => setFrontWindow("library")} onClose={closeArtifactLibrary}>
           <ArtifactLibrary
             artifacts={artifacts}
             selectedId={selectedLibraryArtifactId}
@@ -2758,13 +2763,13 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
             onOpenRecruiting={() => { setHrRecruitingOpen(true); setFrontWindow("hr"); }}
           />
         </DesktopWindow>}
-        {scheduleOpen && <DesktopWindow kind="app" title="团队日程" windowId={"schedule"} desktopHidden={hiddenWindowIds.has("schedule")} front={frontWindow === "schedule"} onFocus={() => setFrontWindow("schedule")} onClose={() => setScheduleOpen(false)}><PresentationSchedule recruiting={!presentationCwd || activeCwd === presentationCwd}/></DesktopWindow>}
+        {scheduleOpen && <DesktopWindow kind="app" title="团队日程" titleIcon={<SystemAppIcon name="calendar" size={16}/>} windowId={"schedule"} desktopHidden={hiddenWindowIds.has("schedule")} front={frontWindow === "schedule"} onFocus={() => setFrontWindow("schedule")} onClose={() => setScheduleOpen(false)}><PresentationSchedule recruiting={!presentationCwd || activeCwd === presentationCwd}/></DesktopWindow>}
         {openFeishuDocuments.map((document, index) => {
           const windowId = `feishu-document:${document.id}`;
           return <DesktopWindow
             key={document.id}
             title={document.title}
-            titleIcon={<Image src="/icons/feishu-logo.svg" width={16} height={16} unoptimized alt=""/>}
+            titleIcon={<SystemAppIcon name="feishu" size={16}/>}
             kind="document"
             cascadeIndex={index}
             windowId={windowId} desktopHidden={hiddenWindowIds.has(windowId)} front={frontWindow === windowId}
@@ -2792,7 +2797,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
         {hrRecruitingOpen && <DesktopWindow className="agent-os-window-hr" title="人才招聘" kind="app" windowId={"hr"} desktopHidden={hiddenWindowIds.has("hr")} front={frontWindow === "hr"} onFocus={() => setFrontWindow("hr")} onClose={() => {
           setHrRecruitingOpen(false);
           releaseTemporaryDockItem("system:hr");
-        }} titleIcon={<span className="agent-os-hr-title-icon"><Icon name="recruiting" size={13}/></span>}>
+        }} titleIcon={<SystemAppIcon name="hr" size={16}/>}>
           <HRRecruitingApp
               candidateRequest={candidateRequest}
               presentation={Boolean(presentationCwd)}
@@ -2826,7 +2831,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
         {browserOpen && activeCwd && <DesktopWindow className="agent-os-window-browser" title="浏览器" kind="app" windowId={"browser"} desktopHidden={hiddenWindowIds.has("browser")} front={frontWindow === "browser"} onFocus={() => setFrontWindow("browser")} onClose={() => {
           setBrowserOpen(false);
           releaseTemporaryDockItem("system:browser");
-        }} titleIcon={<Icon name="browser" size={16}/> }>
+        }} titleIcon={<SystemAppIcon name="browser" size={16}/>}>
           <BrowserApp key={activeCwd} onUserInteraction={cancelBrowserReturn} cwd={activeCwd} initialPageId={browserPageId} onOpenSettings={() => { setSettingsOpen(true); setFrontWindow("settings"); }}/>
         </DesktopWindow>}
         {filesOpen && activeCwd && <DesktopWindow title="文件" kind="app" windowId={"files"} desktopHidden={hiddenWindowIds.has("files")} front={frontWindow === "files"} onFocus={() => setFrontWindow("files")} onClose={() => {
@@ -2834,7 +2839,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
           setFilesOpen(false);
           setFilesHaveUnsavedChanges(false);
           releaseTemporaryDockItem("system:files");
-        }} titleIcon={<Icon name="folder" size={16}/> }>
+        }} titleIcon={<SystemAppIcon name="file" size={16}/>}>
           <FilesApp key={activeCwd} cwd={activeCwd} openRequest={fileOpenRequest} onDirtyChange={setFilesHaveUnsavedChanges} watchEnabled={!hiddenWindowIds.has("files") && frontWindow === "files"}/>
         </DesktopWindow>}
         {terminalOpen && activeCwd && <DesktopWindow className="agent-os-window-terminal" title="终端" kind="app" windowId={"terminal"} desktopHidden={hiddenWindowIds.has("terminal")} front={frontWindow === "terminal"} onFocus={() => setFrontWindow("terminal")} onClose={() => {
