@@ -264,21 +264,14 @@ if (!app.requestSingleInstanceLock()) {
     registerUiPreferences(ipcMain, uiPreferences, () => window, isAppUrl);
     registerComputerPermissions(ipcMain, createComputerPermissions({ systemPreferences, desktopCapturer, shell,
       startupState: createStartupState(app.getPath('userData')),
-      verifyCapture: () => new Promise((resolve, reject) => {
-        if (!captureRuntime || quitting) { reject(new Error('应用仍在启动，请稍后重试。')); return; }
-        const { node, root, env } = captureRuntime;
-        const entry = packaged ? join(process.resourcesPath, 'runtime/electron/computer-use/permission-probe-worker.mjs') : join(here, 'computer-use/permission-probe-worker.mjs');
-        const child = captureProbe = fork(entry, [], { execPath: node, execArgv: [], cwd: root, env, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
-        let result;
-        const timer = setTimeout(() => child.kill('SIGTERM'), 90000);
-        child.on('message', message => { result = message; });
-        child.once('error', () => { clearTimeout(timer); reject(new Error('无法启动屏幕访问验证，请退出并重新打开 App。')); });
-        child.once('exit', () => {
-          clearTimeout(timer); captureProbe = undefined;
-          if (result?.ok) resolve();
-          else reject(new Error(result?.error?.startsWith('请打开飞书') ? result.error : '屏幕访问尚未验证。请在系统弹窗中允许访问，保持飞书主窗口打开后重试。'));
-        });
-      }),
+      // Startup only verifies that this Electron app can capture the screen.
+      // Target-window discovery belongs to the Computer Use task, which can
+      // open Feishu itself when it starts.
+      verifyCapture: async () => {
+        if (quitting) throw new Error('应用仍在退出，请稍后重试。');
+        const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 }, fetchWindowIcons: false });
+        if (!sources.some(source => source.thumbnail && source.thumbnail.getSize().width > 0)) throw new Error('屏幕尚未可访问，请重新开启屏幕录制权限后重试。');
+      },
     }), () => window, isAppUrl);
     ipcMain.handle('desktop:space-thumbnail', createSpaceThumbnailCapture(() => window, isAppUrl));
     registerStartupTiming(ipcMain, () => window, url => isAppUrl(url) && new URL(url).pathname === '/');

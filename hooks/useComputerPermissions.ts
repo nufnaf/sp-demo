@@ -11,7 +11,7 @@ export function useComputerPermissions() {
   const mounted = useRef(false);
   const reading = useRef(false);
   const requesting = useRef(false);
-  const ready = permissions?.supported && permissions.accessibility && permissions.screenRecording && permissions.captureVerified;
+  const ready = permissions?.supported && permissions.accessibility && permissions.screenRecording;
   const check = useCallback(async () => {
     if (reading.current || requesting.current) return;
     reading.current = true;

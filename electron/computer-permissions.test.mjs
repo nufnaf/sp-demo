@@ -25,7 +25,7 @@ test('checks do not request permissions; revoked grants are read afresh', async 
   await permissions.request('screenRecording');
   state.screenRecording = false;
   assert.equal(permissions.read().screenRecording, false);
-  assert.deepEqual(calls, ['capture']);
+  assert.deepEqual(calls, []);
 });
 test('each explicit action requests only its permission and denied requests open the matching settings', async () => {
   const { permissions, calls } = fixture();
@@ -79,19 +79,17 @@ test('real Electron preload reads macOS status without requesting or altering pe
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
-test('capture failure stays incomplete, success persists across restart, revoked grants invalidate completion',async()=>{
+test('system grants control completion and revoked grants invalidate it',async()=>{
  const { adapters, state, calls }=fixture();
  let saved={},fail=true;
  const startupState={read:()=>({...saved}),write:value=>{saved=value;}};
  const build=()=>createComputerPermissions({...adapters,startupState,verifyCapture:async()=>{calls.push('capture');if(fail)throw Error('capture denied');}});
  const permissions=build();state.accessibility=true;state.screenRecording=true;
- assert.throws(()=>permissions.complete(true),/权限准备/);
- await assert.rejects(permissions.request('screenRecording'),/capture denied/);
- assert.equal(permissions.read().captureVerified,false);
- fail=false;await permissions.request('screenRecording');permissions.complete(true);
+ permissions.complete(true);
+ await permissions.request('screenRecording');
  const restored=build();assert.equal(restored.read().initializationComplete,true);
- assert.equal(restored.read().captureVerified,true);
- assert.deepEqual(calls,['capture','capture'],'status and restart never capture');
+ assert.equal(restored.read().captureVerified,false);
+ assert.deepEqual(calls,[],'status and restart never perform an active capture probe');
  state.screenRecording=false;
  assert.equal(restored.read().initializationComplete,false);
  state.screenRecording=true;
