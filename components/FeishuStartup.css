@@ -69,7 +69,3 @@
 .startup-loading { flex-direction: column; justify-content: center; gap: 20px; color: #34415a; }
 .startup-loading > strong { font-size: 24px; font-weight: 550; }
 .startup-loading > p { margin: 0; }
-
-.startup-sync-notice { position: fixed; top: 48px; right: 24px; z-index: 10000; max-width: 360px; padding: 12px 16px; border: 1px solid #e8ecf2; border-radius: 12px; background: #fff; color: #51617c; box-shadow: 0 6px 24px #11182714; font-size: 13px; }
-.startup-sync-notice p { margin: 0; line-height: 1.6; }
-.startup-sync-notice button { margin: 8px 8px 0 0; padding: 6px 10px; border: 0; border-radius: 6px; background: #eef2f8; color: #3378f6; cursor: pointer; }
