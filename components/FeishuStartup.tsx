@@ -176,7 +176,7 @@ export function FeishuStartup({ children }: { children: ReactNode }) {
   // loading screen after the splash.
   if (screen === "loading") return <main className="feishu-startup startup-loading" aria-label="开屏加载" aria-hidden="true"/>;
   const busy = stage === "checking" || stage === "preparing" || (stage === "authorizing" && !flow);
-  const completed = Number(stage === "ready") + Number(computer.permissions?.accessibility === true) + Number(computer.permissions?.screenRecording === true && computer.permissions?.captureVerified === true);
+  const completed = Number(stage === "ready") + Number(computer.permissions?.accessibility === true) + Number(computer.permissions?.screenRecording === true);
   const retryConnection = () => {
     if (status?.authState === "unknown" && status.configured) {
       void check().then(data => {
@@ -231,8 +231,8 @@ export function FeishuStartup({ children }: { children: ReactNode }) {
         { key: "accessibility", label: "辅助功能权限", settings: "辅助功能", Icon: MousePointer2 },
         { key: "screenRecording", label: "屏幕录制权限", settings: "屏幕与系统音频录制", Icon: Monitor },
       ] as const).map(({ key, label, settings, Icon }) => {
-        const granted = computer.permissions?.[key] && (key !== "screenRecording" || computer.permissions.captureVerified);
-        const needsCapture = key === "screenRecording" && computer.permissions?.screenRecording && !computer.permissions.captureVerified;
+        const granted = computer.permissions?.[key] === true;
+        const needsCapture = false;
         return <li key={key}>
         <div className="feishu-startup-row">
           <span className="feishu-startup-icon"><Icon size={23} strokeWidth={1.7}/></span>
@@ -245,7 +245,6 @@ export function FeishuStartup({ children }: { children: ReactNode }) {
           <li>打开「系统设置」→「隐私与安全性」→「{settings}」{key === "screenRecording" ? "（部分版本叫「屏幕录制」）。" : "。"}</li>
           <li>开启 Syntropic 右侧的开关；若列表中没有，点「+」，从「应用程序」中添加 Syntropic。按系统提示验证密码或触控 ID。</li>
           <li>{key === "screenRecording" ? "若系统提示退出并重新打开，请按提示操作；否则返回这里等待检查。" : "返回这里等待检查；若仍显示未开启，按 ⌘Q 完全退出 Syntropic 后重新打开。"}</li>
-          {key === "screenRecording" && <li>打开飞书主窗口，回到这里点击「验证屏幕访问」。若系统再次询问直接访问屏幕，请选择允许，然后等待验证完成。</li>}
         </ol>}
       </li>; })}
     </ol>

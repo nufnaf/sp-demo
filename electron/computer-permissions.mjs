@@ -27,7 +27,7 @@ export function createComputerPermissions({ systemPreferences, desktopCapturer, 
     complete(value) {
       if (typeof value !== 'boolean') throw new Error('无效的准备状态。');
       const permissions = read();
-      if (value && (!permissions.accessibility || !permissions.screenRecording || !permissions.captureVerified)) throw new Error('请先完成系统权限准备。');
+      if (value && (!permissions.accessibility || !permissions.screenRecording)) throw new Error('请先完成系统权限准备。');
       store.write({ ...store.read(), complete: value });
       return read();
     },
@@ -44,13 +44,8 @@ export function createComputerPermissions({ systemPreferences, desktopCapturer, 
           catch { /* Denial is recoverable through System Settings below. */ }
         }
         if (!read()[kind]) await shell.openExternal(SETTINGS[kind]);
-        else if (kind === 'screenRecording' && !read().captureVerified) {
-          if (!verifyCapture) throw new Error('屏幕访问验证组件不可用，请重新安装 App。');
-          await verifyCapture();
-          // Re-read the OS grant after the probe, never remember a revoked grant.
-          if (!read().screenRecording) throw new Error('屏幕录制权限已关闭，请重新开启。');
-          store.write({ ...store.read(), captureVerified: true });
-        }
+        // macOS's TCC result is the source of truth. Actual capture failures
+        // are reported by the Computer Use operation that needs the screen.
         return read();
       })().finally(() => { pending = undefined; });
       return pending;
