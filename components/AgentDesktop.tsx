@@ -2552,10 +2552,7 @@ export function AgentDesktop({ presentationCwd }: { presentationCwd?: string } =
         onPublished={(job, sessionId) => {
           setPublishedDraft(job.draft);
           const origin = browserReturnOriginRef.current;
-          const shouldOpenRecruiting = presentationCwd
-            ? activeCwd === presentationCwd
-            : origin?.sessionId === sessionId && isBrowserOriginCurrent(origin, { cwd: activeCwd, taskSessionId, publicationSessionId: publicationSessionRef.current, browserOpen, frontWindow });
-          if (shouldOpenRecruiting) {
+          if (origin?.sessionId === sessionId && isBrowserOriginCurrent(origin, { cwd: activeCwd, taskSessionId, publicationSessionId: publicationSessionRef.current, browserOpen, frontWindow })) {
             browserReturnOriginRef.current = null;
             setJarvisPanelOpen(false);
             setHrRecruitingOpen(true);
