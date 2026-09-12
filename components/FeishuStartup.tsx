@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { Check, LoaderCircle, Monitor, MousePointer2 } from "lucide-react";
 import { SyntropicMark } from "./SyntropicMark";
+import { DesktopNotification } from "./DesktopNotification";
 import { useComputerPermissions } from "@/hooks/useComputerPermissions";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { notifyCalendarChanged } from "@/hooks/useFeishuCalendar";
@@ -159,11 +160,16 @@ export function FeishuStartup({ children }: { children: ReactNode }) {
   }, [flow, stage, check, begin, prepare]);
   if (screen === "desktop" && computer.ready) return <CalendarPreparationProvider value={{ pending: stage === "preparing", error: stage === "error" ? error : "" }}>
     {children}
-    {(stage === "preparing" || stage === "error") && <aside className="startup-sync-notice" aria-label="团队日程同步">
-      <p role={stage === "error" ? "alert" : "status"}>{stage === "preparing" ? "正在同步团队日程…" : error}</p>
-      {stage === "error" && <button onClick={() => void prepare()}>重新同步</button>}
-      {stage === "error" && canReauthorize && <button onClick={() => void begin("login")}>重新授权</button>}
-    </aside>}
+    {(stage === "preparing" || stage === "error") && <DesktopNotification
+      ariaLabel="团队日程同步"
+      role={stage === "error" ? "alert" : "status"}
+      label={stage === "preparing" ? "正在处理" : "需要处理"}
+      title={stage === "preparing" ? "正在同步团队日程" : "团队日程同步未完成"}
+      description={stage === "preparing" ? "同步完成后，日程会自动更新。" : error}
+      action={stage === "error" ? { label: canReauthorize ? "重新授权" : "重新同步", onClick: () => canReauthorize ? void begin("login") : void prepare() } : undefined}
+      onDismiss={() => {}}
+      dismissLabel="关闭通知"
+    />}
   </CalendarPreparationProvider>;
   // The native Electron splash remains visible while the workspace is being
   // prepared. Keep this renderer layer visually empty so there is no second

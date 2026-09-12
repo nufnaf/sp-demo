@@ -11,11 +11,12 @@ interface Props {
   onDismiss: () => void;
   dismissLabel: string;
   autoDismiss?: boolean;
+  role?: "status" | "alert";
 }
 
 /** One visible surface for workspace status, insights and publication actions. */
-export function DesktopNotification({ label, title, description, ariaLabel, action, onDismiss, dismissLabel, autoDismiss = false }: Props) {
-  return <aside className="agent-os-insight-notification agent-os-jd-notification" data-testid="desktop-notification" aria-label={ariaLabel} role={autoDismiss ? "status" : undefined}>
+export function DesktopNotification({ label, title, description, ariaLabel, action, onDismiss, dismissLabel, autoDismiss = false, role }: Props) {
+  return <aside className="agent-os-insight-notification agent-os-jd-notification" data-testid="desktop-notification" aria-label={ariaLabel} role={role ?? (autoDismiss ? "status" : undefined)}>
     <span><SyntropicMark size={25}/></span>
     <span><small className="label">{label}</small><strong>{title}</strong>{description && <small>{description}</small>}</span>
     {action && <button type="button" disabled={action.disabled} onClick={action.onClick}>{action.label}</button>}
