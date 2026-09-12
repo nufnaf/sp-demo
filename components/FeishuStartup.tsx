@@ -186,6 +186,16 @@ export function FeishuStartup({ children }: { children: ReactNode }) {
     } else if (status?.authState === "authenticated") { setError(""); setStage("ready"); }
     else void begin(status?.configured ? "login" : "configure");
   };
+  const resetConnection = async () => {
+    setError(""); setStage("authorizing");
+    try {
+      await action("reset");
+      const data = await check();
+      if (mounted.current) { setStatus(data); setStage("connect"); }
+    } catch (e) {
+      if (mounted.current) { setError(e instanceof Error ? e.message : "无法清除旧连接，请重试。"); setStage("error"); }
+    }
+  };
   return <main className="feishu-startup"><section className="feishu-startup-card" aria-labelledby="feishu-startup-title">
     <div className="feishu-startup-brand"><SyntropicMark size={25}/><span>Syntropic</span></div>
     <h1 id="feishu-startup-title">演示前的一次性准备</h1>
@@ -215,7 +225,7 @@ export function FeishuStartup({ children }: { children: ReactNode }) {
               .catch(() => { if (mounted.current) { setError("取消连接失败，请重试。"); setStage("error"); } });
           }}>取消连接</button>{flow.kind === "permission" && <button onClick={() => void begin("login")}>我已确认权限</button>}</div>
         </div>}
-        {error && <div className="feishu-startup-error"><p role="alert">{error}</p>{stage === "error" && canReauthorize && status?.configured && <button className="feishu-startup-secondary" onClick={() => void begin("login")}>重新授权</button>}</div>}
+        {error && <div className="feishu-startup-error"><p role="alert">{error}</p>{stage === "error" && canReauthorize && status?.configured && <button className="feishu-startup-secondary" onClick={() => void begin("login")}>重新授权</button>}{stage === "error" && status?.configured && <button className="feishu-startup-secondary" onClick={() => void resetConnection()}>彻底重新连接</button>}</div>}
       </li>
       {([
         { key: "accessibility", label: "辅助功能权限", settings: "辅助功能", Icon: MousePointer2 },

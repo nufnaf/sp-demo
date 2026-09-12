@@ -3,9 +3,18 @@ import { runLarkCli, getFeishuCliStatus } from "./feishu-cli";
 export class FeishuUserError extends Error {
   constructor(message: string, readonly uncertain = false, readonly requiresAuthorization = false) { super(message); }
 }
+function failureForSubtype(subtype: string): FeishuUserError {
+  const requiresAuthorization = ["missing_scope", "app_scope_not_applied", "token_missing", "token_invalid", "token_expired", "refresh_token_expired", "refresh_token_revoked", "user_unauthorized", "token_scope_insufficient", "not_authenticated"].includes(subtype);
+  const rejected = requiresAuthorization || ["permission_denied", "invalid_argument", "confirmation_required"].includes(subtype);
+  return new FeishuUserError(requiresAuthorization ? "飞书授权不完整，请重新授权后继续。" : "飞书请求未完成，请检查网络或工作资料的访问权限后重试。", !rejected, requiresAuthorization);
+}
 export function cliData(stdout: string): Record<string, unknown> {
   const body = JSON.parse(stdout) as Record<string, unknown>;
-  if (body.ok === false || (typeof body.code === "number" && body.code !== 0)) throw new FeishuUserError("飞书未能完成请求，请检查权限后重试。", true);
+  if (body.ok === false || (typeof body.code === "number" && body.code !== 0)) {
+    const error = body.error && typeof body.error === "object" ? body.error as Record<string, unknown> : body;
+    const subtype = typeof error.subtype === "string" ? error.subtype : "";
+    throw failureForSubtype(subtype);
+  }
   const data = body.data ?? body;
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new FeishuUserError("飞书返回的数据不完整。");
   return data as Record<string, unknown>;
@@ -21,9 +30,7 @@ export async function userCommand(identity: string, args: string[]): Promise<Rec
     // before network I/O. Never expose upstream output (may contain credentials).
     let subtype = "";
     try { subtype = JSON.parse(result.stdout || result.stderr || "").error?.subtype ?? ""; } catch { /* transport failure */ }
-    const requiresAuthorization = ["missing_scope", "app_scope_not_applied", "token_missing", "token_invalid", "token_expired", "refresh_token_expired", "refresh_token_revoked", "user_unauthorized", "token_scope_insufficient", "not_authenticated"].includes(subtype);
-    const rejected = requiresAuthorization || ["permission_denied", "invalid_argument", "confirmation_required"].includes(subtype);
-    throw new FeishuUserError(requiresAuthorization ? "飞书授权不完整，请重新授权后继续。" : "飞书请求未完成，请检查网络或工作资料的访问权限后重试。", !rejected, requiresAuthorization);
+    throw failureForSubtype(subtype);
   }
 }
 /** Fixed operation adapter; never accepts a caller-supplied CLI command or host. */
