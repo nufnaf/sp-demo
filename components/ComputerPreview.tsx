@@ -165,7 +165,7 @@ export function ComputerPreview({ state, desktopHidden, onFocus, onClose }: {
   };
 
   const active = ["running", "pausing", "paused"].includes(state.phase);
-  const statusTitle = ({ paused: "已暂停", pausing: "正在暂停", verifying: "正在核对日历", completed: "会议已安排", failed: "需要你处理", stopped: "任务已停止" } as Partial<Record<ComputerState["phase"], string>>)[state.phase];
+  const statusTitle = ({ paused: "已暂停", pausing: "正在暂停", verifying: "正在确认保存结果", completed: "会议已安排", failed: "需要你处理", stopped: "任务已停止" } as Partial<Record<ComputerState["phase"], string>>)[state.phase];
   const notice = controlError || (connected && statusTitle ? state.detail : null);
   const hidden = desktopHidden || spaceOffset !== 0;
 

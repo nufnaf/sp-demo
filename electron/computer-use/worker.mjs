@@ -68,7 +68,7 @@ async function run(message) {
       onTrace: event => { if (traceDirectory) void appendFile(join(traceDirectory, `${message.id}.jsonl`), `${JSON.stringify({ at: new Date().toISOString(), ...event })}\n`, { mode: 0o600 }).catch(() => {}); },
       beforeSubmit: () => new Promise((resolve, reject) => { pendingSubmit = { resolve, reject }; send({ type: 'before-submit', id: message.id }); }),
     });
-    status({ phase: 'verifying', detail: '正在核对飞书日历' });
+    status({ phase: 'verifying', detail: '正在确认会议是否已保存' });
   } catch (error) {
     const messageText = controller.signal.aborted ? '操作已停止，请检查飞书中保留的草稿。' : error.message;
     resultError = messageText;

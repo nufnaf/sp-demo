@@ -9,7 +9,10 @@ export async function GET(request: Request) {
   try {
     const range = calendarRange(date);
     const calendar = (await getFeishuDemoClient()).calendar();
-    return Response.json({ events: await calendar.events(range.start, range.end), date: range.date, fetchedAt: new Date().toISOString() }, { headers: { "Cache-Control": "no-store" } });
+    const events = calendar.eventsAcrossCalendars
+      ? await calendar.eventsAcrossCalendars(range.start, range.end)
+      : await calendar.events(range.start, range.end);
+    return Response.json({ events, date: range.date, fetchedAt: new Date().toISOString() }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "飞书日程暂时不可用" }, { status: error instanceof FeishuDemoError && error.kind === "configuration" ? 503 : 502 });
   }
