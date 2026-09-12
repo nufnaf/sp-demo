@@ -15,7 +15,6 @@ export function renderRecruitingJdDemo(): string {
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="syntropic-artifact" content="recruiting-jd-demo"><title>${jd.title} · ${jd.company}</title>
 <style>
-${readFileSync(join(process.cwd(), "public/design/company/brand.css"), "utf8")}
 ${readFileSync(join(process.cwd(), "public/design/jd/result.css"), "utf8")}
 </style></head><body><main><div class="content"><header class="hero"><div class="status"><i></i>正在招聘 · ${jd.headcount}个HC</div><div><h1>${jd.title}</h1><p class="subtitle">Agent Platform · 构建能在真实业务中可靠完成工作的智能体系统</p></div><div class="chips"><span class="chip">${icon("map-pin")}${jd.location}</span><span class="chip">${icon("briefcase-business")}全职 · 3–8 年</span><span class="chip">${icon("code-xml")}研发工程</span></div></header>
 <section class="about"><h2>关于 ${jd.company}</h2>${jd.about.map(text => `<p>${escape(text)}</p>`).join("")}</section>
