@@ -91,7 +91,8 @@ async function shutdown() {
   await driver?.close(); process.exit();
 }
 process.on('message', message => {
-  if (message.type === 'run') void run(message);
+  if (message.type === 'warmup') void ready().catch(() => {});
+  else if (message.type === 'run') void run(message);
   else if (message.type === 'reconnect') {
     void (async () => {
       await ready();

@@ -84,6 +84,11 @@ class ComputerRuntime {
     this.update({ taskId: id, interactionStarted: false, title: draft.title, phase: "running", detail: "正在准备飞书会议", steps: 0, error: null });
     return new Promise<void>((resolve, reject) => { this.pending = { id, beforeSubmit, resolve, reject }; child.send({ type: "run", id, draft, calendarName }); });
   }
+  warmup() {
+    if (!computerAvailable()) return;
+    const child = this.ensureWorker();
+    if (child.connected) child.send({ type: "warmup" });
+  }
   verified(error?: string) {
     const stopped = Boolean(error && this.state.phase === "stopped");
     this.update({ phase: error ? stopped ? "stopped" : "failed" : "completed", detail: error || "会议已保存，日历已同步", error: error ?? null });
