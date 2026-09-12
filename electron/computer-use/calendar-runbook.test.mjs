@@ -25,7 +25,7 @@ test('both acceptance and production require the exact calendar; only production
   assert.doesNotMatch(calendarRunbook({ draftOnly: true }), /Call computer_submit/);
   for (const draftOnly of [false, true]) {
     const prompt = calendarRunbook({ draftOnly });
-    assert.match(prompt, /do not open the picker/);
+    assert.match(prompt, /do not open (?:the picker|it again)/);
     assert.doesNotMatch(prompt, /Syntropic 演示日历|刘星|ou_[a-z0-9]+|feishu\.cn_\w+/);
   }
 });

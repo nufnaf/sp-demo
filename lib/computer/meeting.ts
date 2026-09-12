@@ -10,7 +10,7 @@ declare global { var __syntropicGuiMeetingLocks: Map<string, Promise<FeishuCalen
 const normalized = (value: string) => value.replace(/\s+/g, " ").trim();
 export function matchesGuiMeeting(event: FeishuCalendarEvent, draft: CalendarEventDraft) {
   return !event.allDay && event.status !== "cancelled" && event.title === draft.title
-    && Date.parse(event.startsAt) === Date.parse(draft.startsAt) && Date.parse(event.endsAt) === Date.parse(draft.endsAt)
+    && (!draft.description.trim() || (Date.parse(event.startsAt) === Date.parse(draft.startsAt) && Date.parse(event.endsAt) === Date.parse(draft.endsAt)))
     && normalized(event.description) === normalized(draft.description);
 }
 
@@ -32,7 +32,7 @@ export async function ensureFeishuGuiMeeting(directory: string, id: string, draf
       || typeof request.draft.description !== "string"
       || (request.gui && (typeof request.gui.attempted !== "boolean" || !Array.isArray(request.gui.baseline) || request.gui.baseline.some(value => typeof value !== "string")))) throw new Error("会议记录不完整，请检查后继续。");
     if (request.eventId) return calendar.get(request.eventId);
-    const range = () => calendar.events(new Date(Date.parse(request.draft.startsAt) - 3600_000).toISOString(), new Date(Date.parse(request.draft.endsAt) + 3600_000).toISOString());
+    const range = () => calendar.events(new Date(Date.parse(request.draft.startsAt) - (request.draft.description.trim() ? 3600_000 : 3 * 86400_000)).toISOString(), new Date(Date.parse(request.draft.endsAt) + (request.draft.description.trim() ? 3600_000 : 3 * 86400_000)).toISOString());
     const match = (events: FeishuCalendarEvent[]) => {
       const candidates = events.filter(event => matchesGuiMeeting(event, request.draft) && !request.gui?.baseline.includes(event.id));
       if (candidates.length > 1) throw new Error("发现多条相同会议，请在飞书中确认，系统不会再次创建。");
