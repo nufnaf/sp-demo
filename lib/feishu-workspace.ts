@@ -83,6 +83,7 @@ async function calendars(command: Command, identity: string): Promise<Record<str
 export async function prepareWorkspace(state: FeishuWorkspace, save: (state: FeishuWorkspace) => Promise<void>, command: Command = userCommand): Promise<FeishuWorkspace> {
   if (!state.consent) throw new Error("请先连接飞书并确认自动准备工作资料。");
   const r = state.resources;
+  const stepNames: Record<string, string> = { folder: "创建工作资料文件夹", business: "准备业务介绍文档", weekly: "准备招聘进展文档", sheet: "准备招聘计划表格", base: "准备候选人招聘进度表", wikiSpace: "创建工作知识空间", wiki: "准备招聘与面试 FAQ", calendar: "准备工作日历" };
   const step = async (key: string, create: () => Promise<string>, recover: () => Promise<string | undefined>) => {
     if (r[key]) return;
     if (state.pending && state.pending !== key) throw new Error("上次资料准备尚未完成，请重试。");
@@ -96,6 +97,8 @@ export async function prepareWorkspace(state: FeishuWorkspace, save: (state: Fei
       try { r[key] = await create(); }
       catch (error) {
         if (error instanceof FeishuUserError && !error.uncertain) { delete state.pending; await save(state); }
+        if (error instanceof FeishuUserError) throw new FeishuUserError(`${stepNames[key] ?? "准备工作资料"}失败：${error.message}`, error.uncertain, error.requiresAuthorization);
+        if (error instanceof Error) throw new Error(`${stepNames[key] ?? "准备工作资料"}失败：${error.message}`);
         throw error;
       }
     }

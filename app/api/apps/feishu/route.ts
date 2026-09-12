@@ -1,10 +1,10 @@
 import { presentationRoot } from "@/lib/presentation-runtime";
 import { readJson, saveJson } from "@/lib/feishu-workspace";
 import { feishuHome } from "@/lib/feishu-paths";
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { NextResponse } from "next/server";
-import { activeFeishuAuthorization, getFeishuLoginResult, cancelFeishuConfiguration, completeFeishuLogin, getFeishuCliStatus, installFeishuCli, startFeishuConfiguration, startFeishuLogin } from "@/lib/feishu-cli";
+import { activeFeishuAuthorization, getFeishuLoginResult, cancelFeishuConfiguration, completeFeishuLogin, getFeishuCliStatus, installFeishuCli, resetFeishuAuthorization, startFeishuConfiguration, startFeishuLogin } from "@/lib/feishu-cli";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +32,15 @@ export async function POST(request: Request) {
     if (body.action === "login_status" && typeof body.flowId === "string") return NextResponse.json(getFeishuLoginResult(body.flowId));
     if (body.action === "cancel") { cancelFeishuConfiguration(); return NextResponse.json({ cancelled: true }); }
     if (body.action === "install") return NextResponse.json(await installFeishuCli());
+    if (body.action === "reset") {
+      if (globalThis.__feishuPreparation || globalThis.__feishuStartup) {
+        return NextResponse.json({ error: "工作资料仍在准备中，请等待结束后重新连接。" }, { status: 409 });
+      }
+      await resetFeishuAuthorization();
+      await rm(feishuHome(), { recursive: true, force: true });
+      if (root) await rm(join(root, "feishu-account.json"), { force: true });
+      return NextResponse.json({ reset: true });
+    }
     if (body.action === "configure") return NextResponse.json(await startFeishuConfiguration());
     if (body.action === "login") return NextResponse.json(await startFeishuLogin());
     if (body.action === "complete_login" && typeof body.flowId === "string") {

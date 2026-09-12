@@ -179,6 +179,18 @@ export async function installFeishuCli(): Promise<FeishuCliStatus> {
   throw new Error("飞书连接组件缺失，请重新安装完整的 Syntropic App。");
 }
 
+/** Clear the local user session so the next launch starts a complete connection flow. */
+export async function resetFeishuAuthorization(): Promise<void> {
+  const completions = [...runtime.pendingLogins.values()].flatMap(pending => pending.completion ? [pending.completion] : []);
+  const child = runtime.configurationProcess;
+  if (child && child.exitCode === null && child.signalCode === null) {
+    completions.push(new Promise<void>(resolve => child.once("close", () => resolve())));
+  }
+  cancelFeishuConfiguration();
+  await Promise.allSettled(completions);
+  try { await runLarkCli(["auth", "logout", "--json"], 15_000); } catch { /* Already logged out or unavailable network: local reset still proceeds. */ }
+}
+
 function extractVerificationUrl(output: string): string | undefined {
   const clean = output.replace(/\x1b\[[0-9;?>=!]*[a-zA-Z]/g, "");
   for (const line of clean.split(/\r?\n/)) {
