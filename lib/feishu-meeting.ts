@@ -49,11 +49,10 @@ export function alignmentMeetingDraft(scene: RecruitingScene, now = new Date()):
   const { job, insight } = scene;
   if (!job || !insight) throw new Error("请先查看招聘洞察");
   const date = addCalendarDays(calendarDate(now), 1);
-  const agenda = ["对齐生产级 Agent 工程能力的证据标准", `讨论 ${insight.candidates.map(c => c.name).join("、")} 的评价分歧`, "确定共同评分表和候选人复核分工"];
   return {
     title: SYNTROPIC_ALIGNMENT_EVENT_TITLE,
     startsAt: `${date}T14:00:00+08:00`, endsAt: `${date}T14:30:00+08:00`,
-    description: `参会人：${[...new Set([job.owner, ...(insight.interviewers ?? [])].filter(Boolean))].join("、")}\n议程：${agenda.join("；")}`,
+    description: "",
   };
 }
 export async function scheduleFeishuAlignmentMeeting(root: string, scene: RecruitingScene): Promise<FeishuCalendarEvent> {

@@ -1,4 +1,5 @@
-// A dedicated marker, not a title match: never delete a user's similarly named meeting.
+// Demo-owned events carry a fixed title suffix so the presentation can filter them
+// across whatever calendar the native Computer Use flow currently has selected.
 export const DEMO_CALENDAR_MARKER = "[Syntropic 演示日程]";
 // GUI previews expose the native description, so use a natural attribution.
 export const COMPUTER_CALENDAR_MARKER = "由 Syntropic 安排";

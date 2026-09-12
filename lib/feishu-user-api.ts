@@ -49,6 +49,10 @@ export function userRequest(identity: string) {
       args = operation === "list" ? ["api", "GET", `/open-apis${url.pathname}`] : ["calendar", "events", operation];
       if (operation === "list") delete params.calendar_id;
       // Only the reset code calls DELETE, after matching owned event markers.
+    } else if (url.pathname === "/calendar/v4/calendars" && method === "GET") {
+      // Keep calendar discovery on the CLI's supported user-calendar adapter.
+      // The raw OpenAPI route is not available in every authorized CLI scope.
+      args = ["calendar", "calendars", "list"];
     } else if (url.pathname === "/drive/v1/files" && method === "GET") {
       args = ["drive", "files", "list"];
     } else if (url.pathname === "/wiki/v2/spaces/get_node" && method === "GET") {

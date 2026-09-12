@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { calendarDate } from "./calendar-view";
 import type { CalendarEventDraft, FeishuCalendarClient } from "./feishu-calendar";
-import { DEMO_CALENDAR_MARKER, COMPUTER_CALENDAR_MARKER, demoCalendarDescription, syntropicEventTitle } from "./feishu-demo-calendar-marker";
+import { DEMO_CALENDAR_MARKER, COMPUTER_CALENDAR_MARKER, SYNTROPIC_EVENT_SUFFIX, demoCalendarDescription, syntropicEventTitle } from "./feishu-demo-calendar-marker";
 import { ensureFeishuMeeting } from "./feishu-meeting";
 
 interface ResetState { date: string; staleIds: string[]; complete: boolean }
@@ -41,16 +41,19 @@ export async function resetPresentationCalendar(root: string, calendar: FeishuCa
     if (state && (!/^\d{4}-\d{2}-\d{2}$/.test(state.date) || !Array.isArray(state.staleIds) || !state.staleIds.every(id => typeof id === "string") || typeof state.complete !== "boolean")) throw new Error("日程同步记录不完整，请重新打开 App。");
     if (state?.complete) return;
     // Read every page before any mutation. Cancelled tombstones are excluded.
-    const events = await calendar.allEvents();
+    const events = await (calendar.allEventsAcrossCalendars?.() ?? calendar.allEvents());
     if (!state) {
       state = {
         date: calendarDate(now), complete: false,
-        staleIds: events.filter(event => event.description.split("\n").some(line => [DEMO_CALENDAR_MARKER, COMPUTER_CALENDAR_MARKER].includes(line.trim())) || calendar.resetEventIds.includes(event.id)).map(event => event.id),
+        staleIds: events.filter(event => (typeof event.title === "string" && event.title.trim().endsWith(SYNTROPIC_EVENT_SUFFIX)) || event.description.split("\n").some(line => [DEMO_CALENDAR_MARKER, COMPUTER_CALENDAR_MARKER].includes(line.trim())) || calendar.resetEventIds.includes(event.id)).map(event => event.id),
       };
       await save(state);
     }
-    const currentIds = new Set(events.map(event => event.id));
-    for (const id of state.staleIds) if (currentIds.has(id)) await calendar.remove(id);
+    const currentEvents = new Map(events.map(event => [event.id, event]));
+    for (const id of state.staleIds) {
+      const event = currentEvents.get(id);
+      if (event) await calendar.remove(id, event.calendarId);
+    }
     const drafts = presetCalendarDrafts(state.date);
     for (let index = 0; index < drafts.length; index++) await ensureFeishuMeeting(directory, `preset-${index}`, drafts[index], calendar);
     await save({ ...state, complete: true });

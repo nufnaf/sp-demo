@@ -2,10 +2,11 @@
 import "./PresentationSchedule.css";
 import { useFeishuCalendar } from "@/hooks/useFeishuCalendar";
 import { addCalendarDays, calendarDate, calendarDuration, calendarTimeLabel } from "@/lib/calendar-view";
-import { calendarDescriptionForDisplay } from "@/lib/feishu-demo-calendar-marker";
+import { calendarDescriptionForDisplay, SYNTROPIC_EVENT_SUFFIX } from "@/lib/feishu-demo-calendar-marker";
 
 export function PresentationSchedule({ recruiting = true }: { recruiting?: boolean } = {}) {
   const { events, date, loading, error, fetchedAt, refresh, setDate } = useFeishuCalendar(recruiting);
+  const presentationEvents = events.filter(event => event.title.trim().endsWith(SYNTROPIC_EVENT_SUFFIX));
   return <section className="presentation-schedule">
     <header className="schedule-header"><div><small>星流科技 · 飞书日历 · 北京时间</small><h1>团队日程</h1><p>集中查看会议安排，让团队协作有序推进。</p></div>
       {recruiting && <button className="schedule-refresh" disabled={loading} onClick={() => void refresh()}>{loading ? "正在同步…" : "刷新日程"}</button>}
@@ -15,12 +16,12 @@ export function PresentationSchedule({ recruiting = true }: { recruiting?: boole
       <button onClick={() => void setDate(calendarDate())}>今天</button>
       <button aria-label="查看后 7 天" disabled={!date} onClick={() => void setDate(addCalendarDays(date, 7))}>›</button></div>
       {date && <span>{date} 至 {addCalendarDays(date, 6)}</span>}
-      <small>{events.length} 个日程</small>
+      <small>{presentationEvents.length} 个日程</small>
     </div>}
-    {error && <p role="alert">{error}{events.length > 0 ? "（下方为上次读取的日程）" : ""}</p>}
-    {recruiting && loading && !events.length && <p role="status">正在读取飞书日程…</p>}
-    {(!recruiting || (!loading && !error && !events.length)) && <p>当前范围暂无已安排的会议。</p>}
-    {recruiting && events.map(event => {
+    {error && <p role="alert">{error}{presentationEvents.length > 0 ? "（下方为上次读取的日程）" : ""}</p>}
+    {recruiting && loading && !presentationEvents.length && <p role="status">正在读取飞书日程…</p>}
+    {(!recruiting || (!loading && !error && !presentationEvents.length)) && <p>当前范围暂无已安排的会议。</p>}
+    {recruiting && presentationEvents.map(event => {
       const description = calendarDescriptionForDisplay(event.description);
       return <article key={event.id}>
         <header className="schedule-event-heading"><h2>{event.title}</h2><em>已安排</em></header><p className="schedule-event-time">{event.allDay ? event.startsAt : calendarTimeLabel(event)} · {calendarDuration(event)}</p>
