@@ -2,9 +2,10 @@
 
 import "./AppStore.css";
 import { AppBrandImage } from "./AppBrandImage";
+import { SystemAppIcon } from "./SystemAppIcon";
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
-import { Bot, Compass, Database, PackageCheck, PanelsTopLeft, Search, Store, type LucideIcon } from "lucide-react";
+import { Bot, Compass, Database, PackageCheck, PanelsTopLeft, Search, type LucideIcon } from "lucide-react";
 import { getLaunchpadApps, type LaunchpadApp } from "@/lib/launchpad-apps";
 import type { AppStoreCatalogResponse, AppStorePackage } from "@/lib/app-store-types";
 
@@ -19,9 +20,7 @@ const SECTIONS: Array<{ id: StoreSection; label: string; icon: LucideIcon }> = [
 ];
 
 export function AppStoreBrandIcon({ className = "" }: { className?: string }) {
-  return <span className={`agent-store-brand-icon ${className}`.trim()} aria-hidden="true">
-    <Store className="agent-store-brand-glyph" size={28} strokeWidth={2} focusable="false"/>
-  </span>;
+  return <SystemAppIcon name="store" className={`agent-store-brand-icon ${className}`.trim()}/>;
 }
 
 function StoreIcon({ item, large = false }: { item: AppStorePackage; large?: boolean }) {

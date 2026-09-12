@@ -3,7 +3,8 @@ import { getChinaAppDefinition } from "@/lib/china-apps";
 
 /** One asset and optical inset for the market, Dock and launcher. */
 export function AppBrandImage({ appId, src }: { appId?: string; src?: string }) {
-  const source = (appId ? getChinaAppDefinition(appId)?.logoUrl : undefined) ?? src;
+  const localSource = appId === "feishu" ? "/icons/system/飞书.png" : appId === "boss-zhipin" ? "/icons/system/BOSS.png" : undefined;
+  const source = localSource ?? (appId ? getChinaAppDefinition(appId)?.logoUrl : undefined) ?? src;
   const inset = appId === "feishu" ? "76%" : appId === "huayu-law" ? "86%" : "100%";
   // Inline sizing intentionally wins over each surface's legacy image rules.
   // eslint-disable-next-line @next/next/no-img-element
