@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
+import { appendFile, mkdir } from "node:fs/promises";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { presentationCwd, presentationSessionDir, presentationRoot } from "./presentation-runtime";
 import { JARVIS_TASK_ORIGIN_TYPE, type JarvisTaskInfo } from "./jarvis";
@@ -14,11 +15,19 @@ export function publicationDraft(cwd: string): string {
   return createHash("sha256").update(`${cwd}\n${join(cwd, "ai-agent-engineer-jd.html")}`).digest("hex").slice(0, 32);
 }
 
+async function publicationDiagnostic(root: string | undefined, event: string, details: Record<string, unknown> = {}) {
+  if (!root) return;
+  try {
+    const directory = join(root, "diagnostics"); await mkdir(directory, { recursive: true });
+    await appendFile(join(directory, "recruiting-publication.ndjson"), `${JSON.stringify({ at: new Date().toISOString(), event, ...details })}\n`, { mode: 0o600 });
+  } catch { /* Diagnostics must never change the task outcome. */ }
+}
+
 /** A persisted local task, with the browser Agent as its only model boundary. */
 export function createPresentationTask(cwd: string, parentId: string, message: string, action: Exclude<PresentationAction, "help" | "cancel">) {
   if (cwd !== presentationCwd()) throw new Error("请切换到招聘工作台后执行此操作。");
   if (action === "generate-jd") return createRecruitingJdDemoTask(cwd, parentId, message);
-  const root = presentationRoot();
+const root = presentationRoot();
   const manager = SessionManager.create(cwd, presentationSessionDir(cwd));
   const task: JarvisTaskInfo = { sessionId: manager.getSessionId(), jarvisSessionId: parentId, description: action === "publish-jd" ? "发布岗位 · 高级 AI Agent 研发工程师" : "查询招聘进展", status: "running", createdAt: new Date().toISOString() };
   manager.appendCustomEntry(JARVIS_TASK_ORIGIN_TYPE, { version: 1, jarvisSessionId: parentId, description: task.description, createdAt: task.createdAt });
@@ -39,8 +48,11 @@ export function createPresentationTask(cwd: string, parentId: string, message: s
     };
     try {
       signal.throwIfAborted();
+      const expectedDraft = publicationDraft(cwd);
+      await publicationDiagnostic(root, "publication.start", { action, expectedDraft, url: recruitingSiteUrl().href });
       let snapshot = await readSnapshot(false);
-      const published = snapshot.jobs.find(job => job.draft === publicationDraft(cwd));
+      const published = snapshot.jobs.find(job => job.draft === expectedDraft);
+      await publicationDiagnostic(root, "publication.initial-snapshot", { jobs: snapshot.jobs.map(job => ({ id: job.id, draft: job.draft })), matched: Boolean(published) });
       if (action === "publish-jd" && published) {
         task.summary = `“${published.title}”已发布，可在人才招聘中查看，无需重复创建。`;
       } else {
@@ -56,13 +68,37 @@ export function createPresentationTask(cwd: string, parentId: string, message: s
         const toolCallId = randomUUID();
         manager.appendMessage(demoAssistant("", { stopReason: "toolUse", content: [{ type: "toolCall", id: toolCallId, name: "browser_task", arguments: { url: url.href, task: task.description } }] }));
         const result = await run.completion;
+        await publicationDiagnostic(root, "publication.browser-complete", { status: result.status, result: result.result?.slice(0, 500), error: result.error?.slice(0, 500) });
         manager.appendMessage({ role: "toolResult", toolCallId, toolName: "browser_task", content: [{ type: "text", text: result.result || result.error || result.status }], details: result, isError: result.status !== "completed", timestamp: Date.now() });
         signal.throwIfAborted();
         if (result.status !== "completed") throw new Error(result.error || result.result || "网页任务未完成。");
-        snapshot = await readSnapshot(true);
+        // The website can acknowledge the visible publish before its
+        // read-only projection includes the new job. Confirm with bounded
+        // retries before treating a successful browser task as a failure.
+        let lastError: unknown;
+        for (let attempt = 1; attempt <= 5; attempt++) {
+          try {
+            snapshot = await readSnapshot(true);
+            const visible = snapshot.jobs.some(job => job.draft === expectedDraft)
+              || (snapshot.jobs.length === 1 && snapshot.scene?.job?.id === snapshot.jobs[0].id);
+            await publicationDiagnostic(root, "publication.confirm-attempt", { attempt, visible, jobs: snapshot.jobs.map(job => ({ id: job.id, draft: job.draft })), sceneJobId: snapshot.scene?.job?.id ?? null });
+            if (visible) break;
+            lastError = new Error("岗位尚未出现在招聘系统查询结果中");
+          } catch (error) {
+            lastError = error;
+            await publicationDiagnostic(root, "publication.confirm-error", { attempt, error: error instanceof Error ? error.message : String(error) });
+          }
+          if (attempt < 5) await new Promise<void>(resolve => setTimeout(resolve, 1500));
+          signal.throwIfAborted();
+        }
+        if (!snapshot || (!snapshot.jobs.some(job => job.draft === expectedDraft) && !(snapshot.jobs.length === 1 && snapshot.scene?.job?.id === snapshot.jobs[0].id))) {
+          throw lastError instanceof Error ? lastError : new Error("发布已完成，但招聘系统尚未同步岗位，请稍后重试。");
+        }
+        await publicationDiagnostic(root, "publication.post-browser-snapshot", { jobs: snapshot.jobs.map(job => ({ id: job.id, draft: job.draft })), sceneJobId: snapshot.scene?.job?.id ?? null });
         signal.throwIfAborted();
         if (action === "publish-jd") {
           const saved = snapshot.jobs.find(job => job.draft === publicationDraft(cwd));
+          await publicationDiagnostic(root, "publication.match", { expectedDraft, matched: Boolean(saved), matchedJobId: saved?.id ?? null });
           if (!saved) throw new Error("浏览器任务已结束，但未找到已发布岗位，请核对网页后重试。");
           task.summary = `“${saved.title}”已发布，${saved.location}，招聘 ${saved.headcount} 人。可以查看招聘进展。`;
         } else task.summary = result.result || "招聘进展已核对，可以查看招聘窗口。";

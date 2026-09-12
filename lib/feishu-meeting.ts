@@ -53,14 +53,14 @@ export function alignmentMeetingDraft(scene: RecruitingScene, now = new Date()):
   return {
     title: `星流科技 · ${job.title}面试标准对齐`,
     startsAt: `${date}T14:00:00+08:00`, endsAt: `${date}T14:30:00+08:00`,
-    description: ["参会人（名单记录）", ...new Set([...insight.interviewers, job.owner]), "", "会议议程", ...agenda.map((item, i) => `${i + 1}. ${item}`)].join("\n"),
+    description: "",
   };
 }
 export async function scheduleFeishuAlignmentMeeting(root: string, scene: RecruitingScene): Promise<FeishuCalendarEvent> {
   const calendar = (await getFeishuDemoClient()).calendar();
   const draft = alignmentMeetingDraft(scene);
   if (computerAvailable()) {
-    if (presentationRoot()) draft.description = computerCalendarDescription(draft.description);
+    if (presentationRoot() && draft.description.trim()) draft.description = computerCalendarDescription(draft.description);
     return ensureFeishuGuiMeeting(root, `alignment-${scene.job?.id}`, draft, calendar);
   }
   if (presentationRoot()) draft.description = demoCalendarDescription(draft.description);

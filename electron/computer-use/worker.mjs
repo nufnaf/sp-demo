@@ -2,6 +2,9 @@ import { ComputerUseDriver } from './driver.mjs';
 import { runCalendarAgent } from './calendar-agent.mjs';
 import { appendFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+const openFeishu = promisify(execFile);
 
 // One process owns the exact target. Renderer subscriptions never own task life.
 let driver, initializing, active, viewing = false, paused = false, waiters = [], stopping = false;
@@ -15,7 +18,13 @@ async function ready() {
 }
 async function selectWindow() {
   await ready();
-  const windows = await driver.listWindows();
+  let windows = await driver.listWindows();
+  if (!windows.some(w => w.title === '创建日程' || (w.title === '飞书' && w.bounds.width > 400))) {
+    await openFeishu('/usr/bin/open', ['-b', 'com.electron.lark'], { timeout: 5000 });
+    const deadline = Date.now() + 15000;
+    do { await new Promise(resolve => setTimeout(resolve, 250)); windows = await driver.listWindows(); }
+    while (Date.now() < deadline && !windows.some(w => w.title === '创建日程' || (w.title === '飞书' && w.bounds.width > 400)));
+  }
   const editors = windows.filter(w => w.title === '创建日程');
   const choices = editors.length ? editors : windows.filter(w => w.title === '飞书' && w.bounds.width > 400);
   if (choices.length !== 1) throw new Error('请打开一个飞书主窗口或日程编辑窗口。');

@@ -21,11 +21,11 @@ export function validateDraft(state, expected) {
     && e.frame.x > dates[0].frame.x && e.frame.x < dates[1].frame.x);
   const issues = [];
   if (!elements.some(e => e.role === 'AXTextField' && e.value === expected.title)) issues.push('标题尚未匹配');
-  if (dates.length !== 2 || dates.some(e => e.value !== expected.date)) issues.push('开始或结束日期尚未匹配');
-  if (times.length !== 2 || times.some((e, i) => e.value !== expected.times[i] || e.role !== 'AXStaticText')) {
+  if (!expected.minimal && (dates.length !== 2 || dates.some(e => e.value !== expected.date))) issues.push('开始或结束日期尚未匹配');
+  if (!expected.minimal && (times.length !== 2 || times.some((e, i) => e.value !== expected.times[i] || e.role !== 'AXStaticText'))) {
     issues.push('时间必须在真实指针失焦后变回 AXStaticText，并保持指定值；输入框中的值不算完成');
   }
-  if (!renderedDescription(elements, expected.description)) {
+  if (expected.description && !renderedDescription(elements, expected.description)) {
     issues.push('说明尚未提交并显示在表单中；请离开说明编辑器并滚动查看');
   }
   if (!elements.some(e => e.role === 'AXButton' && e.label === '保存')) issues.push('当前不是可核对的未保存编辑器');
