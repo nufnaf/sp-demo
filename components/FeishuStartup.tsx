@@ -127,6 +127,10 @@ export function FeishuStartup({ children }: { children: ReactNode }) {
     void prepare(true);
   }, [screen, stage, computer.ready, prepare]);
   useEffect(() => {
+    if (screen !== "desktop" || !computer.ready) return;
+    void fetch("/api/computer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "warmup" }) }).catch(() => {});
+  }, [screen, computer.ready]);
+  useEffect(() => {
     if (stage !== "authorizing" || !flow) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
