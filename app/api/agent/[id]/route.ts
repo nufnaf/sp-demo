@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveSessionPath } from "@/lib/session-reader";
-import { startRpcSession, getRpcSession, setRpcSessionTools } from "@/lib/rpc-manager";
+import { startRpcSession, getRpcSession, setRpcSessionTools, abortPresentationTask, SessionNotFoundError } from "@/lib/rpc-manager";
 
 // POST /api/agent/[id] - Send a command to an existing session
 export async function POST(
@@ -14,6 +14,9 @@ export async function POST(
   try {
     const body = await req.json() as { type: string; [key: string]: unknown };
     commandType = typeof body.type === "string" ? body.type : undefined;
+    if (body.type === "abort" && abortPresentationTask(id)) {
+      return NextResponse.json({ success: true, data: null });
+    }
     const requestedToolNames = body.toolNames;
     if (
       requestedToolNames !== undefined
@@ -65,7 +68,7 @@ export async function POST(
       ...(commandType === "prompt" && !promptAccepted
         ? { code: "prompt_rejected", accepted: false }
         : {}),
-    }, { status: 500 });
+    }, { status: error instanceof SessionNotFoundError ? 404 : 500 });
   }
 }
 

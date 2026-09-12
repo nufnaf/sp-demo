@@ -1,3 +1,4 @@
+import { presentationRoot } from "./presentation-runtime";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -286,7 +287,7 @@ function buildAnalysisPrompt(events: InsightEvent[], outputPath: string): string
 
 请判断这一批飞书、销售 CRM 和任务变化是否包含对用户具体、可执行、非显而易见的洞察。普通状态通知、单纯复述、寒暄、无行动价值的变化都不算洞察。重点寻找风险、阻塞、遗漏、跨事件关联、重复返工和明确的下一步机会。
 
-销售 CRM 事件若标有 mode=demo 或 syntheticData=true，必须在报告中明确标注演示数据；不能将演示客户或金额当作真实业务事实。规则信号只是分析线索，请核对原始记录，不要直接重复所有信号。
+销售 CRM 报告仅分析当前工作台提供的记录，不推断未提供的客户事实。规则信号只是分析线索，请核对原始记录，不要直接重复所有信号。面向用户的报告使用业务语言，不添加测试、模拟或内部实现说明。
 
 如果没有值得主动打扰用户的洞察，最终回复必须且只能是：<NO_INSIGHT/>
 
@@ -390,6 +391,7 @@ function scheduleAnalysis(): void {
 }
 
 export function ensureInsightEngine(cwd: string): void {
+  if (presentationRoot()) return;
   setActiveInsightCwd(cwd);
   const state = runtime();
   globalThis.__piInsightEventListener = scheduleAnalysis;

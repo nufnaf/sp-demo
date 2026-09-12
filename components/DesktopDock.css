@@ -1,0 +1,68 @@
+.agent-os-dock.desktop-dock {
+  overflow: visible;
+  align-items: flex-end;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  isolation: isolate;
+}
+.desktop-dock-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: rgba(255,255,255,.3);
+  will-change: transform;
+  box-shadow: inset 0 1px rgba(255,255,255,.45), 0 8px 24px rgba(20,32,42,.14);
+  backdrop-filter: blur(16px) saturate(1.25);
+}
+.agent-os-dock.desktop-dock > button,
+.agent-os-dock.desktop-dock > button:is(:hover, :focus-visible, :active) {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  will-change: transform;
+  background: transparent;
+  box-shadow: none;
+  transition: none;
+}
+.desktop-dock-scale, .desktop-dock-hit-area {
+  position: absolute;
+  bottom: 0;
+  left: calc(50% - 22px);
+  width: 44px;
+  height: 44px;
+  transform-origin: center bottom;
+  will-change: transform;
+  border-radius: inherit;
+}
+.desktop-dock-scale { pointer-events: none; }
+.desktop-dock-hit-area { pointer-events: auto; }
+.desktop-dock-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,.08);
+}
+.agent-os-dock.desktop-dock > i { align-self: center; flex-shrink: 0; }
+.agent-os-dock.desktop-dock > button::before { font-size: 10px; bottom: calc(100% + 30px); transform: translate(-50%, 4px) scale(var(--dock-item-scale, 1)); transform-origin: center bottom; }
+.agent-os-dock.desktop-dock > button:is(:hover, :focus-visible)::before { opacity: 1; transform: translate(-50%, 0) scale(var(--dock-item-scale, 1)); }
+.agent-os-dock.desktop-dock[data-crowded="true"] { overflow-x: auto; scrollbar-width: none; }
+@media (prefers-reduced-motion: reduce) {
+  .desktop-dock-scale, .desktop-dock-icon, .desktop-dock-hit-area { transform: none !important; }
+  .agent-os-dock.desktop-dock > button::before { transition: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .desktop-dock-backdrop { background: #e7ecef; backdrop-filter: none; }
+}
+
+.agent-os-dock.desktop-dock > button:focus-visible { outline: none; }
+.agent-os-dock.desktop-dock > button:focus-visible .desktop-dock-scale {
+  outline: 2px solid rgba(43,53,59,.72);
+  outline-offset: 3px;
+}

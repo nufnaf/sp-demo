@@ -1,41 +1,31 @@
 "use client";
 
-import { SyntropicMark } from "./SyntropicMark";
+import "./AppStore.css";
+import { AppBrandImage } from "./AppBrandImage";
+import { SystemAppIcon } from "./SystemAppIcon";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import { Bot, Compass, Database, PackageCheck, PanelsTopLeft, Search, type LucideIcon } from "lucide-react";
 import { getLaunchpadApps, type LaunchpadApp } from "@/lib/launchpad-apps";
 import type { AppStoreCatalogResponse, AppStorePackage } from "@/lib/app-store-types";
 
-type StoreSection = "discover" | "enterprise" | "finance" | "legal" | "installed";
+type StoreSection = "discover" | "data" | "office" | "tools" | "installed";
 
-const SECTIONS: Array<{ id: StoreSection; label: string }> = [
-  { id: "discover", label: "发现" },
-  { id: "enterprise", label: "企业协同" },
-  { id: "finance", label: "金融数据" },
-  { id: "legal", label: "法律服务" },
-  { id: "installed", label: "已安装" },
+const SECTIONS: Array<{ id: StoreSection; label: string; icon: LucideIcon }> = [
+  { id: "discover", label: "发现", icon: Compass },
+  { id: "data", label: "数据源", icon: Database },
+  { id: "office", label: "办公应用", icon: PanelsTopLeft },
+  { id: "tools", label: "Agent 工具", icon: Bot },
+  { id: "installed", label: "已安装", icon: PackageCheck },
 ];
 
-function StoreNavIcon({ section }: { section: StoreSection }) {
-  const paths: Record<StoreSection, ReactNode> = {
-    discover: <><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z"/><path d="m19 16 .9 2.6 2.6.9-2.6.9L19 24l-.9-2.6-2.6-.9 2.6-.9Z"/></>,
-    enterprise: <><rect x="4" y="7" width="16" height="13" rx="3"/><path d="M8 7V4h8v3M8 12h8M8 16h5"/></>,
-    finance: <><path d="M4 19V9M9 19V5M14 19v-7M19 19V3"/><path d="M3 21h18"/></>,
-    legal: <><path d="M12 3v18M6 6h12M5 21h14M6 6l-3 7h6ZM18 6l-3 7h6Z"/></>,
-    installed: <path d="m5 12 4 4L19 6"/>,
-  };
-  return <svg viewBox="0 0 24 24" aria-hidden="true">{paths[section]}</svg>;
-}
-
 export function AppStoreBrandIcon({ className = "" }: { className?: string }) {
-  return <span className={`agent-store-brand-icon ${className}`.trim()} aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M7.5 25.5 16 6.5l8.5 19M10.8 18.2h10.4"/></svg></span>;
+  return <SystemAppIcon name="store" className={`agent-store-brand-icon ${className}`.trim()}/>;
 }
 
 function StoreIcon({ item, large = false }: { item: AppStorePackage; large?: boolean }) {
   return <span className={`agent-store-icon is-${item.connectionId ?? "app"}${large ? " is-large" : ""}`} aria-hidden="true">
-    {/* Official brand assets are intentionally loaded without Next image optimization. */}
-    {/* eslint-disable-next-line @next/next/no-img-element */}
-    <img src={item.logoUrl} alt="" referrerPolicy="no-referrer"/>
+    <AppBrandImage appId={item.connectionId} src={item.logoUrl}/>
   </span>;
 }
 
@@ -58,6 +48,16 @@ export function AppStore({ onOpenApp, onNotice }: {
   const [error, setError] = useState<string | null>(null);
   const [installing, setInstalling] = useState<string | null>(null);
   const [refreshRevision, setRefreshRevision] = useState(0);
+  const [showAll, setShowAll] = useState(false);
+  const detailRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!selected) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const dialog = detailRef.current;
+    dialog?.querySelector<HTMLButtonElement>("button")?.focus();
+    return () => previousFocus?.focus();
+  }, [selected]);
 
   const installedNames = useMemo(() => new Set([...installedConnectors].map((id) => `cn.agentos.${id}`)), [installedConnectors]);
 
@@ -82,7 +82,7 @@ export function AppStore({ onOpenApp, onNotice }: {
       void fetch(`/api/app-store?${params}`, { cache: "no-store", signal: controller.signal })
         .then(async (response) => {
           const data = await response.json() as AppStoreCatalogResponse & { error?: string };
-          if (!response.ok) throw new Error(data.error ?? "应用商店暂时不可用");
+          if (!response.ok) throw new Error(data.error ?? "应用市场暂时不可用");
           setCatalog(data);
         })
         .catch((fetchError: unknown) => {
@@ -98,8 +98,10 @@ export function AppStore({ onOpenApp, onNotice }: {
       return (catalog?.packages ?? []).filter((item) => installedNames.has(item.packageName));
     }
     const items = catalog?.packages ?? [];
-    const category = section === "enterprise" ? "企业协同" : section === "finance" ? "金融数据" : section === "legal" ? "法律服务" : null;
-    return category ? items.filter((item) => item.category === category) : items;
+    if (section === "office") return items.filter((item) => item.category === "企业协同");
+    if (section === "data") return items.filter((item) => item.category === "金融数据" || item.category === "法律服务");
+    if (section === "tools") return items.filter((item) => item.types.some((type) => type === "skill" || type === "extension"));
+    return items;
   }, [catalog, installedNames, section]);
 
   const install = async (item: AppStorePackage) => {
@@ -129,47 +131,76 @@ export function AppStore({ onOpenApp, onNotice }: {
     if (app) onOpenApp(app);
   };
 
-  const hero = visiblePackages[0];
-  const list = section === "discover" && !query ? visiblePackages.slice(1) : visiblePackages;
+  const isDiscovery = section === "discover" && !query.trim() && !showAll;
+  const hero = catalog?.packages.find((item) => item.connectionId === "feishu");
+  const list = isDiscovery ? visiblePackages.slice(0, 6) : visiblePackages;
+  const sectionLabel = SECTIONS.find((item) => item.id === section)?.label;
+  const listTitle = query.trim() ? "搜索结果" : isDiscovery ? "团队常用" : showAll && section === "discover" ? "全部应用" : sectionLabel;
+  const selectSection = (id: StoreSection) => { setSection(id); setShowAll(false); };
+  const refresh = () => {
+    void loadInstallations().catch((reason: unknown) => onNotice(reason instanceof Error ? reason.message : "无法读取已安装应用"));
+    setRefreshRevision((value) => value + 1);
+  };
+  const actionLabel = (item: AppStorePackage) => installing === item.packageName ? "安装中…" : installedNames.has(item.packageName) ? "打开" : "安装";
+  const navButton = (item: typeof SECTIONS[number]) => <button key={item.id} type="button" aria-current={section === item.id ? "page" : undefined} onClick={() => selectSection(item.id)} title={item.label} aria-label={item.label}>
+    <span className="agent-store-nav-icon"><item.icon className="agent-store-ui-icon" size={20} strokeWidth={2} aria-hidden="true" focusable="false"/></span><span>{item.label}</span>
+  </button>;
 
   return <div className="agent-store">
     <aside className="agent-store-sidebar">
-      <header><AppStoreBrandIcon className="agent-store-mark"/><div><strong>应用商店</strong><small>Syntropic Apps</small></div></header>
-      <label className="agent-store-sidebar-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索应用" aria-label="搜索应用商店"/></label>
-      <nav aria-label="应用商店分类">{SECTIONS.map((item) => <button key={item.id} type="button" aria-current={section === item.id ? "page" : undefined} onClick={() => setSection(item.id)}><i><StoreNavIcon section={item.id}/></i><span>{item.label}</span></button>)}</nav>
-      <footer><span><SyntropicMark size={20}/></span><div><strong>中国区精选</strong><small>{catalog ? `${catalog.total.toLocaleString()} 个应用` : "正在同步"}</small></div><button type="button" aria-label="同步应用目录" title="同步应用目录" onClick={() => { void loadInstallations(); setRefreshRevision((value) => value + 1); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 9a7 7 0 0 1 11.8-2L20 9M4 15l2.1 2a7 7 0 0 0 11.8-2"/></svg></button></footer>
+      <header><AppStoreBrandIcon className="agent-store-mark"/><strong>应用市场</strong></header>
+      <nav aria-label="应用市场分类"><small>探索</small>{SECTIONS.filter((item) => item.id !== "installed").map(navButton)}</nav>
+      <nav aria-label="我的空间"><small>我的空间</small>{SECTIONS.filter((item) => item.id === "installed").map(navButton)}</nav>
+      <footer><strong>让 Agent 理解你的团队</strong><p>连接常用应用，给工作流补充真实上下文。</p></footer>
     </aside>
 
     <main className="agent-store-main">
-      <div className="agent-store-scroll">
-        <header className="agent-store-title"><small>{SECTIONS.find((item) => item.id === section)?.label}</small><h1>{section === "installed" ? "你的应用" : query ? `“${query}”的搜索结果` : "让 Syntropic 更懂你的工作"}</h1><p>{section === "installed" ? "这里汇总你已经安装的所有应用。" : "探索 Syntropic 应用，安装后会自动出现在启动台。"}</p></header>
+      <div className="agent-store-scroll" aria-busy={loading}>
+        <header className="agent-store-title">
+          <h1>{section === "installed" ? "你的应用" : "扩展 Syntropic"}</h1>
+          <p>{section === "installed" ? "这里汇总你已经安装的所有应用。" : "连接团队正在使用的工具，让 Agent 在授权范围内理解上下文并完成工作。"}</p>
+          <label className="agent-store-search"><Search className="agent-store-ui-icon agent-store-search-icon" size={20} strokeWidth={2} aria-hidden="true" focusable="false"/><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索应用与数据源" aria-label="搜索应用与数据源"/></label>
+        </header>
 
-        {loading && !catalog ? <div className="agent-store-state"><span/>正在同步中国区应用目录…</div> : null}
-        {error ? <div className="agent-store-state is-error"><strong>无法载入应用目录</strong><small>{error}</small></div> : null}
+        {loading && !catalog ? <div className="agent-store-state" role="status"><span/>正在加载应用目录…</div> : null}
+        {error ? <div className="agent-store-state is-error" role="alert"><strong>无法载入应用目录</strong><small>{error}</small><button type="button" onClick={refresh}>重新加载</button></div> : null}
 
-        {!error && hero && section === "discover" && !query ? <button className="agent-store-hero" type="button" onClick={() => setSelected(hero)}>
-          <span><small>中国区精选 · 官方品牌</small><h2>{hero.name}</h2><p>{displayDescription(hero)}</p><em>{hero.downloadsLabel} · 官方接入</em></span>
-          <StoreIcon item={hero} large/>
-        </button> : null}
+        {!error && hero && isDiscovery ? <section className="agent-store-hero">
+          <h2>让工作上下文自然流入 Syntropic</h2>
+          <p>连接飞书文档、会议、任务与多维表格。Agent 可以搜索、引用和更新内容，并保留每一次操作记录。</p>
+          <button type="button" onClick={() => setSelected(hero)}>查看飞书插件 <span aria-hidden="true">↗</span></button>
+        </section> : null}
 
-        {!error && list.length ? <section className="agent-store-featured"><header><h2>{section === "installed" ? "已安装" : "精选应用"}</h2><span>{list.length} 个结果</span></header><div className="agent-store-grid">{list.map((item) => {
-          const installed = installedNames.has(item.packageName);
-          return <article key={item.packageName} onClick={() => setSelected(item)}>
-            <StoreIcon item={item}/><div><strong>{item.name}</strong><small>{item.author} · Syntropic 应用</small><p>{displayDescription(item)}</p><em>{item.downloadsLabel} · 更新于 {item.updatedLabel}</em></div>
-            <button type="button" disabled={installing === item.packageName} onClick={(event) => { event.stopPropagation(); if (installed) openInstalled(item); else void install(item); }}>{installing === item.packageName ? <span className="agent-os-spinner"/> : installed ? "打开" : "获取"}</button>
-          </article>;
-        })}</div></section> : null}
-        {!loading && !error && !list.length ? <div className="agent-store-state"><strong>没有找到应用</strong><small>换一个关键词或分类试试。</small></div> : null}
+        {!error && list.length ? <section className="agent-store-featured" aria-label={listTitle}>
+          <header><h2>{listTitle}</h2>{isDiscovery ? <button type="button" onClick={() => setShowAll(true)}>查看全部</button> : <span aria-live="polite">{loading ? "搜索中…" : `${list.length} 个应用`}</span>}</header>
+          <div className="agent-store-grid">{list.map((item) => <article key={item.packageName}>
+            <button className="agent-store-card-info" type="button" onClick={() => setSelected(item)} aria-label={`查看${item.name}详情`}>
+              <StoreIcon item={item}/><span><strong>{item.name}</strong><small>{item.author}</small></span>
+              <p>{displayDescription(item)}</p>
+            </button>
+            <button className="agent-store-install" type="button" disabled={!!installing} aria-label={`${actionLabel(item)}${item.name}`} onClick={() => installedNames.has(item.packageName) ? openInstalled(item) : void install(item)}>{actionLabel(item)}</button>
+          </article>)}</div>
+        </section> : null}
+        {!loading && !error && !list.length ? <div className="agent-store-state" role="status"><strong>{section === "tools" && !query.trim() ? "暂无 Agent 工具" : "没有找到应用"}</strong><small>{section === "tools" && !query.trim() ? "新的 Agent 工具将在这里上架。" : "换一个关键词或分类试试。"}</small></div> : null}
       </div>
     </main>
 
-    {selected ? <section className="agent-store-detail" role="dialog" aria-modal="true" aria-label={`${selected.name} 详情`} onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}><article>
+    {selected ? <div className="agent-store-detail" role="dialog" aria-modal="true" aria-label={`${selected.name}详情`} ref={detailRef}
+      onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") { event.stopPropagation(); setSelected(null); }
+        if (event.key !== "Tab") return;
+        const focusable = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), a[href]"));
+        const first = focusable[0]; const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }}><article>
       <button className="agent-store-detail-close" type="button" aria-label="关闭详情" onClick={() => setSelected(null)}>×</button>
-      <header><StoreIcon item={selected} large/><div><h2>{selected.name}</h2><p>{selected.packageName}</p><small>{selected.author} · {selected.downloadsLabel}</small></div><button type="button" disabled={installing === selected.packageName} onClick={() => installedNames.has(selected.packageName) ? openInstalled(selected) : void install(selected)}>{installing === selected.packageName ? "安装中…" : installedNames.has(selected.packageName) ? "打开" : "获取"}</button></header>
+      <header><StoreIcon item={selected} large/><div><h2>{selected.name}</h2><p>{selected.author}</p><small>{selected.delivery === "builtin" ? "Syntropic 内置应用" : selected.category}</small></div><button className="agent-store-install" type="button" disabled={!!installing} onClick={() => installedNames.has(selected.packageName) ? openInstalled(selected) : void install(selected)}>{actionLabel(selected)}</button></header>
       <p>{displayDescription(selected)}</p>
       {selected.capabilities?.length ? <div className="agent-store-capabilities">{selected.capabilities.map((capability) => <span key={capability}>{capability}</span>)}</div> : null}
-      <div className="agent-store-detail-meta"><span><small>兼容性</small><strong>Syntropic</strong></span><span><small>更新</small><strong>{selected.updatedLabel}</strong></span><span><small>来源</small><strong>官方/企业连接器</strong></span></div>
-      <footer><a href={selected.catalogUrl} target="_blank" rel="noreferrer">官方接入文档</a></footer>
-    </article></section> : null}
+      <div className="agent-store-detail-meta"><span><small>兼容性</small><strong>Syntropic</strong></span><span><small>更新</small><strong>{selected.updatedLabel}</strong></span><span><small>来源</small><strong>{selected.author}</strong></span></div>
+      <footer><a href={selected.catalogUrl} target="_blank" rel="noreferrer">查看接入文档 ↗</a></footer>
+    </article></div> : null}
   </div>;
 }

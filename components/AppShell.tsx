@@ -94,6 +94,7 @@ export function AppShell({ initialSessionId: embeddedInitialSessionId }: AppShel
   // which suspends page JS and never receives the SSE completion event).
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) return;
+    if ("syntropicDesktop" in window) return;
     if (Notification.permission !== "granted") return;
     void setupPushSubscription(locale);
   }, [locale]);
@@ -739,6 +740,7 @@ export function AppShell({ initialSessionId: embeddedInitialSessionId }: AppShel
     body: string;
     tag?: string;
   }) => {
+    if ("syntropicDesktop" in window) return;
     if (!("Notification" in window)) return;
 
     const fire = () => {

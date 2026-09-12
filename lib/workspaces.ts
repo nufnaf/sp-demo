@@ -1,7 +1,7 @@
+import { presentationRoot, isPresentationCwd, applicationDataDir } from "./presentation-runtime";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { writePrivateFileAtomicSync } from "./atomic-file";
 
 export interface ManagedWorkspace {
@@ -18,7 +18,7 @@ interface WorkspaceRegistry {
 
 const MANAGED_DIRECTORY_PATTERN = /^pi-cwd-\d{8}(?:-\d{6}(?:-\d+)?)?$/;
 
-export function getWorkspaceRegistryPath(agentDir = getAgentDir()): string {
+export function getWorkspaceRegistryPath(agentDir = applicationDataDir()): string {
   return join(agentDir, "workspaces.json");
 }
 
@@ -52,6 +52,7 @@ function writeRegistry(registry: WorkspaceRegistry, registryPath = getWorkspaceR
 }
 
 export function isManagedWorkspacePath(cwd: string, home = homedir()): boolean {
+  if (presentationRoot()) return isPresentationCwd(cwd);
   const resolved = resolve(cwd);
   return dirname(resolved) === resolve(home) && MANAGED_DIRECTORY_PATTERN.test(basename(resolved));
 }
@@ -61,6 +62,7 @@ export function listManagedWorkspaces(
   registryPath = getWorkspaceRegistryPath(),
 ): ManagedWorkspace[] {
   const registry = readRegistry(registryPath);
+  if (presentationRoot()) return registry.workspaces.filter((workspace) => isPresentationCwd(workspace.cwd) && existsSync(workspace.cwd));
   const byCwd = new Map(
     registry.workspaces
       .filter((workspace) => isManagedWorkspacePath(workspace.cwd, home) && existsSync(workspace.cwd))
@@ -89,6 +91,7 @@ export function createManagedWorkspace(
   registryPath = getWorkspaceRegistryPath(),
   now = new Date(),
 ): ManagedWorkspace {
+  if (presentationRoot()) { home = join(presentationRoot()!, "workspaces"); mkdirSync(home, { recursive: true }); }
   const stamp = now.toISOString().replace(/[-:]/g, "").slice(0, 15).replace("T", "-");
   let suffix = 0;
   let cwd = join(home, `pi-cwd-${stamp}`);

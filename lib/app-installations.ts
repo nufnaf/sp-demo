@@ -1,10 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { applicationDataDir } from "./presentation-runtime";
 import { isChinaConnectorAppId, type ChinaConnectorAppId } from "./china-apps";
 
-const INSTALLATIONS_PATH = join(getAgentDir(), "app-installations.json");
+const INSTALLATIONS_PATH = join(applicationDataDir(), "app-installations.json");
 
 interface InstallationFile {
   version: 1;

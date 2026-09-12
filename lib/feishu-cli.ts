@@ -1,13 +1,10 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { promisify } from "node:util";
-import { runNpm, runNpx } from "./npx";
+import { feishuCommand, feishuEnvironment } from "./feishu-paths";
 
 const execFileAsync = promisify(execFile);
-const LARK_ENV = { ...process.env, LARKSUITE_CLI_NO_UPDATE_NOTIFIER: "1", LARKSUITE_CLI_NO_SKILLS_NOTIFIER: "1" };
+
 
 export interface FeishuCliStatus {
   installed: boolean;
@@ -16,13 +13,14 @@ export interface FeishuCliStatus {
   authState: "authenticated" | "not_authenticated" | "unknown";
   authDetail: string;
   account?: string;
+  identity?: string;
+  authorization?: { flow: FeishuAuthFlow; result: FeishuLoginResult };
 }
 
 export interface FeishuAuthFlow {
   flowId?: string;
   kind: "configuration" | "permission" | "login";
   verificationUrl: string;
-  qrCodeDataUrl: string;
 }
 
 export interface FeishuDocument {
@@ -58,7 +56,8 @@ export class FeishuDocumentsError extends Error {
   }
 }
 
-interface PendingLogin { deviceCode: string; completion?: Promise<void> }
+export interface FeishuLoginResult { state: "pending" | "succeeded" | "failed" | "expired"; message?: string; missingScopes?: string[] }
+interface PendingLogin { deviceCode: string; controller: AbortController; completion?: Promise<void>; flow: FeishuAuthFlow; result: FeishuLoginResult; createdAt: number }
 interface FeishuRuntimeState {
   configurationProcess: ChildProcessWithoutNullStreams | null;
   configurationFlow: Promise<FeishuAuthFlow> | null;
@@ -124,10 +123,10 @@ function cleanSearchText(value: string | undefined): string | undefined {
   return clean || undefined;
 }
 
-function larkCommand(): string { return process.platform === "win32" ? "lark-cli.cmd" : "lark-cli"; }
+const larkCommand = feishuCommand;
 
-async function runLarkCli(args: string[], timeout = 12_000, cwd?: string): Promise<{ stdout: string; stderr: string }> {
-  return execFileAsync(larkCommand(), args, { timeout, cwd, env: LARK_ENV, shell: process.platform === "win32", windowsHide: true });
+export async function runLarkCli(args: string[], timeout = 12_000, cwd?: string, signal?: AbortSignal): Promise<{ stdout: string; stderr: string }> {
+  return execFileAsync(larkCommand(), args, { timeout, cwd, signal, maxBuffer: 8 * 1024 * 1024, env: feishuEnvironment(), shell: process.platform === "win32", windowsHide: true });
 }
 
 function commandFailure(error: unknown): { output: string; json: Record<string, unknown> | null } {
@@ -136,29 +135,33 @@ function commandFailure(error: unknown): { output: string; json: Record<string, 
   return { output, json: parseJson(failure.stderr || failure.stdout || "") };
 }
 
-export async function getFeishuCliStatus(): Promise<FeishuCliStatus> {
+export async function getFeishuCliStatus(verify = true): Promise<FeishuCliStatus> {
   let version = "";
   try {
     const result = await runLarkCli(["--version"], 5_000);
     version = compactOutput(result.stdout || result.stderr);
+    if (!/\b1\.0\.95\b/.test(version)) return { installed: false, configured: false, authState: "unknown", authDetail: "飞书连接组件版本不匹配，请更新完整 App。" };
   } catch {
     return { installed: false, configured: false, authState: "unknown", authDetail: "尚未安装飞书 CLI。" };
   }
 
   try {
-    const result = await runLarkCli(["auth", "status", "--json", "--verify"]);
+    const result = await runLarkCli(["auth", "status", "--json", ...(verify ? ["--verify"] : [])]);
     const body = parseJson(result.stdout);
     const identities = asRecord(body?.identities);
     const user = asRecord(identities?.user);
     const userStatus = directString(user, ["tokenStatus", "token_status", "status"]);
     const account = directString(user, ["userName", "user_name"]);
-    const authenticated = user?.verified === true && user.available !== false
-      || /^(valid|active|authenticated|logged[_ -]?in|ready)$/i.test(userStatus ?? "") && user?.available !== false;
+    const authenticated = verify ? user?.verified === true && user.available === true : user?.available === true && /^(valid|needs_refresh|ready)$/.test(userStatus ?? "");
+    const uncertain = verify && directString(user, ["status"]) === "verify_failed";
+    const openId = directString(user, ["openId"]);
+    const appId = directString(body, ["appId"]);
     return {
       installed: true, configured: true, version: version || undefined,
-      authState: authenticated ? "authenticated" : "not_authenticated",
-      authDetail: authenticated ? "飞书用户身份已验证，可直接使用内置 CLI 能力。" : "应用配置已完成，请扫码登录飞书账号。",
+      authState: authenticated ? "authenticated" : uncertain ? "unknown" : "not_authenticated",
+      authDetail: authenticated ? "飞书账号已连接。" : uncertain ? "暂时无法验证飞书连接，请检查网络后重试，或重新授权。" : "请连接自己的飞书账号。",
       account,
+      identity: authenticated && appId && openId ? createHash("sha256").update(`${appId}:${openId}`).digest("hex") : undefined,
     };
   } catch (error) {
     const failure = commandFailure(error);
@@ -166,31 +169,26 @@ export async function getFeishuCliStatus(): Promise<FeishuCliStatus> {
     const notConfigured = subtype === "not_configured" || /not configured|config init/i.test(failure.output);
     return {
       installed: true, configured: !notConfigured, version: version || undefined,
-      authState: notConfigured ? "unknown" : "not_authenticated",
-      authDetail: notConfigured ? "需要先创建或绑定飞书应用。" : "应用已配置，请扫码登录飞书账号。",
+      authState: notConfigured ? "not_authenticated" : "unknown",
+      authDetail: notConfigured ? "请连接自己的飞书账号。" : "暂时无法验证飞书连接，请检查网络后重试。",
     };
   }
 }
 
-let installation: Promise<FeishuCliStatus> | null = null;
-export function installFeishuCli(): Promise<FeishuCliStatus> {
-  if (installation) return installation;
-  installation = (async () => {
-    await runNpm(["install", "--global", "@larksuite/cli"], { timeout: 3 * 60_000 });
-    await runNpx(["-y", "skills", "add", "https://open.feishu.cn", "--skill", "-y"], { timeout: 3 * 60_000 });
-    return getFeishuCliStatus();
-  })().finally(() => { installation = null; });
-  return installation;
+export async function installFeishuCli(): Promise<FeishuCliStatus> {
+  throw new Error("飞书连接组件缺失，请重新安装完整的 Syntropic App。");
 }
 
-async function generateQrCode(url: string): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), "pi-web-feishu-qr-"));
-  const fileName = "qrcode.png";
-  try {
-    await runLarkCli(["auth", "qrcode", url, "--output", fileName, "--size", "320"], 15_000, directory);
-    const image = await readFile(join(directory, fileName));
-    return `data:image/png;base64,${image.toString("base64")}`;
-  } finally { await rm(directory, { recursive: true, force: true }); }
+/** Clear the local user session so the next launch starts a complete connection flow. */
+export async function resetFeishuAuthorization(): Promise<void> {
+  const completions = [...runtime.pendingLogins.values()].flatMap(pending => pending.completion ? [pending.completion] : []);
+  const child = runtime.configurationProcess;
+  if (child && child.exitCode === null && child.signalCode === null) {
+    completions.push(new Promise<void>(resolve => child.once("close", () => resolve())));
+  }
+  cancelFeishuConfiguration();
+  await Promise.allSettled(completions);
+  try { await runLarkCli(["auth", "logout", "--json"], 15_000); } catch { /* Already logged out or unavailable network: local reset still proceeds. */ }
 }
 
 function extractVerificationUrl(output: string): string | undefined {
@@ -202,11 +200,21 @@ function extractVerificationUrl(output: string): string | undefined {
   return clean.match(/https?:\/\/[^\s"'<>]+/)?.[0];
 }
 
+/** Only official Feishu/Lark https links may be handed to the system browser. */
+function browserUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    const official = ["feishu.cn", "larksuite.com"].some(host => url.hostname === host || url.hostname.endsWith(`.${host}`));
+    return url.protocol === "https:" && !url.username && !url.password && official ? url.href : undefined;
+  } catch { return undefined; }
+}
+
 function waitForConfigurationUrl(process: ChildProcessWithoutNullStreams): Promise<string> {
   return new Promise((resolve, reject) => {
     let output = "";
     let settled = false;
-    const timer = setTimeout(() => fail(new Error("等待飞书配置二维码超时，请重试。")), 20_000);
+    const timer = setTimeout(() => { process.kill(); fail(new Error("等待飞书应用配置地址超时，请重试。")); }, 30_000);
     const fail = (error: Error) => {
       if (settled) return;
       settled = true;
@@ -215,7 +223,7 @@ function waitForConfigurationUrl(process: ChildProcessWithoutNullStreams): Promi
     };
     const inspect = (chunk: Buffer) => {
       output += chunk.toString("utf8");
-      const url = extractVerificationUrl(output);
+      const url = browserUrl(extractVerificationUrl(output));
       if (url && !settled) {
         settled = true;
         clearTimeout(timer);
@@ -225,40 +233,43 @@ function waitForConfigurationUrl(process: ChildProcessWithoutNullStreams): Promi
     process.stdout.on("data", inspect);
     process.stderr.on("data", inspect);
     process.once("error", fail);
-    process.once("exit", (code) => fail(new Error(compactOutput(output) || `飞书应用配置进程已退出（${code ?? "unknown"}）`)));
+    process.once("exit", (code) => fail(new Error(`飞书应用配置进程已退出（${code ?? "unknown"}），请重试。`)));
   });
 }
 
 export function startFeishuConfiguration(): Promise<FeishuAuthFlow> {
   if (runtime.configurationFlow) return runtime.configurationFlow;
   const child = spawn(larkCommand(), ["config", "init", "--new", "--brand", "feishu", "--lang", "zh_cn"], {
-    env: LARK_ENV, shell: process.platform === "win32", windowsHide: true,
+    env: feishuEnvironment(), shell: process.platform === "win32", windowsHide: true,
   });
   runtime.configurationProcess = child;
-  child.once("exit", () => { runtime.configurationProcess = null; runtime.configurationFlow = null; });
+  child.once("exit", () => { if (runtime.configurationProcess === child) { runtime.configurationProcess = null; runtime.configurationFlow = null; } });
   runtime.configurationFlow = waitForConfigurationUrl(child).then(async (verificationUrl) => ({
-    kind: "configuration" as const, verificationUrl, qrCodeDataUrl: await generateQrCode(verificationUrl),
-  }));
+    kind: "configuration" as const, verificationUrl,
+  })).catch(error => { cancelFeishuConfiguration(); throw error; });
   return runtime.configurationFlow;
 }
 
+/** All business domains are requested, so the browser can show one complete permission page. */
 export async function startFeishuLogin(): Promise<FeishuAuthFlow> {
+  cancelFeishuConfiguration();
   let result: { stdout: string; stderr: string };
   try {
-    result = await runLarkCli(["auth", "login", "--recommend", "--scope", "search:docs:read", "--no-wait", "--json"], 20_000);
+    result = await runLarkCli(["auth", "login", "--domain", "all", "--no-wait", "--json"], 20_000);
   } catch (error) {
     const failure = commandFailure(error);
-    const consoleUrl = deepString(failure.json, ["console_url"]);
-    if (consoleUrl) return { kind: "permission", verificationUrl: consoleUrl, qrCodeDataUrl: await generateQrCode(consoleUrl) };
-    throw new Error(compactOutput(failure.output) || "无法发起飞书授权，请重试。");
+    const consoleUrl = browserUrl(deepString(failure.json, ["console_url"]));
+    if (consoleUrl) return { kind: "permission", verificationUrl: consoleUrl };
+    throw new Error("无法发起飞书授权，请检查网络或应用权限后重试。");
   }
   const body = parseJson(result.stdout);
-  const verificationUrl = deepString(body, ["verification_url", "verification_uri_complete", "verification_uri"]);
+  const verificationUrl = browserUrl(deepString(body, ["verification_url", "verification_uri_complete", "verification_uri"]));
   const deviceCode = deepString(body, ["device_code"]);
   if (!verificationUrl || !deviceCode) throw new Error("飞书 CLI 没有返回有效的授权地址，请重试。");
   const flowId = randomUUID();
-  runtime.pendingLogins.set(flowId, { deviceCode });
-  return { flowId, kind: "login", verificationUrl, qrCodeDataUrl: await generateQrCode(verificationUrl) };
+  const flow: FeishuAuthFlow = { flowId, kind: "login", verificationUrl };
+  runtime.pendingLogins.set(flowId, { deviceCode, controller: new AbortController(), flow, result: { state: "pending" }, createdAt: Date.now() });
+  return flow;
 }
 
 function documentError(error: unknown): FeishuDocumentsError {
@@ -267,12 +278,12 @@ function documentError(error: unknown): FeishuDocumentsError {
   const consoleUrl = deepString(failure.json, ["console_url"]);
   const missingScopes = deepValue(failure.json, ["missing_scopes"]);
   if (subtype === "token_missing" || subtype === "not_authenticated") {
-    return new FeishuDocumentsError("请先扫码登录飞书账号，再查看云文档。", "not_authenticated");
+    return new FeishuDocumentsError("请先连接飞书账号，再查看云文档。", "not_authenticated");
   }
   if (subtype === "missing_scope" || subtype === "app_scope_not_applied" || Array.isArray(missingScopes)) {
     return new FeishuDocumentsError("需要启用云文档搜索权限后重新授权。", "missing_scope", consoleUrl);
   }
-  return new FeishuDocumentsError(compactOutput(failure.output) || "读取飞书云文档失败，请稍后重试。", "cli_error");
+  return new FeishuDocumentsError("读取飞书云文档失败，请检查连接与授权后重试。", "cli_error");
 }
 
 function searchResults(value: unknown): unknown[] {
@@ -368,11 +379,59 @@ export async function getFeishuDocumentActivities(kind: "opened" | "edited"): Pr
   });
 }
 
+export function getFeishuLoginResult(flowId: string): FeishuLoginResult {
+  const pending = runtime.pendingLogins.get(flowId);
+  if (!pending) return { state: "expired", message: "授权流程已失效，请重新连接。" };
+  if (pending.result.state === "pending" && Date.now() - pending.createdAt > 10 * 60_000) {
+    pending.result = { state: "expired", message: "授权已超时，请重新连接。" };
+    pending.controller.abort();
+  }
+  return pending.result;
+}
+export function activeFeishuAuthorization(): FeishuCliStatus["authorization"] {
+  const entry = [...runtime.pendingLogins.entries()].at(-1);
+  return entry ? { flow: entry[1].flow, result: getFeishuLoginResult(entry[0]) } : undefined;
+}
+export function assertFeishuAuthorizationComplete(): void {
+  const auth = activeFeishuAuthorization();
+  if (auth && auth.result.state !== "succeeded") throw new Error(auth.result.message || "请先在浏览器中完成本次飞书授权。");
+}
+/** v1.0.95 saves the new token and emits this event even when optional scopes
+ * were declined. In that case it exits with ExitAuth (3), not zero. Never use
+ * auth status here: it might describe a token from an earlier login. */
+function completedAuthorization(stdout: string): FeishuLoginResult | undefined {
+  const body = parseJson(stdout);
+  if (body?.event !== "authorization_complete" || !directString(body, ["user_open_id"]) ||
+      !Array.isArray(body.granted) || !body.granted.every(scope => typeof scope === "string") ||
+      !Array.isArray(body.missing) || !body.missing.every(scope => typeof scope === "string")) return;
+  return { state: "succeeded", ...(body.missing.length ? { missingScopes: body.missing as string[] } : {}) };
+}
 export function completeFeishuLogin(flowId: string): void {
   const pending = runtime.pendingLogins.get(flowId);
-  if (!pending) throw new Error("授权流程已过期，请重新扫码。");
-  if (pending.completion) return;
-  pending.completion = runLarkCli(["auth", "login", "--device-code", pending.deviceCode], 10 * 60_000)
-    .then(() => undefined, () => undefined)
-    .finally(() => runtime.pendingLogins.delete(flowId));
+  if (!pending) throw new Error("授权流程已过期，请重新连接飞书。");
+  if (pending.completion || getFeishuLoginResult(flowId).state !== "pending") return;
+  pending.completion = runLarkCli(["auth", "login", "--device-code", pending.deviceCode, "--json"], 10 * 60_000, undefined, pending.controller.signal)
+    .then(result => {
+      if (!pending.controller.signal.aborted) pending.result = completedAuthorization(result.stdout) ?? {
+        state: "failed", message: "未能确认本次飞书授权结果，请重新连接。",
+      };
+    }, error => {
+      if (pending.controller.signal.aborted) return;
+      const command = error as { code?: number; stdout?: string };
+      const completed = command.code === 3 ? completedAuthorization(command.stdout ?? "") : undefined;
+      if (completed) { pending.result = completed; return; }
+      const failure = commandFailure(error);
+      const missing = deepString(failure.json, ["subtype"]) === "missing_scope" || /missing.scope|not.granted|未授予|未授权/i.test(failure.output);
+      pending.result = { state: "failed", message: missing
+        ? "飞书尚未完成账号授权，请检查页面上的权限提示后重试。"
+        : "本次飞书授权未完成或已被取消，请重新授权。" };
+    });
+}
+
+export function cancelFeishuConfiguration(): void {
+  for (const pending of runtime.pendingLogins.values()) pending.controller.abort();
+  runtime.pendingLogins.clear();
+  runtime.configurationProcess?.kill();
+  runtime.configurationProcess = null;
+  runtime.configurationFlow = null;
 }

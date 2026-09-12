@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { existsSync } from "fs";
-import { randomUUID } from "crypto";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
 import { allowFileRoot } from "@/lib/file-access";
 import { invalidateSessionListCache, resolveSessionPath } from "@/lib/session-reader";
@@ -54,13 +53,15 @@ export async function POST(request: Request) {
         return NextResponse.json({ sessionId: remembered, created: false, tasks: listJarvisTasks(remembered) });
       }
       const sessionFile = await resolveSessionPath(remembered);
-      if (sessionFile) {
+      if (sessionFile && existsSync(sessionFile)) {
         await startRpcSession(remembered, sessionFile, undefined);
         return NextResponse.json({ sessionId: remembered, created: false, tasks: listJarvisTasks(remembered) });
       }
     }
 
-    const { realSessionId } = await startRpcSession(`__jarvis__${randomUUID()}`, "", cwd, { role: "jarvis" });
+    // Concurrent desktop mounts must share one creation, so both clients and
+    // the registry agree on the active conversation for this workspace.
+    const { realSessionId } = await startRpcSession(`__jarvis__${cwd}`, "", cwd, { role: "jarvis" });
     writeJarvisSessionId(cwd, realSessionId);
     allowFileRoot(cwd);
     invalidateSessionListCache();

@@ -5,10 +5,12 @@ import { isEditToolName, isWriteToolName } from "./tool-names";
 export interface WrittenFile {
   /** Resolved absolute path of a file this turn wrote. */
   filePath: string;
+  /** Completion time from the successful write result, independent of later session activity. */
+  writtenAt?: number;
 }
 
 function isFileWritingToolName(toolName: string): boolean {
-  return isWriteToolName(toolName) || isEditToolName(toolName);
+  return isWriteToolName(toolName) || isEditToolName(toolName) || toolName === "save_recruiting_jd";
 }
 
 function readToolPath(input: Record<string, unknown> | undefined): string | null {
@@ -53,7 +55,7 @@ export function extractTurnWrittenFiles(
 
     if (seen.has(filePath)) continue;
     seen.add(filePath);
-    writtenFiles.push({ filePath });
+    writtenFiles.push({ filePath, ...(Number.isFinite(result.timestamp) ? { writtenAt: result.timestamp } : {}) });
   }
 
   return writtenFiles;

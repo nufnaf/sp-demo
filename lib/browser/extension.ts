@@ -1,10 +1,13 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool, type InlineExtension } from "@earendil-works/pi-coding-agent";
 import { getBrowserManager } from "./manager";
+import { startBrowserTask } from "./tasks";
+import { recruitingBrowserContext } from "./business-sites";
+import { recruitingPublicationTask } from "./recruiting-publication";
 
 export const BROWSER_EXTENSION_NAME = "pi-web-browser";
 export const BROWSER_READ_TOOL_NAMES = ["browser_open", "browser_tabs", "browser_navigate", "browser_snapshot", "browser_screenshot"] as const;
-export const BROWSER_MUTATING_TOOL_NAMES = ["browser_act"] as const;
+export const BROWSER_MUTATING_TOOL_NAMES = ["browser_act", "browser_task"] as const;
 
 function result(text: string, details?: unknown, isError = false) {
   return {
@@ -18,12 +21,49 @@ function failure(error: unknown) {
   return result(error instanceof Error ? error.message : String(error), undefined, true);
 }
 
-export function createBrowserExtension(): InlineExtension {
+export function createBrowserExtension(taskOnly = false): InlineExtension {
   return {
     name: BROWSER_EXTENSION_NAME,
     hidden: true,
     factory(pi) {
       const manager = getBrowserManager();
+      pi.registerTool(defineTool({
+        name: "browser_task",
+        label: "委派网页任务",
+        description: "Delegate a COMPLETE website task to the dedicated browser Agent. It opens the visible in-app browser, performs real agent-browser interactions, verifies the result, and returns it. Use for multi-step browsing, filtering, entering details and submitting forms instead of planning each click yourself.",
+        promptSnippet: "Delegate complete website workflows to browser_task (dedicated browser Agent)",
+        promptGuidelines: [
+          recruitingBrowserContext(),
+          "For a multi-step website task, call browser_task once with the full user goal, starting URL, exact record criteria and form content. Wait for its result and summarize it; do not perform the individual browser clicks yourself.",
+          "For internal recruitment publication from a JD file, pass jd_file and a short publishing goal. The tool reads the full document for the browser Agent; do not read or copy its body into task. jd_file only supports the registered recruiting publication page and files inside the current workspace.",
+          "Do not replace browser tasks with bash, scripts, direct website APIs, or simulated actions. Task pages are isolated from manual browsing and other tasks.",
+          "Only report success when browser_task reports completed. If it fails, report its blocker accurately without fabricating a successful save.",
+        ],
+        parameters: Type.Object({
+          url: Type.String(),
+          task: Type.String({ minLength: 1, maxLength: 12000 }),
+          jd_file: Type.Optional(Type.String({ minLength: 1, description: "JD artifact path in this workspace, only for internal recruitment publication. The tool supplies the complete file content." })),
+        }),
+        async execute(_id, params, signal, onUpdate, ctx) {
+          try {
+            const task = params.jd_file
+              ? await recruitingPublicationTask(ctx.cwd, params.url, params.jd_file)
+              : params.task;
+            signal?.throwIfAborted();
+            const run = startBrowserTask({ cwd: ctx.cwd, parentSessionId: ctx.sessionManager.getSessionId(), url: params.url, task }, signal);
+            const unsubscribe = manager.subscribe((event) => {
+              if (event.type === "browser.task" && event.task.id === run.state.id) {
+                onUpdate?.(result(`${event.task.progress} · ${event.task.steps} 步 · ${event.task.modelId}`, event.task));
+              }
+            });
+            try {
+              const task = await run.completion;
+              return result(JSON.stringify({ id: task.id, status: task.status, result: task.result, error: task.error }), task, task.status !== "completed");
+            } finally { unsubscribe(); }
+          } catch (error) { return failure(error); }
+        },
+      }));
+      if (taskOnly) return;
       pi.registerTool(defineTool({
         name: "browser_open",
         label: "Open browser",

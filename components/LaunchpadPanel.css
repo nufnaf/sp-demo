@@ -1,0 +1,83 @@
+/* Apps floats above the workspace, below the existing menu bar and Dock. */
+.agent-os-launchpad {
+  position:absolute; z-index:155; inset:44px 0 0; min-height:0;
+  display:flex; align-items:center; justify-content:center;
+  padding:24px 28px 180px; background:rgba(33,48,49,.12);
+  backdrop-filter:blur(8px); animation:launchpad-backdrop-in 180ms ease both;
+}
+.launchpad-panel {
+  --launcher-text:#273632; --launcher-muted:#6c7773;
+  position:relative; width:min(960px,100%); height:min(640px,100%); min-height:0;
+  display:flex; flex-direction:column; overflow:hidden;
+  border:1px solid rgba(255,255,255,.8); border-radius:30px;
+  color:var(--launcher-text); background:linear-gradient(145deg,rgba(253,255,254,.9),rgba(236,245,240,.86));
+  backdrop-filter:blur(42px) saturate(1.3);
+  box-shadow:inset 0 1px 0 white,0 24px 80px rgba(25,49,40,.2),0 4px 16px rgba(25,49,40,.08);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif;
+  animation:launchpad-panel-in 220ms cubic-bezier(.2,.8,.2,1) both;
+}
+.launchpad-panel button,.launchpad-panel input{font:inherit}
+.launchpad-panel button{cursor:pointer}
+.launchpad-heading{display:flex;align-items:center;justify-content:space-between;flex-shrink:0;padding:24px 28px 18px}
+.launchpad-heading>div{display:flex;align-items:center;gap:10px}
+.launchpad-heading h1{margin:0;font-size:20px;line-height:1.3;font-weight:600;letter-spacing:-.02em}
+.launchpad-heading-icon{display:grid;place-items:center;color:#577267}
+.launchpad-close{width:30px;height:30px;padding:0;border:0;border-radius:50%;display:grid;place-items:center;color:#66726c;background:rgba(87,112,100,.08)}
+.launchpad-search{height:52px;flex-shrink:0;margin:0 28px;display:flex;align-items:center;gap:12px;padding:0 16px;border:1px solid rgba(89,112,101,.13);border-radius:15px;background:rgba(255,255,255,.6);color:#78877f;box-shadow:0 1px 2px #28463404;transition:box-shadow 150ms,border-color 150ms}
+.launchpad-search:focus-within{border-color:rgba(58,131,104,.4);box-shadow:0 0 0 3px rgba(64,136,106,.08)}
+.launchpad-search input{width:0;flex:1;min-width:0;height:100%;padding:0;border:0;outline:0;background:transparent;color:var(--launcher-text);font-size:16px}
+.launchpad-search input::placeholder{color:#87918b}
+.launchpad-search button{display:grid;place-items:center;width:26px;height:26px;border:0;border-radius:50%;padding:0;background:#6e817019;color:#738078}
+.launchpad-categories{flex-shrink:0;display:flex;gap:5px;margin:18px 28px 0;padding:0 0 16px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid rgba(68,95,80,.1)}
+.launchpad-categories::-webkit-scrollbar{display:none}
+.launchpad-categories button{flex-shrink:0;height:32px;padding:0 13px;border:0;border-radius:9px;white-space:nowrap;background:transparent;color:var(--launcher-muted);font-size:12px;font-weight:500;transition:background 140ms,color 140ms}
+.launchpad-categories button[aria-pressed="true"]{color:#254e3e;background:rgba(104,144,120,.14);box-shadow:inset 0 0 0 1px rgba(85,123,99,.07)}
+.agent-os-launchpad-grid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));align-content:start;gap:18px 8px;margin:0;padding:24px 24px 28px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#6e86792b transparent;outline:none}
+.agent-os-launchpad-app{display:flex;flex-direction:column;align-items:center;min-width:0;border-radius:16px;padding:12px 4px 10px;outline:none;cursor:pointer;-webkit-user-select:none;user-select:none;transition:background 150ms}
+.agent-os-launchpad-app strong{display:block;max-width:100%;margin-top:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--launcher-text);font-size:12px;font-weight:500;line-height:17px;text-align:center}
+.agent-os-launchpad-icon{width:68px;height:68px;flex-shrink:0;border:1px solid #fff9;border-radius:18px;display:grid;place-items:center;color:white;background:#626d76;box-shadow:0 2px 4px #263d3010,0 7px 15px #263d3012;transition:transform 150ms,filter 150ms}
+.agent-os-launchpad-icon svg{width:43px;height:43px;display:block;fill:currentColor}
+.agent-os-launchpad-icon img{width:76%;height:76%;display:block;object-fit:contain}
+.agent-os-launchpad-icon.is-official-icon{overflow:hidden;border:0;background:white}
+.agent-os-launchpad-icon.is-official-icon img{width:100%;height:100%;border-radius:inherit;object-fit:contain}
+.agent-os-launchpad-icon.is-huayu-law{background:#184d69}
+.agent-os-launchpad-icon.is-github,.agent-os-launchpad-icon.is-notion{color:#181717;background:white}
+.agent-os-launchpad-icon.is-figma{background:#242424}.agent-os-launchpad-icon.is-slack{background:#611f69}.agent-os-launchpad-icon.is-linear{background:#5e6ad2}.agent-os-launchpad-icon.is-google,.agent-os-launchpad-icon.is-feishu{background:white}
+.agent-os-launchpad-icon.is-system{color:#25382f;padding:0;border:0;background:transparent;box-shadow:none;overflow:visible}
+.agent-os-launchpad-icon.is-system > svg{width:60%;height:60%;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.agent-os-launchpad-app[data-pressed] .agent-os-launchpad-icon{transform:scale(.94);filter:brightness(.96)}
+.agent-os-launchpad-app[data-focus-visible]{outline:2px solid #52826b;outline-offset:-2px;background:#83a98f16}
+.launchpad-panel button:focus-visible{outline:2px solid #52826b;outline-offset:2px}
+.agent-os-launchpad-grid[data-empty]{grid-template-columns:1fr}
+.launchpad-empty{grid-column:1/-1;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#88988f}
+.launchpad-empty strong{font-size:15px;font-weight:500;color:var(--launcher-text)}.launchpad-empty span{font-size:12px;color:var(--launcher-muted)}
+.launchpad-error{flex-shrink:0;margin:12px 28px 0;font-size:12px;line-height:1.5;color:#a7443d}
+.launchpad-footer{min-height:45px;flex-shrink:0;margin:0 28px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid rgba(68,95,80,.1);color:#859187;font-size:11px}
+.launchpad-keyboard-hints,.launchpad-keyboard-hints>span{display:flex;align-items:center;gap:5px}.launchpad-keyboard-hints{gap:15px}
+.launchpad-keyboard-hints kbd{min-width:16px;height:17px;display:inline-grid;place-items:center;border:1px solid #798d7d26;border-radius:4px;font:11px -apple-system,BlinkMacSystemFont,sans-serif}
+.launchpad-footer-signature{display:flex;align-items:center;gap:3px}
+@media(hover:hover) and (pointer:fine){.agent-os-launchpad-app:hover{background:#7c9c8210}.agent-os-launchpad-app:hover .agent-os-launchpad-icon{transform:translateY(-2px)}.launchpad-close:hover,.launchpad-search button:hover,.launchpad-categories button:hover{background:#78948020}}
+@media(max-width:1000px){.agent-os-launchpad-grid{grid-template-columns:repeat(6,minmax(0,1fr))}}
+@media(max-width:760px){.agent-os-launchpad{padding:16px 16px 148px}.launchpad-panel{border-radius:24px}.agent-os-launchpad-grid{grid-template-columns:repeat(4,minmax(0,1fr));padding:18px 16px;gap:14px 6px}.launchpad-heading{padding:20px 20px 16px}.launchpad-search{margin-inline:20px}.launchpad-categories{margin-inline:20px}.launchpad-footer{margin-inline:20px}.launchpad-keyboard-hints{display:none}}
+@media(max-width:440px){.agent-os-launchpad{padding:10px 10px 148px}.launchpad-panel{border-radius:22px}.agent-os-launchpad-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 3px;padding:15px 10px}.agent-os-launchpad-icon{width:62px;height:62px;border-radius:16px}.agent-os-launchpad-app{padding:10px 3px}.agent-os-launchpad-app strong{font-size:12px}.launchpad-heading{padding:16px 18px 12px}.launchpad-search{height:46px;margin-inline:16px}.launchpad-categories{margin:14px 16px 0;padding-bottom:12px}.launchpad-footer{margin-inline:18px}}
+@media(max-height:560px){
+  .agent-os-launchpad{padding-top:8px;padding-bottom:174px}
+  .launchpad-heading{position:absolute;top:12px;right:14px;padding:0}.launchpad-heading>div{display:none}
+  .launchpad-search{height:34px;margin:10px 54px 0 16px;border-radius:10px}
+  .launchpad-categories{margin:8px 16px 0;padding-bottom:8px}.launchpad-categories button{height:26px}
+  .agent-os-launchpad-grid{padding-block:8px}.launchpad-footer{min-height:26px}
+}
+@media(max-height:440px){
+  .launchpad-footer{display:none}
+  .agent-os-launchpad-grid{gap:8px;padding-block:6px}
+  .agent-os-launchpad-app{padding:4px}
+  .agent-os-launchpad-icon{width:36px;height:36px;border-radius:10px}
+  .agent-os-launchpad-icon svg{width:24px;height:24px}
+  .agent-os-launchpad-icon.is-system>img{max-width:64%;max-height:64%}
+  .agent-os-launchpad-app strong{margin-top:4px;font-size:11px;line-height:14px}
+}
+
+@media(prefers-reduced-motion:reduce){.agent-os-launchpad,.launchpad-panel{animation:none}.launchpad-panel *{transition:none}.agent-os-launchpad-app:hover .agent-os-launchpad-icon,.agent-os-launchpad-app[data-pressed] .agent-os-launchpad-icon{transform:none}}
+@media(prefers-reduced-transparency:reduce){.agent-os-launchpad{backdrop-filter:none;background:rgba(36,53,43,.22)}.launchpad-panel{backdrop-filter:none;background:#f1f5f1}.launchpad-search{background:white}}
+@keyframes launchpad-backdrop-in{from{opacity:0}to{opacity:1}}
+@keyframes launchpad-panel-in{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}

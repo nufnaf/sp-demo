@@ -12,11 +12,10 @@ test("restored Jarvis history does not appear as a fresh desktop reply", () => {
   assert.doesNotMatch(desktop, /tickerTurn|is-ticker/);
 });
 
-test("the desktop composer stays compact and swaps live voice for send when text exists", () => {
+test("the desktop composer retains voice/send semantics", () => {
   assert.doesNotMatch(desktop, /composerFocused|className=\"attach\"/);
-  assert.match(desktop, /\{prompt\.trim\(\) \? \([\s\S]*?className="send"[\s\S]*?: \([\s\S]*?className="voice realtime"/);
-  assert.doesNotMatch(desktopCss, /agent-os-ai-surface\.expanded/);
-  assert.doesNotMatch(desktopCss, /agent-os-ai-surface:not\(\.expanded\)/);
+  assert.match(desktop, /prompt\.trim\(\) \? \([\s\S]*?className="send"[\s\S]*?: \([\s\S]*?className="voice realtime"/);
+  assert.match(desktop, /useRef<HTMLTextAreaElement>/);
 });
 
 test("dictation returns stopped speech to the composer and only sends from the send control", () => {
@@ -32,10 +31,11 @@ test("dictation returns stopped speech to the composer and only sends from the s
   assert.doesNotMatch(desktopCss, /agent-os-dictation__(?:dot|wave)[^}]*#ff453a/);
 });
 
-test("dictation and typing share the chat-opening send path", () => {
+test("dictation and typing keep the input available after using the shared send path", () => {
+  assert.doesNotMatch(desktop, /composerCollapsed|agent-os-composer-compact|展开输入框/);
   assert.match(desktop, /await sendDesktopMessage\(prompt\)/);
   assert.match(desktop, /void sendDesktopMessage\(completeText\)/);
-  assert.match(desktop, /const sendDesktopMessage[\s\S]*?setJarvisPanelOpen\(true\)[\s\S]*?await jarvis.send\(message\)/);
+  assert.match(desktop, /const sendDesktopMessage[\s\S]*?setJarvisPanelOpen\(false\)[\s\S]*?await jarvis.send\(message\)/);
 });
 test("live dispatch receipts come from new events, not restored task history", () => {
   assert.match(desktop, /if \(liveVoiceActiveRef.current\) setLiveDispatches/);

@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const desktopSource = await readFile(new URL("./AgentDesktop.tsx", import.meta.url), "utf8");
-const cssSource = await readFile(new URL("./AgentDesktop.css", import.meta.url), "utf8");
+const cssSource = await readFile(new URL("./AgentDesktop.css", import.meta.url), "utf8") + await readFile(new URL("./LaunchpadPanel.css", import.meta.url), "utf8");
+const panelSource = await readFile(new URL("./LaunchpadPanel.tsx", import.meta.url), "utf8");
 const pluginRouteSource = await readFile(new URL("../app/api/plugins/route.ts", import.meta.url), "utf8");
 
 test("the Dock opens a searchable launchpad backed by built-in apps and the Pi plugins API", () => {
@@ -11,7 +12,7 @@ test("the Dock opens a searchable launchpad backed by built-in apps and the Pi p
   assert.match(desktopSource, /fetch\(url, \{ cache: "no-store"/);
   assert.match(desktopSource, /getLaunchpadApps\(data\.packages, \[\.\.\.\(connectorData\.builtins/);
   assert.match(desktopSource, /\/api\/app-store\/installations/);
-  assert.match(desktopSource, /placeholder="搜索应用"/);
+  assert.match(panelSource, /placeholder="搜索应用"/);
   assert.match(desktopSource, /className=\{`dock-launchpad\$\{launchpadOpen/);
   assert.match(desktopSource, /aria-pressed=\{launchpadOpen\}/);
   assert.match(desktopSource, /setLaunchpadOpen\(\(value\) => !value\)/);
@@ -20,16 +21,17 @@ test("the Dock opens a searchable launchpad backed by built-in apps and the Pi p
 test("Feishu opens as a built-in CLI app instead of a Pi plugin", () => {
   assert.match(desktopSource, /function FeishuAppView/);
   assert.match(desktopSource, /fetch\("\/api\/apps\/feishu"/);
-  assert.match(desktopSource, /app\.kind === "builtin" \? \(\s*<FeishuAppView/);
+  assert.match(desktopSource, /<FeishuAppView app=\{app\} onNotice=\{setNotice\} onOpenDocument=\{openFeishuDocument\}\/>/);
   assert.match(desktopSource, /className="agent-os-native-onboarding"/);
-  assert.match(desktopSource, /href="\/icons\/feishu-logo\.svg"/);
+  assert.match(desktopSource, /SystemAppIcon name="feishu"/);
   assert.match(desktopSource, /使用飞书官方授权，凭据保存在本机/);
   assert.match(desktopSource, /let cachedFeishuStatus: FeishuCliStatus \| null = null/);
   assert.match(desktopSource, /useState<FeishuCliStatus \| null>\(\(\) => cachedFeishuStatus\)/);
   assert.match(desktopSource, /if \(!status\) return <div className="agent-os-feishu-opening"/);
   assert.match(desktopSource, /正在打开飞书云文档…/);
   assert.match(cssSource, /\.agent-os-feishu-opening\{[^}]*height:100%/);
-  assert.match(desktopSource, /qrCodeDataUrl/);
+  assert.match(desktopSource, /className="agent-os-onboarding-browser" aria-label="飞书浏览器授权"/);
+  assert.match(desktopSource, /window\.open\(url, "_blank", "noopener"\)/);
   assert.match(desktopSource, /className="agent-os-feishu-sidebar-search"/);
   assert.match(desktopSource, /placeholder="搜索文档"/);
   assert.match(desktopSource, /\/api\/apps\/feishu\/documents/);
@@ -81,15 +83,11 @@ test("global apps can load before a workspace exists without weakening cwd check
   assert.match(pluginRouteSource, /if \(requestedCwd\) \{[\s\S]*?isExistingFilePathAllowed/);
 });
 
-test("the launchpad keeps the menu bar and Dock visible and honors accessibility settings", () => {
-  assert.match(cssSource, /\.agent-os-launchpad \{[^}]*z-index:155[^}]*inset:44px 0 0/);
-  assert.match(cssSource, /\.agent-os-dock \{[^}]*z-index: 160/);
-  assert.match(desktopSource, /role="dialog" aria-modal="true" aria-label="启动台"/);
-  assert.match(desktopSource, /<div role="listitem" key=\{app\.id\}>[\s\S]*?<button className="agent-os-launchpad-app"/);
-  assert.doesNotMatch(desktopSource, /agent-os-launchpad-app[\s\S]{0,500}<small>/);
-  assert.match(cssSource, /\.agent-os-launchpad-grid \{[^}]*display:flex[^}]*justify-content:flex-start/);
-  assert.match(cssSource, /\.agent-os-launchpad-grid > \[role="listitem"\]\{width:112px/);
-  assert.match(desktopSource, /event\.key === "Escape"/);
-  assert.match(cssSource, /prefers-reduced-motion: reduce/);
-  assert.match(cssSource, /prefers-reduced-transparency: reduce[\s\S]*?agent-os-launchpad/);
+test("the launchpad uses an accessible application grid and honors display preferences", () => {
+  assert.match(panelSource, /role="dialog" aria-label="启动台"/);
+  assert.match(panelSource, /<GridList[\s\S]*?layout="grid" selectionMode="none"/);
+  assert.match(panelSource, /event\.key === "Escape"/);
+  assert.match(panelSource, /event\.nativeEvent\.isComposing/);
+  assert.match(cssSource, /prefers-reduced-motion:reduce/);
+  assert.match(cssSource, /prefers-reduced-transparency:reduce/);
 });

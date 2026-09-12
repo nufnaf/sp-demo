@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { notifyCalendarChanged } from "@/hooks/useFeishuCalendar";
+import { recruitingReportStyle } from "@/lib/recruiting-insight-report";
 
 const LEGACY_FETCH_BRIDGE = String.raw`<script>
 (function(){
@@ -9,7 +11,7 @@ const LEGACY_FETCH_BRIDGE = String.raw`<script>
     if(input!=='/api/apps/company-careers/actions')return nativeFetch.call(window,input,init);
     return new Promise(function(resolve,reject){
       var requestId='calendar-legacy-'+Date.now()+'-'+Math.random().toString(36).slice(2);
-      var timer=setTimeout(function(){cleanup();reject(new Error('本地日历响应超时，请重试'));},120000);
+      var timer=setTimeout(function(){cleanup();reject(new Error('飞书日程响应超时，请重试'));},120000);
       function cleanup(){clearTimeout(timer);window.removeEventListener('message',receive);}
       function receive(event){var data=event.data;if(event.source!==window.parent||!data||data.type!=='recruiting-calendar-result'||data.requestId!==requestId)return;cleanup();resolve({ok:Boolean(data.ok),json:function(){return Promise.resolve(data);}});}
       window.addEventListener('message',receive);
@@ -47,6 +49,7 @@ export function RecruitingInsightPreview({ content }: { content: string }) {
           body: JSON.stringify({ action: "schedule_alignment_meeting" }),
         });
         const result = await response.json();
+        if (response.ok) notifyCalendarChanged();
         if (!live) return;
         frame.current?.contentWindow?.postMessage({
           type: "recruiting-calendar-result",
@@ -59,25 +62,59 @@ export function RecruitingInsightPreview({ content }: { content: string }) {
           type: "recruiting-calendar-result",
           requestId: data.requestId,
           ok: false,
-          error: "本地日历服务暂时不可用，请确认 Syntropic 正在运行后重试",
+          error: "日程服务暂时不可用，请确认网络和 Syntropic 服务后重试",
         }, "*");
       }
     };
 
+    // Presentation meetings can be arranged from either window. Read the same
+    // server-owned state to keep an already-open report in sync.
+    const isPresentation = content.includes('data-recruiting-presentation') || content.includes('SYNTROPIC INSIGHTS · 星流科技');
+    const syncMeeting = async () => {
+      if (!isPresentation) return;
+      try {
+        const response = await fetch("/api/desktop/scenario", { cache: "no-store" });
+        if (!response.ok) return;
+        const result = await response.json();
+        if (live && result.meeting) frame.current?.contentWindow?.postMessage({ type: "recruiting-calendar-state", meeting: { title: result.meeting.title } }, "*");
+      } catch { /* The action itself retains its error feedback. */ }
+    };
+    const element = frame.current;
+    element?.addEventListener("load", syncMeeting);
+    void syncMeeting();
+    window.addEventListener("agent-os:presentation-changed", syncMeeting);
     window.addEventListener("message", receive);
     return () => {
       live = false;
+      window.removeEventListener("agent-os:presentation-changed", syncMeeting);
+      element?.removeEventListener("load", syncMeeting);
       window.removeEventListener("message", receive);
     };
-  }, []);
+  }, [content]);
 
   return (
     <iframe
       ref={frame}
-      srcDoc={bridgeLegacyInsight(content)}
+      srcDoc={presentRecruitingReport(bridgeLegacyInsight(content))}
       sandbox="allow-scripts"
       title="招聘洞察报告"
       style={{ width: "100%", height: "100%", border: "none", background: "var(--bg)" }}
     />
   );
+}
+
+function presentRecruitingReport(content: string): string {
+  if (!content.includes("data-recruiting-presentation") && !content.includes("SYNTROPIC INSIGHTS · 星流科技")) return content;
+  // Legacy saved reports keep their evidence and gain the same readable style.
+  const additions = `<style>${recruitingReportStyle}</style><script>
+window.addEventListener('message',function(event){
+  if(event.source!==window.parent||event.data?.type!=='recruiting-calendar-state')return;
+  var title=event.data.meeting?.title;
+  if(typeof title!=='string')return;
+  var button=document.getElementById('schedule'),result=document.getElementById('result');
+  if(button){button.disabled=true;button.textContent='会议已安排';}
+  if(result)result.textContent='已加入团队日程 · '+title;
+});
+</script>`;
+  return /<\/body>/i.test(content) ? content.replace(/<\/body>/i, `${additions}</body>`) : content + additions;
 }

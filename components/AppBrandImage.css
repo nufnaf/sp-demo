@@ -1,0 +1,4 @@
+/* Edge-to-edge brand artwork must not sit inside a white icon tile. */
+:is(.agent-store-icon, .agent-os-app-logo, .hr-source-logo, .boss-demo-brand > span):has(> [data-app-brand="boss-zhipin"]) {
+  border: 0; background: #14b1b5; overflow: hidden; box-shadow: none;
+}

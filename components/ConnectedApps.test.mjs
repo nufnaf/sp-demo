@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const desktopSource = await readFile(new URL("./AgentDesktop.tsx", import.meta.url), "utf8");
-const cssSource = await readFile(new URL("./AgentDesktop.css", import.meta.url), "utf8");
+const cssSource = await readFile(new URL("./AgentDesktop.css", import.meta.url), "utf8") + await readFile(new URL("./LaunchpadPanel.css", import.meta.url), "utf8");
 
 test("launchpad apps use recognizable brand marks instead of letter placeholders", () => {
   assert.match(desktopSource, /function BrandAppIcon/);
@@ -19,7 +19,7 @@ test("launchpad apps use recognizable brand marks instead of letter placeholders
   assert.match(desktopSource, /app\.kind === "connector" \? " is-official-icon"/);
   assert.match(cssSource, /\.agent-os-launchpad-icon\.is-official-icon img\{/);
   assert.match(cssSource, /\.agent-os-app-logo\.is-official-icon\{border:0;background:transparent;box-shadow:none\}/);
-  assert.match(cssSource, /\.agent-os-dock > button\.dock-app\.is-official-icon\{border:0;background:transparent;box-shadow:none\}/);
+  assert.match(cssSource, /\.agent-os-dock > button\.dock-app\.is-official-icon \.desktop-dock-icon\{border:0;background:transparent;box-shadow:none\}/);
   assert.match(cssSource, /\.agent-os-dock > \.dock-app\.is-official-icon \.agent-os-app-logo\{width:100%;height:100%/);
 });
 

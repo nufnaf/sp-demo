@@ -1,3 +1,4 @@
+import { presentationRoot } from "./presentation-runtime";
 import {
   SessionManager,
   buildContextEntries as piBuildContextEntries,
@@ -141,7 +142,14 @@ export function mergeSessionLists(
 }
 
 async function loadAllSessions(): Promise<SessionInfo[]> {
-  const piSessions: PiSessionInfo[] = await SessionManager.listAll();
+  const root = presentationRoot();
+  // SDK listAll(customDir) reads a flat directory, unlike its default scan.
+  // Presentation sessions are grouped by workspace under sessions/.
+  const piSessions: PiSessionInfo[] = root
+    ? (await Promise.all((await readdir(join(root, "sessions"), { withFileTypes: true }).catch(() => []))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => SessionManager.listAll(join(root, "sessions", entry.name))))).flat()
+    : await SessionManager.listAll();
   const pathToId = new Map<string, string>();
   for (const s of piSessions) pathToId.set(sessionPathKey(s.path), s.id);
 
@@ -229,7 +237,7 @@ const SESSION_LIST_CACHE_TTL_MS = 30_000;
 const SESSION_ID_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/;
 
 function defaultSessionsDir(): string {
-  return join(getAgentDir(), "sessions");
+  return join(presentationRoot() ?? getAgentDir(), "sessions");
 }
 
 function resolvePathWithinDefaultSessions(

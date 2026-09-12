@@ -1,0 +1,27 @@
+.recruiting-query-result {height:100%;overflow:auto;padding:28px;color:#14211e;background:#fff;font-size:14px;line-height:1.7;}
+.recruiting-query-result h1 {font-size:24px;line-height:1.5;font-weight:600;margin:4px 0;}
+.recruiting-query-result h2 {font-size:16px;line-height:24px;font-weight:600;margin:0 0 8px;}
+.recruiting-query-result p {margin:6px 0;color:#6f7e79;}
+.recruiting-query-result button {display:inline-flex;align-items:center;justify-content:center;gap:6px;flex-shrink:0;padding:9px 14px;border:1px solid #d4e8de;border-radius:999px;background:#f7fcf9;color:#087457;font:inherit;font-size:13px;cursor:pointer;}
+.recruiting-query-result button:hover {background:#def2ed;}
+.recruiting-query-heading {display:flex;gap:14px;align-items:flex-start;}
+.recruiting-query-heading>span {display:grid;place-items:center;flex:0 0 46px;height:46px;border-radius:14px;background:#def2ed;color:#087457;}
+.recruiting-query-heading small {color:#087457;font-size:12px;}
+.recruiting-query-heading p {font-size:12px;}
+.recruiting-query-result .recruiting-query-question {margin:22px 0 16px;color:#14211e;}
+.recruiting-query-counts {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:22px;}
+.recruiting-query-counts article {display:flex;flex-direction:column;align-items:flex-start;border:1px solid #e3ebe7;border-radius:14px;padding:18px;background:#f7faf9;}
+.recruiting-query-counts strong {font-size:32px;font-weight:600;line-height:1.2;margin-bottom:8px;}
+.recruiting-query-counts span {font-size:13px;color:#6f7e79;}
+.recruiting-query-result .recruiting-query-scope {font-size:12px;margin:12px 0 24px;}
+.recruiting-query-followup {border:1px solid #e3ebe7;border-radius:16px;padding:20px;}
+.recruiting-query-followup header {display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;}
+.recruiting-query-followup p {font-size:13px;}
+.recruiting-query-followup ul {list-style:none;padding:0;margin:12px 0 0;}
+.recruiting-query-followup li {display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-top:1px solid #edf1ef;}
+.recruiting-query-followup li strong {font-weight:500;}
+.recruiting-query-followup li small {margin-left:10px;font-size:12px;color:#77847f;}
+.recruiting-query-followup li>span:last-child {font-size:13px;color:#9c6335;}
+.recruiting-query-answer {margin:24px 0;}
+.recruiting-query-result footer {display:flex;flex-wrap:wrap;gap:10px;margin-top:24px;}
+@media(max-width:760px) {.recruiting-query-result {padding:18px;}.recruiting-query-result h1 {font-size:20px;}}

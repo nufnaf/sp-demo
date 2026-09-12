@@ -3,7 +3,15 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import "./HRRecruitingApp.css";
-import { WorkspaceAppIcon } from "./WorkspaceAppIcon";
+import "./RecruitingDesign.css";
+import { RecruitingPipeline } from "./RecruitingPipeline";
+import type { RecruitingScene } from "@/lib/recruiting-scene";
+import type { InsightResult } from "@/lib/insight-automation";
+import { RecruitingBrandIcon } from "./RecruitingBrandIcon";
+import { AppBrandImage } from "./AppBrandImage";
+import { getChinaAppDefinition } from "@/lib/china-apps";
+import { BOSS_DEMO_ACCOUNT } from "@/lib/boss-demo";
+import type { PublishedRecruitingJob } from "@/lib/recruiting-publication";
 
 type HRSection = "overview" | "candidates" | "jobs" | "sources";
 type CandidateStage = "全部" | "人才库" | "初筛" | "面试" | "终面" | "Offer";
@@ -92,9 +100,9 @@ const MANUAL_DATA_KEY_PREFIX = "agent-os:hr-manual-data:";
 const LINKED_APPS_KEY_PREFIX = "agent-os:hr-linked-apps:";
 
 const SOURCES: DataSource[] = [
-  { id: "feishu", name: "飞书招聘", description: "候选人、面试评价与招聘流程", logoUrl: "/icons/feishu-logo.svg", fallback: "飞", appManaged: true },
-  { id: "boss-zhipin", name: "BOSS 直聘", description: "职位发布、沟通与候选人简历", logoUrl: "https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/18/f2/91/18f2917d-452a-a2fa-87d7-37012a288cab/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg", fallback: "B", appManaged: true },
-  { id: "beisen", name: "北森 iTalent", description: "招聘需求、职位、应聘者与 Offer 流程", logoUrl: "https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/65/e4/a2/65e4a2f4-0ac1-3297-bd7e-297e049476f0/AppIcon2-0-0-1x_U007emarketing-0-8-0-sRGB-85-220.png/512x512bb.jpg", fallback: "北", appManaged: true },
+  { id: "feishu", name: "飞书招聘", description: "候选人、面试评价与招聘流程", logoUrl: getChinaAppDefinition("feishu")?.logoUrl, fallback: "飞", appManaged: true },
+  { id: "boss-zhipin", name: "BOSS 直聘", description: "职位发布、沟通与候选人简历", logoUrl: getChinaAppDefinition("boss-zhipin")?.logoUrl, fallback: "B", appManaged: true },
+  { id: "beisen", name: "北森 iTalent", description: "招聘需求、职位、应聘者与 Offer 流程", logoUrl: getChinaAppDefinition("beisen")?.logoUrl, fallback: "北", appManaged: true },
   { id: "company-careers", name: "星流科技招聘官网", description: "官网职位、候选人投递与招聘流程", logoUrl: "/icons/company-careers-logo.svg", fallback: "招", appManaged: true },
 ];
 
@@ -113,13 +121,40 @@ const icons = {
   close: <HRIcon size={15}><path d="m7 7 10 10M17 7 7 17"/></HRIcon>,
 };
 
-export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice }: {
+export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice, publishedDraft, onOpenPublishedJob, presentation = false, onOpenInsight, candidateRequest }: {
+  candidateRequest?: { id: number; jobId: string };
+  presentation?: boolean;
+  onOpenInsight?: (result: InsightResult) => void;
+  publishedDraft?: string;
+  onOpenPublishedJob?: (url: string) => void;
   cwd: string | null;
   onStartTask: (message: string) => Promise<string | null>;
   onOpenSource: (sourceId: Exclude<RecruitingSourceId, "company-careers">) => void;
   onNotice: (message: string) => void;
 }) {
+  const [scene, setScene] = useState<RecruitingScene | null>(null);
+  const [siteUrl, setSiteUrl] = useState("");
+  const [internalJobs, setInternalJobs] = useState<PublishedRecruitingJob[]>([]);
+  const [internalError, setInternalError] = useState(false);
+  const [internalConnected, setInternalConnected] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setInternalJobs([]);
+    const refresh = async () => {
+      try {
+        const response = await fetch("/api/apps/internal-recruiting", { cache: "no-store" });
+        const data = await response.json() as { jobs?: PublishedRecruitingJob[]; scene?: RecruitingScene; baseUrl?: string };
+        if (!response.ok || !data.jobs) throw new Error("Unavailable");
+        if (!cancelled) { setInternalJobs(data.jobs); setScene(data.scene ?? null); setSiteUrl(data.baseUrl ?? ""); setInternalError(false); setInternalConnected(true); }
+      } catch { if (!cancelled) { setInternalError(true); setInternalConnected(false); } }
+    };
+    void refresh();
+    window.addEventListener("agent-os:presentation-changed", refresh);
+    return () => { cancelled = true; window.removeEventListener("agent-os:presentation-changed", refresh); };
+  }, [cwd, publishedDraft]);
+  useEffect(() => { if (publishedDraft) setSection("jobs"); }, [publishedDraft]);
   const [section, setSection] = useState<HRSection>("overview");
+  useEffect(() => { if (candidateRequest) setSection("candidates"); }, [candidateRequest]);
   const [stage, setStage] = useState<CandidateStage>("全部");
   const [query, setQuery] = useState("");
   const [activeCandidateId, setActiveCandidateId] = useState<string | null>(null);
@@ -153,6 +188,18 @@ export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice }: {
     try {
       const installations = await readJson<{ installed?: string[]; builtins?: string[] }>("/api/app-store/installations");
       const installed = new Set([...(installations.builtins ?? []), ...(installations.installed ?? [])]);
+      if (presentation) {
+        const unavailable = { installed: false, runtimeReady: false, authState: "not_authenticated" as const, loading: false, detail: "该应用暂不可用" };
+        setSourceStatuses({
+          feishu: { ...unavailable, installed: installed.has("feishu"), runtimeReady: true, detail: "团队文档已接入，招聘数据尚未连接" },
+          "boss-zhipin": { ...unavailable, installed: installed.has("boss-zhipin"), runtimeReady: true,
+            authState: installed.has("boss-zhipin") ? "authenticated" : "not_authenticated",
+            account: BOSS_DEMO_ACCOUNT, detail: "招聘账号已连接" },
+          beisen: { ...unavailable, installed: installed.has("beisen") },
+          "company-careers": unavailable,
+        });
+        return;
+      }
       const checks = await Promise.allSettled([
         readJson<{ installed: boolean; authState: SourceStatus["authState"]; authDetail: string; account?: string }>("/api/apps/feishu"),
         readJson<{ installed: boolean; authState: SourceStatus["authState"]; authDetail: string; account?: string; organization?: string }>("/api/apps/boss-zhipin/cli"),
@@ -195,7 +242,7 @@ export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice }: {
       const message = error instanceof Error ? error.message : String(error);
       setSourceStatuses((current) => Object.fromEntries(Object.entries(current).map(([id, status]) => [id, { ...status, loading: false, error: message, detail: "暂时无法读取安装状态" }])) as Record<RecruitingSourceId, SourceStatus>);
     }
-  }, []);
+  }, [presentation]);
 
   useEffect(() => {
     void refreshSourceStatuses();
@@ -222,12 +269,12 @@ export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice }: {
       setManualCandidates([]);
     }
     try {
-      const stored = JSON.parse(localStorage.getItem(`${LINKED_APPS_KEY_PREFIX}${cwd}`) ?? "[]") as unknown;
+      const stored = JSON.parse(localStorage.getItem(`${LINKED_APPS_KEY_PREFIX}${cwd}`) ?? (presentation ? '["boss-zhipin"]' : "[]")) as unknown;
       setLinkedSourceIds(new Set(Array.isArray(stored) ? stored.filter((id): id is RecruitingSourceId => SOURCES.some((source) => source.id === id)) : []));
     } catch {
       setLinkedSourceIds(new Set());
     }
-  }, [cwd]);
+  }, [cwd, presentation]);
 
   const persistLinkedApps = useCallback((next: Set<RecruitingSourceId>) => {
     setLinkedSourceIds(next);
@@ -456,30 +503,32 @@ export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice }: {
 
   return <div className="hr-recruiting-app os-workspace">
     <aside className="hr-recruiting-sidebar">
-      <header><span className="hr-recruiting-mark"><WorkspaceAppIcon name="recruiting" size={20}/></span><span><strong>人才招聘</strong><small>Recruiting Hub</small></span></header>
+      <header><RecruitingBrandIcon/><span><strong>人才招聘</strong></span></header>
       <nav aria-label="人才招聘功能">
         {([
           ["overview", "招聘进展", icons.overview],
           ["candidates", "候选人", icons.candidates],
           ["jobs", "岗位管理", icons.jobs],
           ["sources", "招聘应用", icons.sources],
-        ] as Array<[HRSection, string, ReactNode]>).map(([id, label, icon]) => <button type="button" key={id} aria-label={label} title={label} className={section === id ? "selected" : ""} aria-current={section === id ? "page" : undefined} onClick={() => setSection(id)}>{icon}<span>{label}</span>{id === "sources" ? <em>{connectedCount}</em> : null}</button>)}
+        ] as Array<[HRSection, string, ReactNode]>).map(([id, label, icon]) => <button type="button" key={id} aria-label={label} title={label} className={section === id ? "selected" : ""} aria-current={section === id ? "page" : undefined} onClick={() => setSection(id)}>{icon}<span><strong>{label}</strong><small>{id === "overview" ? "候选人管道" : id === "jobs" ? `${internalJobs.length + jobs.length} 个岗位` : id === "candidates" ? "搜索与查看档案" : "管理数据连接"}</small></span>{id === "sources" ? <em>{connectedCount}</em> : null}</button>)}
       </nav>
       <div className="hr-recruiting-roles">
         <span>在招岗位</span>
-        {jobs.length ? jobs.map((job) => <button type="button" key={job.id} className={activeJobId === job.id ? "selected" : ""} onClick={() => { setActiveJobId(job.id); setSection("overview"); }}><i/><span><strong>{job.title}</strong><small>{job.headcount} 个 HC · {job.source}</small></span></button>) : <p className="hr-sidebar-empty">连接招聘应用或新建岗位</p>}
+        {internalJobs.map((job) => <button type="button" key={job.id} onClick={() => setSection(scene ? "overview" : "jobs")}><i/><span><strong>{job.title}</strong><small>{job.headcount} 个 HC · 内部招聘系统</small></span></button>)}
+        {jobs.length ? jobs.map((job) => <button type="button" key={job.id} className={activeJobId === job.id ? "selected" : ""} onClick={() => { setActiveJobId(job.id); setSection("overview"); }}><i/><span><strong>{job.title}</strong><small>{job.headcount} 个 HC · {job.source}</small></span></button>) : internalJobs.length ? null : <p className="hr-sidebar-empty">连接招聘应用或新建岗位</p>}
       </div>
-      <footer><i className={connectedCount ? "connected" : ""}/><span><strong>{connectedCount} 个招聘应用已连接</strong><small>连接状态实时检测</small></span></footer>
+      <footer><i className={connectedCount || internalConnected ? "connected" : ""}/><span><strong>{presentation ? `本轮已发布 ${internalJobs.length} 个岗位` : internalConnected ? "内部招聘系统已连接" : `${connectedCount} 个招聘应用已连接`}</strong><small>{presentation ? "发布或查询后更新" : "连接状态实时检测"}</small></span></footer>
     </aside>
 
     <main className="hr-recruiting-main">
-      {section === "overview" ? <>
+      {(presentation || scene) && (section === "overview" || section === "candidates") && <RecruitingPipeline key={candidateRequest?.id ?? "default"} initialFilter={candidateRequest?.jobId === scene?.job?.id ? "missing" : ""} scene={scene} cwd={cwd!} onOpenInsight={(result) => onOpenInsight?.(result)} onOpenWebsite={(path) => onOpenPublishedJob?.(new URL(path.replace(/^\//, ""), siteUrl).href)}/>}
+      {!presentation && !scene && section === "overview" ? <>
         {activeJob ? <><header className="hr-recruiting-hero"><span><small>招聘目标</small><h1>{roleName}</h1><p>目标招聘 {activeJob.headcount} 位 · {activeJob.location} · {activeJob.source}</p></span><em className="steady"><i/>{activeJob.status}</em></header>
           <section className="hr-recruiting-pipeline"><header><span><strong>招聘管道</strong><small>点击阶段查看全部候选人</small></span><button type="button" onClick={() => { setStage("全部"); setSection("candidates"); }}>查看全部</button></header><div>{stageCounts.map((item) => <button type="button" key={item.label} onClick={() => { setStage(item.label); setSection("candidates"); }}><small>{item.label}</small><strong>{item.count}</strong><i style={{ width: `${roleCandidates.length ? Math.max(5, item.count / roleCandidates.length * 100) : 0}%` }}/></button>)}</div></section>
           <CandidateTable candidates={roleCandidates.slice(0, 4)} onOpen={setActiveCandidateId} title="重点候选人" subtitle={`${Math.min(roleCandidates.length, 4)} 条记录 · 来自招聘应用或手动创建`}/></> : <EmptyRecruitingState onConnect={() => setSection("sources")} onCreate={() => setCreationMode("job")}/>}
       </> : null}
 
-      {section === "candidates" ? <>
+      {!presentation && !scene && section === "candidates" ? <>
         <header className="hr-recruiting-page-header"><span><small>人才库</small><h1>候选人</h1><p>来自已连接招聘系统和 HR 手动创建的候选人</p></span><button type="button" disabled={!jobs.length} onClick={() => { setDraftCandidate((current) => ({ ...current, jobId: activeJobId ?? jobs[0]?.id ?? "" })); setCreationMode("candidate"); }}>新建候选人</button></header>
         <div className="hr-recruiting-toolbar"><label>{icons.search}<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索姓名、岗位、能力或来源"/></label><div>{(["全部", "人才库", "初筛", "面试", "终面", "Offer"] as CandidateStage[]).map((item) => <button key={item} type="button" className={stage === item ? "selected" : ""} onClick={() => setStage(item)}>{item}</button>)}</div></div>
         <CandidateTable candidates={visibleCandidates} onOpen={setActiveCandidateId} title={`${stage === "全部" ? "全部" : stage}候选人`} subtitle={`${visibleCandidates.length} 条记录`}/>
@@ -487,7 +536,9 @@ export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice }: {
 
       {section === "jobs" ? <>
         <header className="hr-recruiting-page-header"><span><small>岗位管理</small><h1>招聘岗位</h1><p>来自已连接招聘系统和 HR 手动创建的岗位</p></span><button type="button" onClick={() => setCreationMode("job")}>新建岗位</button></header>
-        {jobs.length ? <section className="hr-jobs-grid">{jobs.map((job) => { const jobCandidates = candidates.filter((candidate) => candidate.role === job.title); return <button type="button" key={job.id} onClick={() => { setActiveJobId(job.id); setSection("overview"); }}><header><span>{icons.jobs}</span><em>{job.status}</em></header><strong>{job.title}</strong><small>{job.location} · {job.headcount} 个 HC</small><dl><div><dt>数据来源</dt><dd>{job.source}</dd></div><div><dt>当前进展</dt><dd>{jobCandidates.length} 位候选人</dd></div></dl><footer><span>查看招聘进展</span><b>›</b></footer></button>; })}</section> : <EmptyRecruitingState compact onConnect={() => setSection("sources")} onCreate={() => setCreationMode("job")}/>}
+        {internalJobs.length > 0 && <section className="hr-internal-published"><h2>{presentation ? "招聘渠道" : "内部招聘系统"} · 已发布 {internalJobs.length} 个职位</h2><div className="hr-jobs-grid">{internalJobs.map((job) => <button type="button" key={job.id} className={job.draft === publishedDraft ? "just-published" : ""} onClick={() => scene ? setSection("overview") : onOpenPublishedJob?.(job.url)}><header><span>{icons.jobs}</span><em>已发布</em></header><strong>{job.title}</strong><small>{job.location} · {job.headcount} 个 HC</small><dl><div><dt>发布渠道</dt><dd>{job.bossPublication?.status === "published" ? "内部招聘系统 · BOSS 直聘" : "内部招聘系统 · 已发布"}</dd></div><div><dt>当前进展</dt><dd>{job.candidateCount} 位候选人</dd></div></dl><span className="hr-channel-tags"><i>内部招聘系统 · 已发布</i><i>{job.bossPublication?.status === "published" ? "BOSS 直聘 · 已发布" : "BOSS 直聘 · 未发布"}</i></span><footer><span>{scene ? "查看招聘进展" : "查看职位详情"}</span><b>↗</b></footer></button>)}</div></section>}
+        {internalError && <p className="hr-sidebar-empty">内部招聘系统暂时无法读取，请稍后刷新。</p>}
+        {jobs.length ? <section className="hr-jobs-grid">{jobs.map((job) => { const jobCandidates = candidates.filter((candidate) => candidate.role === job.title); return <button type="button" key={job.id} onClick={() => { setActiveJobId(job.id); setSection("overview"); }}><header><span>{icons.jobs}</span><em>{job.status}</em></header><strong>{job.title}</strong><small>{job.location} · {job.headcount} 个 HC</small><dl><div><dt>数据来源</dt><dd>{job.source}</dd></div><div><dt>当前进展</dt><dd>{jobCandidates.length} 位候选人</dd></div></dl><footer><span>查看招聘进展</span><b>›</b></footer></button>; })}</section> : internalJobs.length ? null : <EmptyRecruitingState compact onConnect={() => setSection("sources")} onCreate={() => setCreationMode("job")}/>}
       </> : null}
 
       {section === "sources" ? <>
@@ -497,8 +548,9 @@ export function HRRecruitingApp({ cwd, onStartTask, onOpenSource, onNotice }: {
           const status = sourceStatuses[source.id];
           const connected = linkedSourceIds.has(source.id) && status.authState === "authenticated";
           const stateLabel = status.loading ? "检测中" : status.error ? "检测失败" : connected ? "已连接" : status.authState === "authenticated" ? "可连接" : !status.installed ? "未安装" : !status.runtimeReady ? "待初始化" : status.authState === "unknown" ? "待验证" : "待授权";
-          const buttonLabel = sourceBusy === source.id ? "处理中…" : connected ? "打开应用" : status.authState === "authenticated" || source.id === "company-careers" ? "连接应用" : !source.appManaged ? "需要专属连接器" : status.installed ? "完成授权" : "安装应用";
-          return <article key={source.id} className={status.error ? "has-error" : ""}><header><span className={`hr-source-logo is-${source.id}`}>{source.logoUrl ? <img src={source.logoUrl} alt="" referrerPolicy="no-referrer"/> : source.fallback}</span><em className={connected ? "connected" : status.error ? "error" : status.loading ? "loading" : ""}><i/>{stateLabel}</em></header><h2>{source.name}</h2><p>{source.description}</p><small>{status.account ?? status.error ?? status.detail}</small><div className="hr-source-actions"><button type="button" className={connected ? "connected" : ""} disabled={status.loading || sourceBusy === source.id || !source.appManaged} onClick={() => { void manageSource(source); }}>{buttonLabel}</button>{connected ? <button type="button" className="disconnect" disabled={sourceBusy === source.id} onClick={() => void disconnectRecruitingApp(source)}>断开</button> : null}</div></article>;
+          const presetUnavailable = presentation && source.id !== "boss-zhipin";
+          const buttonLabel = presetUnavailable ? "暂不可用" : sourceBusy === source.id ? "处理中…" : connected ? "打开应用" : status.authState === "authenticated" || source.id === "company-careers" ? "连接应用" : !source.appManaged ? "需要专属连接器" : status.installed ? "完成授权" : "安装应用";
+          return <article key={source.id} className={status.error ? "has-error" : ""}><header><span className={`hr-source-logo is-${source.id}`}>{source.logoUrl ? <AppBrandImage appId={source.id} src={source.logoUrl}/> : source.fallback}</span><em className={connected ? "connected" : status.error ? "error" : status.loading ? "loading" : ""}><i/>{stateLabel}</em></header><h2>{source.name}</h2><p>{source.description}</p><small>{status.account ?? status.error ?? status.detail}</small><div className="hr-source-actions"><button type="button" className={connected ? "connected" : ""} disabled={presetUnavailable || status.loading || sourceBusy === source.id || !source.appManaged} onClick={() => { void manageSource(source); }}>{buttonLabel}</button>{connected ? <button type="button" className="disconnect" disabled={sourceBusy === source.id} onClick={() => void disconnectRecruitingApp(source)}>断开</button> : null}</div></article>;
         })}</section>
         {companyConnectOpen ? <aside className="hr-source-modal"><form onSubmit={(event) => void connectCompanyCareers(event)}><header><span className="hr-source-logo is-company-careers"><img src="/icons/company-careers-logo.svg" alt=""/></span><span><strong>星流科技招聘官网</strong><small>连接招聘应用</small></span><button type="button" aria-label="关闭连接配置" onClick={() => setCompanyConnectOpen(false)}>{icons.close}</button></header><label><span>招聘官网地址</span><input type="url" required value={companyBaseUrl} onChange={(event) => setCompanyBaseUrl(event.target.value)}/></label><label><span>访问令牌</span><input type="password" required autoComplete="off" value={companyToken} onChange={(event) => setCompanyToken(event.target.value)} placeholder="输入网站提供的访问令牌"/></label><footer><button type="button" onClick={() => setCompanyConnectOpen(false)}>取消</button><button type="submit" disabled={sourceBusy === "company-careers"}>{sourceBusy === "company-careers" ? "正在验证…" : "连接应用"}</button></footer></form></aside> : null}
       </> : null}

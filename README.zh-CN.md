@@ -1,4 +1,6 @@
-# Pi Web
+# Pi Web 底层技术参考
+
+本文件保留上游 Pi Web 的配置和工具说明。Syntropic 的产品定位、分支差异、当前演示能力、本地启动与安装包状态，以 [项目 README](README.md) 为准。下面的上游 npm 包安装方式不会运行本分支的 Syntropic 扩展；Electron 专属演示重置属于下一阶段待确定方案、实施的功能。
 
 [English](./README.md) | [日本語](./README.ja.md) | [Русский](./README.ru.md)
 

@@ -24,6 +24,7 @@ import { markdownPreviewRehypePlugins, markdownPreviewRemarkPlugins, normalizeDi
 import { CodeBlock, MermaidBlock } from "./MermaidBlock";
 import { CrmInsightPreview } from "./CrmInsightPreview";
 import { RecruitingInsightPreview } from "./RecruitingInsightPreview";
+import { RecruitingJdPreview, type JdPreviewPlayback } from "./RecruitingJdPreview";
 import { FrontmatterCard } from "./FrontmatterCard";
 import { parseUnifiedPatch } from "@/lib/patch";
 import type { GitFileDiffResponse } from "@/lib/git-types";
@@ -49,6 +50,10 @@ interface Props {
   initialState?: FileViewerState;
   onStateChange?: (state: FileViewerState) => void;
   watchEnabled?: boolean;
+  /** Embedded reports expose the full file in a separate window. */
+  showToolbar?: boolean;
+  /** Only a full JD window opts into generation playback; library previews stay static. */
+  jdPlayback?: JdPreviewPlayback;
 }
 
 interface FileData {
@@ -934,6 +939,8 @@ export function FileViewer({
   initialState,
   onStateChange,
   watchEnabled = true,
+  showToolbar = true,
+  jdPlayback,
 }: Props) {
   if (isImagePath(filePath)) {
     return <ImageViewer filePath={filePath} cwd={cwd} sourceSessionId={sourceSessionId} watchEnabled={watchEnabled} />;
@@ -957,6 +964,8 @@ export function FileViewer({
       initialState={initialState}
       onStateChange={onStateChange}
       watchEnabled={watchEnabled}
+      showToolbar={showToolbar}
+      jdPlayback={jdPlayback}
     />
   );
 }
@@ -973,6 +982,8 @@ function TextFileViewer({
   initialState,
   onStateChange,
   watchEnabled = true,
+  showToolbar = true,
+  jdPlayback,
 }: Props) {
   const { isDark } = useTheme();
   const { t } = useI18n();
@@ -1311,7 +1322,7 @@ function TextFileViewer({
       <div
         className="file-viewer-toolbar"
         style={{
-          display: "flex",
+          display: showToolbar ? "flex" : "none",
           alignItems: "center",
           gap: 8,
           padding: "5px 12px",
@@ -1436,6 +1447,8 @@ function TextFileViewer({
           <CrmInsightPreview content={content} filePath={filePath} />
         ) : isHtml && effectiveDisplayMode === "preview" && /[\\/]recruiting-interviewer-alignment-[\w-]+\.html$/.test(filePath) ? (
           <RecruitingInsightPreview content={content} />
+        ) : isHtml && effectiveDisplayMode === "preview" && jdPlayback && content.includes('content="recruiting-jd-demo"') ? (
+          <RecruitingJdPreview content={content} {...jdPlayback} />
         ) : isHtml && effectiveDisplayMode === "preview" ? (
           <iframe
             srcDoc={content}

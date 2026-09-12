@@ -1,0 +1,29 @@
+/* Shared by the Feishu meeting view and standalone team schedule. */
+.presentation-schedule {container:schedule / inline-size;box-sizing:border-box;padding:28px;color:#14211e;overflow:auto;height:100%;background:#fff;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;}
+.presentation-schedule * {box-sizing:border-box;}
+.presentation-schedule small {display:block;color:#77847f;font-size:12px;line-height:1.6;}
+.schedule-header {display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:24px;}
+.schedule-header > div {min-width:0;}
+.schedule-header > div > small {color:#008b69;}
+.presentation-schedule h1 {font-size:32px;font-weight:500;line-height:1.3;margin:10px 0 12px;}
+.presentation-schedule h2 {font-size:18px;font-weight:500;line-height:1.5;margin:0;}
+.presentation-schedule h3 {font-size:13px;font-weight:500;margin:18px 0 8px;}
+.presentation-schedule p {margin:8px 0;font-size:13px;line-height:1.8;color:#687773;overflow-wrap:anywhere;}
+.presentation-schedule button {border:1px solid #e3ebe7;border-radius:8px;background:#fff;padding:7px 12px;font:inherit;font-size:13px;color:#485650;cursor:pointer;transition:background-color 150ms;}
+.presentation-schedule button:hover:not(:disabled) {background:#edf5f1;color:#008b69;}
+.presentation-schedule .schedule-refresh {flex-shrink:0;border:0;background:#e7f5ef;color:#008b69;padding:10px 16px;border-radius:10px;}
+.presentation-schedule .calendar-controls {display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:14px 16px;border:1px solid #e3ebe7;border-radius:14px;background:#f7faf9;}
+.calendar-controls > div {display:flex;gap:6px;}
+.calendar-controls > span {font-size:13px;}
+.calendar-controls > small {margin-left:auto;}
+.presentation-schedule button:disabled {opacity:.5;cursor:default;}
+.presentation-schedule :is(button,a):focus-visible {outline:2px solid #00a67d;outline-offset:3px;}
+.presentation-schedule > article {padding:20px 24px;margin:16px 0;border:1px solid #e3ebe7;background:#fff;border-radius:16px;}
+.schedule-event-heading {display:flex;align-items:center;justify-content:space-between;gap:16px;}
+.presentation-schedule article em {flex-shrink:0;color:#008b69;background:#e7f5ef;border-radius:20px;padding:5px 10px;font-size:11px;font-style:normal;}
+.presentation-schedule .schedule-event-time {color:#485650;margin-top:12px;}
+.presentation-schedule a {color:#008b69;display:inline-flex;padding:6px 0;margin-top:10px;font-size:13px;text-decoration:none;}
+.presentation-schedule a:hover {text-decoration:underline;}
+.presentation-schedule > small {margin-top:20px;}
+.presentation-schedule [role="alert"] {color:#9c472d;padding:12px 14px;background:#fff5ee;border-radius:10px;}
+@container schedule (max-width:520px) { .schedule-header {align-items:flex-start;flex-direction:column;gap:12px;} .presentation-schedule h1 {font-size:28px;} .calendar-controls > small {margin-left:0;} .schedule-event-heading {align-items:flex-start;} }

@@ -12,7 +12,9 @@ function listeners(): Set<FileEventListener> {
 }
 
 export function emitFileEvent(event: FileSystemEvent): void {
-  for (const listener of listeners()) listener(event);
+  for (const listener of listeners()) {
+    try { listener(event); } catch { listeners().delete(listener); }
+  }
 }
 
 export function subscribeToFileEvents(listener: FileEventListener): () => void {

@@ -35,7 +35,7 @@ export function crmDemoData(sourceId: string, now = Date.now()): CrmDataset {
     { id: "follow-2", customerId: "yunzhou", date: date(-3), summary: "客户反馈验收报告尚未完成内部签字，财务需要验收材料才能安排尾款。" },
     { id: "follow-3", customerId: "qinghe", date: date(-2), summary: "试点效果得到认可，客户提出后续扩大到 100 家门店，需确认新增预算和交付计划。" },
   ];
-  else throw new Error("未知演示数据源");
+  else throw new Error("未知数据源");
   return data;
 }
 export function crmRecords(state: CrmState): CrmDataset {

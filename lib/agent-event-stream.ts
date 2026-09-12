@@ -60,6 +60,11 @@ export function createAgentEventStream(
         enqueueText(`data: ${JSON.stringify(data)}\n\n`);
       };
       const forwardEvent = (event: AgentEventLike, snapshot: unknown) => {
+        if (event.type === "session_closed") {
+          encode(event);
+          cleanup(true);
+          return;
+        }
         if (isEventIncludedInSnapshot(event, snapshot)) return;
         const clientEvent = toClientAgentEvent(event);
         if (clientEvent) encode(clientEvent);
@@ -73,6 +78,10 @@ export function createAgentEventStream(
           const bufferedEvents: AgentEventLike[] = [];
           let snapshotPublished = false;
           const handleEvent = (event: AgentEventLike) => {
+            if (event.type === "session_closed") {
+              forwardEvent(event, undefined);
+              return;
+            }
             if (!snapshotPublished) {
               bufferedEvents.push(event);
               return;

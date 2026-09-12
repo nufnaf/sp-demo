@@ -1,0 +1,9 @@
+{
+  "file": "kZRCbPpo7it0jcJLIgmxXp",
+  "node": "488:944",
+  "assets": {
+    "market.svg": { "node": "488:960", "format": "svg" },
+    "window-sidebar.svg": { "node": "488:950", "format": "svg" },
+    "../../icons/feishu-logo.svg": { "node": "532:2528", "format": "svg", "note": "Exact Figma vector export; replaces the former SVG containing a 48x48 PNG." }
+  }
+}

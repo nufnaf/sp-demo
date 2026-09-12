@@ -74,7 +74,7 @@
   margin: 0 0 20px;
   padding: 0 8px;
 }
-.os-workspace :is(.hr-recruiting-mark, .investment-brand-mark, .crm-brand) {
+.os-workspace :is(.investment-brand-mark, .crm-brand) {
   width: 34px;
   height: 34px;
   flex: 0 0 34px;
@@ -329,7 +329,7 @@
 .os-workspace.crm-app td:nth-child(2) { max-width: 220px; white-space: normal; line-height: 1.6; }
 
 /* Built-in app identities share the desktop's neutral icon material. */
-.os-workspace :is(.hr-recruiting-mark, .investment-brand-mark) {
+.os-workspace .investment-brand-mark {
   color: #69767d;
   background: linear-gradient(145deg, #fff, #e7eef2);
   border: 1px solid rgba(255,255,255,.9);

@@ -1,0 +1,28 @@
+.boss-demo{height:100%;overflow:auto;background:#f7faf9;color:#253c38;font-size:14px}
+.boss-demo-header{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:28px 32px;background:#fff;border-bottom:1px solid #e3ece9}
+.boss-demo-brand{display:flex;align-items:center;gap:14px}
+.boss-demo-brand>span{display:grid;place-items:center;width:58px;height:58px;border-radius:16px;background:#00beb5;color:#fff;font-size:17px;font-weight:750;letter-spacing:-1px}
+.boss-demo h1{margin:0;font-size:23px;font-weight:600}
+.boss-demo p{margin:8px 0 0;color:#72817d;line-height:1.7}
+.boss-demo-connected{display:flex;align-items:center;gap:6px;white-space:nowrap;color:#128576;background:#e9f7f3;border-radius:20px;padding:8px 12px;font-size:12px}
+.boss-demo main{max-width:1000px;margin:0 auto;padding:28px 32px}
+.boss-demo-account{display:flex;align-items:center;gap:14px;padding:20px;background:#edf7f3;border:1px solid #dceee5;border-radius:16px}
+.boss-demo-account>svg{color:#139780;flex-shrink:0}
+.boss-demo-account p{font-size:12px;margin-top:4px}
+.boss-demo-section-title{display:flex;align-items:center;justify-content:space-between;margin:28px 0 16px}
+.boss-demo h2{margin:0;font-size:18px;font-weight:600}
+.boss-demo-section-title>span{color:#7a8984;font-size:12px}
+.boss-demo-jobs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:16px}
+.boss-demo-jobs article{padding:24px;border-radius:18px;background:#fff;border:1px solid #e1eae6}
+.boss-demo-jobs article>header{display:flex;align-items:center;justify-content:space-between;color:#119585}
+.boss-demo-jobs article>header span{font-size:12px;border-radius:12px;padding:5px 10px;background:#eaf8f3}
+.boss-demo h3{font-size:18px;line-height:1.5;margin:18px 0 0;font-weight:600}
+.boss-demo-job-facts{display:flex;flex-wrap:wrap;gap:18px;margin:22px 0;color:#5b7168;font-size:13px}
+.boss-demo-job-facts span{display:flex;align-items:center;gap:6px}
+.boss-demo-jobs footer{display:flex;align-items:flex-start;gap:8px;border-top:1px solid #edf1ef;padding-top:18px;font-size:12px;color:#128576}
+.boss-demo-jobs footer small{display:block;margin-top:6px;color:#8a9791;font-size:11px;line-height:1.6}
+.boss-demo-empty{text-align:center;padding:54px 20px;background:#fff;border:1px dashed #dbe7e1;border-radius:18px;color:#6e9385}
+.boss-demo-empty h3{color:#385d4e}
+.boss-demo-empty p{font-size:13px}
+.boss-demo-empty button{margin-top:16px;border:1px solid #cfe4db;border-radius:20px;background:#f2faf6;padding:8px 18px;color:#197c5c;cursor:pointer}
+@media(max-width:580px){.boss-demo-header,.boss-demo main{padding:20px}.boss-demo-account{flex-wrap:wrap}.boss-demo-brand>span{width:44px;height:44px;font-size:14px}.boss-demo h1{font-size:20px}}

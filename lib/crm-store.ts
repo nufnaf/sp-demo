@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { applicationDataDir } from "./presentation-runtime";
 import { writePrivateFileAtomicSync } from "./atomic-file";
 import type { RemoteCrmSnapshot } from "./company-crm-client";
 import { CRM_DEMO_SOURCES, crmDemoData, crmRecords, emptyCrmState, parseCrmData, type CrmState } from "./crm";
 
 function statePath(cwd: string): string {
-  return join(getAgentDir(), "pi-web", "crm", `${createHash("sha256").update(resolve(cwd)).digest("hex")}.json`);
+  return join(applicationDataDir(), "pi-web", "crm", `${createHash("sha256").update(resolve(cwd)).digest("hex")}.json`);
 }
 export function readCrmState(cwd: string): CrmState {
   try {

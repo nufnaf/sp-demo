@@ -1,0 +1,12 @@
+{
+  "file": "kZRCbPpo7it0jcJLIgmxXp",
+  "node": "372:386",
+  "assets": {
+    "wallpaper": "https://www.figma.com/api/mcp/asset/c6b7e779-fea2-48c7-bf49-384eeaa11ecf.png",
+    "microphone": "https://www.figma.com/api/mcp/asset/f0d93aa2-4337-4b77-8da9-e0ca2df32749.svg",
+    "bell": "https://www.figma.com/api/mcp/asset/54972aeb-00c5-4881-a90e-3a3a4e8a0504.svg",
+    "calendar": "https://www.figma.com/api/mcp/asset/84b7e9b5-b5c4-43ce-ba0d-b4043c069be2.svg",
+    "sparkles": "https://www.figma.com/api/mcp/asset/79b8ee59-7502-4a45-adda-bcd0469f016d.svg",
+    "people": "https://www.figma.com/api/mcp/asset/fce3d0f4-9ebe-449b-9eb8-fc908f786afe.svg"
+  }
+}

@@ -1,0 +1,56 @@
+.computer-preview {
+  position: absolute;
+  z-index: 5;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 0;
+  border-radius: 14px;
+  color: #f2f6fa;
+  background: #182332;
+  box-shadow: 0 14px 42px #0c1b3e40, 0 2px 8px #08132325;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+  container-type: inline-size;
+  transform: translateX(calc(var(--space-offset, 0) * 105vw));
+  transition: transform var(--os-space-duration) var(--os-space-ease), width 200ms var(--os-ease-out), height 200ms var(--os-ease-out), left 200ms var(--os-ease-out), top 200ms var(--os-ease-out);
+}
+.computer-preview.is-dragging { cursor: grabbing; transition: none; box-shadow: 0 20px 50px #0c1b3e65; }
+.computer-preview.is-expanded { cursor: default; }
+.computer-preview.is-other-space { pointer-events: none; }
+.computer-preview.is-desktop-hidden { visibility: hidden; pointer-events: none; }
+.computer-canvas { position: absolute; inset: 0; display: grid; place-items: center; }
+.computer-canvas > img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.computer-canvas > img[hidden] { display: none; }
+.computer-empty { padding: 32px 30px 44px; text-align: center; font-size: 12px; color: #c1cdd9; }
+.computer-empty strong { color: #f2f6fa; font-size: 13px; }
+.computer-empty p { margin: 8px 0; line-height: 1.55; }
+.computer-preview button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 28px; min-height: 28px; border: 0; border-radius: 8px; padding: 5px 6px; font: inherit; font-size: 11px; color: #fff; background: #172535e8; cursor: pointer; }
+.computer-preview button:hover { background: #354b61; }
+.computer-preview button:disabled { opacity: .5; cursor: default; }
+.computer-preview button:focus-visible, .computer-options select:focus-visible { outline: 2px solid #91c9ff; outline-offset: 2px; }
+.computer-controls { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; padding: 8px; color: #fff; background: linear-gradient(#0b172750, transparent 34%, transparent 62%, #0b172778); opacity: 0; pointer-events: none; transition: opacity 150ms ease; }
+.computer-preview:hover .computer-controls, .computer-preview:has(:focus-visible) .computer-controls, .computer-preview.is-menu-open .computer-controls { opacity: 1; }
+.computer-preview.is-dragging .computer-controls { opacity: 0; }
+.computer-controls button { pointer-events: auto; }
+.computer-controls-top, .computer-controls-bottom { display: flex; align-items: center; gap: 5px; }
+.computer-controls-top { justify-content: space-between; }
+.computer-controls-bottom { flex-wrap: nowrap; }
+.computer-caption { display: flex; align-items: center; gap: 5px; min-width: 0; margin-right: auto; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; line-height: 16px; text-shadow: 0 1px 3px #14263b; }
+.computer-caption i { flex: 0 0 5px; height: 5px; border-radius: 50%; background: #67d7b3; }
+.computer-controls-bottom button { flex-shrink: 0; }
+.computer-open-app { padding-inline: 8px !important; }
+.computer-notice { position: absolute; left: 8px; right: 8px; bottom: 8px; border-radius: 9px; padding: 8px 10px; background: #182a3af5; pointer-events: none; }
+.computer-notice strong { display: block; font-size: 11px; font-weight: 600; }
+.computer-notice p { margin: 4px 0 0; font-size: 11px; line-height: 1.4; color: #cddae5; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.computer-preview.has-notice .computer-controls-bottom { margin-bottom: 72px; }
+.computer-options { position: absolute; z-index: 2; right: 8px; top: 42px; max-height: calc(100% - 50px); max-width: calc(100% - 16px); overflow: auto; border-radius: 10px; padding: 5px; color: #eaf0f7; background: #23354a; box-shadow: 0 7px 20px #0004; font-size: 12px; cursor: default; }
+.computer-options label { display: flex; align-items: center; gap: 12px; padding: 6px; }
+.computer-options select { max-width: 130px; padding: 5px; border: 0; border-radius: 5px; color: #eaf0f7; background: #334a61; font: inherit; }
+.computer-options > button { width: 100%; justify-content: flex-start; padding: 8px; background: transparent; }
+@container (max-width: 290px) { .computer-caption { display: none; } .computer-controls-bottom { justify-content: flex-end; } }
+@media (pointer: coarse) { .computer-controls { opacity: 1; } .computer-preview button { min-height: 40px; min-width: 40px; } .computer-caption { display: none; } .computer-controls-bottom { justify-content: flex-end; } .computer-options { top: 54px; } }
+@media (prefers-reduced-motion: reduce) { .computer-preview, .computer-controls { transition: none; } }
+
+.computer-recovering { position: absolute; inset: 0; display: grid; place-items: center; padding: 25px; background: #18233288; color: white; font-size: 12px; text-align: center; }

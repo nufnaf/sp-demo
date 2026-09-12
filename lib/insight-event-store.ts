@@ -1,9 +1,10 @@
+import { emitFileEvent } from "./files-app/events";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { applicationDataDir } from "./presentation-runtime";
 import { writePrivateFileAtomicSync } from "./atomic-file";
-import type { InsightResult } from "./insight-automation";
+import { extractInsightMetadata, type InsightResult } from "./insight-automation";
 
 export type InsightEventSource = "feishu" | "task" | "crm";
 
@@ -37,7 +38,7 @@ interface StoredInsightState {
 const MAX_PENDING_EVENTS = 100;
 const MAX_PROCESSED_IDS = 1_000;
 const MAX_RESULTS = 50;
-const STATE_PATH = join(getAgentDir(), "pi-web", "insights.json");
+const STATE_PATH = join(applicationDataDir(), "pi-web", "insights.json");
 
 declare global {
   var __piInsightState: StoredInsightState | undefined;
@@ -126,10 +127,17 @@ export function addInsightResult(result: InsightResult): void {
     ...state.results.filter((item) => item.filePath !== result.filePath),
   ].slice(0, MAX_RESULTS);
   saveState();
+  emitFileEvent({ type: "insight.updated", cwd: result.cwd });
 }
 
 export function listInsightResults(cwd: string): InsightResult[] {
-  return loadState().results.filter((result) => result.cwd === cwd && existsSync(result.filePath));
+  return loadState().results.filter((result) => result.cwd === cwd && existsSync(result.filePath)).map(result => {
+    if (result.summary) return result;
+    try {
+      const { summary } = extractInsightMetadata(readFileSync(result.filePath, "utf8"), result.fileName);
+      return { ...result, summary };
+    } catch { return result; }
+  });
 }
 
 export function setInsightSourceStatus(source: string, status: InsightSourceStatus): void {

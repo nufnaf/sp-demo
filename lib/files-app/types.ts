@@ -7,4 +7,4 @@ export interface FileOpenRequest {
   foreground: boolean;
 }
 
-export type FileSystemEvent = FileOpenRequest;
+export type FileSystemEvent = FileOpenRequest | { type: "insight.updated" | "presentation.updated"; cwd: string };

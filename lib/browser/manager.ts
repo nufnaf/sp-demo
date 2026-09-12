@@ -1,9 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, type BrowserContext, type Page } from "playwright-core";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import type { BrowserAction, BrowserPageState, BrowserSystemEvent } from "./types";
+import { applicationDataDir } from "../presentation-runtime";
+import { measureStartup, BrowserStartupTimer } from "./startup-timing";
+import type { BrowserAction, BrowserPageState, BrowserSystemEvent, BrowserTaskState, BrowserController, BrowserWarmupState } from "./types";
 
 const DEFAULT_URL = "about:blank";
 const MAX_SNAPSHOT_TEXT = 8_000;
@@ -18,13 +19,17 @@ interface ManagedPage {
   page: Page;
   revision: number;
   loading: boolean;
-  controller: "shared";
+  controller: BrowserController;
+  task?: BrowserTaskState;
   updatedAt: string;
   operationTail: Promise<void>;
+  initialViewportReady?: () => void;
 }
 
 interface WorkspaceBrowser {
   cwd: string;
+  key: string;
+  cdpUrl?: string;
   context: BrowserContext;
   pages: Map<string, ManagedPage>;
   taskPages: Map<string, string>;
@@ -98,6 +103,7 @@ function stateOf(managed: ManagedPage): BrowserPageState {
     viewport: managed.page.viewportSize() ?? { width: 1280, height: 800 },
     focus: null,
     updatedAt: managed.updatedAt,
+    ...(managed.task ? { task: managed.task } : {}),
   };
 }
 
@@ -105,6 +111,30 @@ export class BrowserManager {
   private readonly workspaces = new Map<string, WorkspaceBrowser>();
   private readonly starting = new Map<string, Promise<WorkspaceBrowser>>();
   private readonly listeners = new Set<BrowserListener>();
+  private prepared?: { cwd: string; promise: Promise<WorkspaceBrowser> };
+  private warmup?: BrowserWarmupState;
+
+  getWarmup(): BrowserWarmupState | undefined {
+    return this.warmup ? { ...this.warmup, timings: [...this.warmup.timings] } : undefined;
+  }
+
+  /** One unregistered, blank browser per App run, claimed by exactly one task. */
+  async prepareTaskBrowser(cwd: string): Promise<void> {
+    if (this.warmup) return; // Refresh/StrictMode must not launch more browsers.
+    const timer = new BrowserStartupTimer();
+    const started = performance.now();
+    this.warmup = { status: "warming", startedAt: new Date().toISOString(), durationMs: 0, timings: timer.entries };
+    const promise = this.createWorkspace(cwd, `task:prepared:${randomUUID()}:${cwd}`, timer);
+    this.prepared = { cwd, promise };
+    try {
+      await promise;
+      if (this.warmup.status === "warming") this.warmup.status = "ready";
+      this.warmup.readyAt = new Date().toISOString();
+    } catch {
+      this.warmup.status = "failed";
+      // A later real task may still try its normal cold startup once.
+    } finally { this.warmup.durationMs = Math.round(performance.now() - started); }
+  }
 
   subscribe(listener: BrowserListener): () => void {
     this.listeners.add(listener);
@@ -213,7 +243,9 @@ export class BrowserManager {
     managed.revision += 1;
     managed.updatedAt = new Date().toISOString();
     const state = await this.pageState(managed);
-    this.emit({ type: "browser.updated", page: state });
+    // Reading title/focus yields. The page can close during that read; a late
+    // update must never resurrect its tab after browser.closed was emitted.
+    if (!managed.page.isClosed()) this.emit({ type: "browser.updated", page: state });
     return state;
   }
 
@@ -223,21 +255,40 @@ export class BrowserManager {
     return result;
   }
 
-  private async createWorkspace(cwd: string): Promise<WorkspaceBrowser> {
-    const executablePath = resolveBrowserExecutable();
-    if (!executablePath) {
-      throw new Error("No supported Chrome, Edge, or Chromium installation was found. Set PI_WEB_BROWSER_EXECUTABLE to the browser executable path.");
-    }
-    const profilePath = join(getAgentDir(), "browser", "profiles", profileName(cwd));
-    mkdirSync(profilePath, { recursive: true });
-    const context = await chromium.launchPersistentContext(profilePath, {
+  private async createWorkspace(cwd: string, key = cwd, startup?: BrowserStartupTimer): Promise<WorkspaceBrowser> {
+    const { executablePath, profilePath } = await measureStartup(startup, "profile-prepare", () => {
+      const executablePath = resolveBrowserExecutable();
+      if (!executablePath) {
+        throw new Error("No supported Chrome, Edge, or Chromium installation was found. Set PI_WEB_BROWSER_EXECUTABLE to the browser executable path.");
+      }
+      const profilePath = join(applicationDataDir(), "browser", "profiles", profileName(key));
+      mkdirSync(profilePath, { recursive: true });
+      return { executablePath, profilePath };
+    });
+    const context = await measureStartup(startup, "chromium-launch", () => chromium.launchPersistentContext(profilePath, {
       executablePath,
       headless: process.env.PI_WEB_BROWSER_HEADLESS !== "false",
       viewport: { width: 1280, height: 800 },
       acceptDownloads: false,
-    });
+      serviceWorkers: key !== cwd ? "block" : "allow",
+      ...(key !== cwd ? { args: ["--remote-debugging-port=0", "--remote-debugging-address=127.0.0.1"] } : {}),
+    }));
+    let cdpUrl: string | undefined;
+    try { await measureStartup(startup, "context-connect", async () => {
+      if (key !== cwd) {
+        const [port, endpoint] = readFileSync(join(profilePath, "DevToolsActivePort"), "utf8").trim().split("\n");
+        cdpUrl = `ws://127.0.0.1:${port}${endpoint}`;
+        // Prevent even page scripts/redirects from addressing the Syntropic app.
+        await context.route("**/*", (route) => new URL(route.request().url()).port === "30141"
+          ? route.abort("blockedbyclient") : route.continue());
+        await context.routeWebSocket(/:30141(?:\/|$)/, (socket) => socket.close());
+      }
+    }); } catch (error) {
+      await context.close();
+      throw error;
+    }
     const workspace: WorkspaceBrowser = {
-      cwd,
+      cwd, key, cdpUrl,
       context,
       pages: new Map(),
       taskPages: new Map(),
@@ -245,12 +296,12 @@ export class BrowserManager {
     };
     context.on("close", () => {
       if (workspace.idleTimer) clearTimeout(workspace.idleTimer);
-      if (this.workspaces.get(cwd) === workspace) this.workspaces.delete(cwd);
+      if (this.workspaces.get(key) === workspace) this.workspaces.delete(key);
       for (const page of workspace.pages.values()) {
         this.emit({ type: "browser.closed", pageId: page.pageId, cwd });
       }
     });
-    this.workspaces.set(cwd, workspace);
+    this.workspaces.set(key, workspace);
     return workspace;
   }
 
@@ -350,12 +401,99 @@ export class BrowserManager {
     const pages = [...this.workspaces.values()]
       .filter((workspace) => !cwd || workspace.cwd === cwd)
       .flatMap((workspace) => [...workspace.pages.values()]);
-    return Promise.all(pages.map((page) => this.pageState(page)));
+    const states = await Promise.all(pages.map((page) => this.pageState(page)));
+    return states.filter((_state, index) => !pages[index].page.isClosed());
+  }
+
+  private assertHumanInput(managed: ManagedPage): void {
+    if (managed.controller === "agent") throw new Error("AI 正在操作此页面，请先停止任务；人工浏览请新建标签页。");
+  }
+
+  async openTaskPage(cwd: string, parentSessionId: string, taskId: string, startup?: BrowserStartupTimer, signal?: AbortSignal): Promise<{
+    pageId: string; cdpUrl: string; targetId: string; page: Page; warmup?: BrowserWarmupState;
+  }> {
+    let workspace: WorkspaceBrowser | undefined;
+    let warmup: BrowserWarmupState | undefined;
+    if (this.prepared?.cwd === cwd) {
+      const prepared = this.prepared;
+      this.prepared = undefined; // Consume before awaiting: no cross-task sharing.
+      this.warmup!.status = "claimed";
+      this.warmup!.claimedAt = new Date().toISOString();
+      try {
+        workspace = await measureStartup(startup, "prepared-browser-wait", () => prepared.promise);
+        const pages = workspace.context.pages();
+        if (pages.length !== 1 || pages[0].isClosed() || pages[0].url() !== "about:blank") {
+          await workspace.context.close();
+          workspace = undefined;
+          this.warmup!.status = "failed";
+        }
+      } catch { this.warmup!.status = "failed"; }
+      warmup = this.getWarmup();
+    }
+    const taskWorkspace = workspace ?? await this.createWorkspace(cwd, `task:${taskId}:${cwd}`, startup);
+    if (signal?.aborted) {
+      await taskWorkspace.context.close();
+      signal.throwIfAborted();
+    }
+    const managed = await measureStartup(startup, "page-register", async () => {
+      const page = taskWorkspace.context.pages()[0] ?? await taskWorkspace.context.newPage();
+      const managed = this.registerPage(taskWorkspace, page, parentSessionId);
+      managed.controller = "agent";
+      // The execution has one page. Popups cannot acquire control or become a
+      // fallback target. A task requiring another window must fail explicitly.
+      taskWorkspace.context.on("page", (popup) => {
+        if (popup !== page) void popup.close().catch(() => {});
+      });
+      return managed;
+    });
+    const page = managed.page;
+    const targetId = await measureStartup(startup, "target-identify", async () => {
+      const cdp = await taskWorkspace.context.newCDPSession(page);
+      const { targetInfo } = await cdp.send("Target.getTargetInfo");
+      await cdp.detach();
+      return targetInfo.targetId;
+    });
+    // Let the visible container supply its dimensions before navigation and the
+    // first Agent snapshot. After this handshake, execution keeps that viewport.
+    const viewportReady = new Promise<void>((resolve) => { managed.initialViewportReady = resolve; });
+    const state = await measureStartup(startup, "initial-page-state", () => this.touch(managed));
+    this.emit({ type: "browser.opened", page: state, foreground: true });
+    let viewportTimeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      // Hidden/headless callers still work without a mounted BrowserApp.
+      const viewportFinished = startup?.start("viewport-wait");
+      const outcome = await Promise.race([viewportReady.then(() => "ready" as const), new Promise<"timeout">((resolve) => {
+        viewportTimeout = setTimeout(() => resolve("timeout"), 1500);
+      })]);
+      viewportFinished?.("completed", outcome);
+      // Seal under the same queue as resize so no in-flight resize can overlap
+      // the Agent's first navigation, including when the fallback timeout fires.
+      await measureStartup(startup, "viewport-seal", () => this.serialize(managed, async () => { managed.initialViewportReady = undefined; }));
+    } finally {
+      clearTimeout(viewportTimeout);
+    }
+    return { pageId: managed.pageId, cdpUrl: taskWorkspace.cdpUrl!, targetId, page, ...(warmup ? { warmup } : {}) };
+  }
+
+  async taskChanged(task: BrowserTaskState): Promise<void> {
+    this.emit({ type: "browser.task", task });
+    if (!task.pageId) return;
+    try {
+      const managed = this.findPage(task.pageId);
+      managed.task = task;
+      managed.controller = ["starting", "running", "stopping"].includes(task.status) ? "agent" : "shared";
+      await this.touch(managed);
+    } catch { /* A closed task remains visible in the task event/result. */ }
+  }
+
+  async refreshTaskPage(pageId: string): Promise<void> {
+    await this.touch(this.findPage(pageId));
   }
 
   async navigate(pageId: string, input: { url?: string; action?: "back" | "forward" | "reload" }, cwd?: string): Promise<BrowserPageState> {
     const managed = this.findPage(pageId, cwd);
     return this.serialize(managed, async () => {
+      this.assertHumanInput(managed);
       if (input.url) await managed.page.goto(normalizeBrowserUrl(input.url), { waitUntil: "domcontentloaded" });
       else if (input.action === "back") await managed.page.goBack({ waitUntil: "domcontentloaded" });
       else if (input.action === "forward") await managed.page.goForward({ waitUntil: "domcontentloaded" });
@@ -376,10 +514,12 @@ export class BrowserManager {
       height: Math.max(240, Math.min(1200, Math.round(height))),
     };
     return this.serialize(managed, async () => {
+      if (managed.controller === "agent" && !managed.initialViewportReady) return this.pageState(managed);
       const current = managed.page.viewportSize();
       if (!current || current.width !== next.width || current.height !== next.height) {
         await managed.page.setViewportSize(next);
       }
+      managed.initialViewportReady?.();
       return this.touch(managed);
     });
   }
@@ -436,6 +576,7 @@ export class BrowserManager {
   async act(pageId: string, expectedRevision: number | undefined, input: BrowserAction, cwd?: string): Promise<BrowserPageState> {
     const managed = this.findPage(pageId, cwd);
     return this.serialize(managed, async () => {
+      this.assertHumanInput(managed);
       if (expectedRevision !== undefined && expectedRevision !== managed.revision) {
         throw new Error(`The page changed (expected revision ${expectedRevision}, current ${managed.revision}). Take a new snapshot before acting.`);
       }
@@ -469,8 +610,8 @@ export class BrowserManager {
   async userInput(pageId: string, input: BrowserAction): Promise<BrowserPageState> {
     const managed = this.findPage(pageId);
     return this.serialize(managed, async () => {
+      this.assertHumanInput(managed);
       await this.performAction(managed, input);
-      await managed.page.waitForTimeout(80);
       return this.touch(managed);
     });
   }
