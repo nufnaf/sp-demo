@@ -20,7 +20,10 @@ async function selectWindow() {
   await ready();
   let windows = await driver.listWindows();
   if (!windows.some(w => w.title === '创建日程' || (w.title === '飞书' && w.bounds.width > 400))) {
-    await openFeishu('/usr/bin/open', ['-b', 'com.electron.lark'], { timeout: 5000 });
+    // Keep the user's current app in front while asking macOS to launch Feishu.
+    // `-g` opens the application in the background; discovery still waits for
+    // its window to become available before binding the computer-use target.
+    await openFeishu('/usr/bin/open', ['-g', '-b', 'com.electron.lark'], { timeout: 5000 });
     const deadline = Date.now() + 15000;
     do { await new Promise(resolve => setTimeout(resolve, 250)); windows = await driver.listWindows(); }
     while (Date.now() < deadline && !windows.some(w => w.title === '创建日程' || (w.title === '飞书' && w.bounds.width > 400)));
