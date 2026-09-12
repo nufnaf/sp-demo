@@ -56,12 +56,18 @@ export function FeishuDemoApp({ onOpen, recruiting = true }: { recruiting?: bool
   }, [identity]);
   useEffect(() => {
     const controller = new AbortController();
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let preparing = false;
     setLoading(true); setError("");
     void fetch("/api/apps/feishu/documents", { signal: controller.signal, cache: "no-store" }).then(async (r) => {
-      const data = await r.json(); if (!r.ok) throw new Error(data.error || "暂时无法加载文档，请稍后重试。");
+      const data = await r.json();
+      if (!r.ok) {
+        if (data.kind === "preparing") { preparing = true; retryTimer = setTimeout(() => setRevision((n) => n + 1), 1000); return; }
+        throw new Error(data.error || "暂时无法加载文档，请稍后重试。");
+      }
       if (!controller.signal.aborted) { setDocuments(data.items); setAccount(data.account || "飞书用户"); setIdentity(data.identity || ""); }
-    }).catch((e) => { if (!controller.signal.aborted) setError(e.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
+    }).catch((e) => { if (!controller.signal.aborted) setError(e.message); }).finally(() => { if (!controller.signal.aborted && !preparing) setLoading(false); });
+    return () => { controller.abort(); if (retryTimer) clearTimeout(retryTimer); };
   }, [revision]);
   function toggleFavorite(id: string) {
     const next = favorites.includes(id) ? favorites.filter((item) => item !== id) : [...favorites, id];
@@ -112,8 +118,9 @@ export function FeishuDemoDocument({ id }: { id: string }) {
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     const controller = new AbortController(); setDocument(null); setError("");
-    void fetch(`/api/apps/feishu/documents/${encodeURIComponent(id)}`, { cache: "no-store", signal: controller.signal }).then(async (r) => { const data = await r.json(); if (!r.ok) throw new Error(data.error || "暂时无法加载正文。"); if (!controller.signal.aborted) setDocument(data); }).catch((e) => { if (!controller.signal.aborted) setError(e.message); });
-    return () => controller.abort();
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    void fetch(`/api/apps/feishu/documents/${encodeURIComponent(id)}`, { cache: "no-store", signal: controller.signal }).then(async (r) => { const data = await r.json(); if (!r.ok) { if (data.kind === "preparing") { retryTimer = setTimeout(() => setRevision((n) => n + 1), 1000); return; } throw new Error(data.error || "暂时无法加载正文。"); } if (!controller.signal.aborted) setDocument(data); }).catch((e) => { if (!controller.signal.aborted) setError(e.message); });
+    return () => { controller.abort(); if (retryTimer) clearTimeout(retryTimer); };
   }, [id, revision]);
   return <section className="feishu-preview">{error ? <div className="feishu-empty" role="alert"><strong>文档暂时无法加载</strong><p>{error}</p><button type="button" onClick={() => setRevision((n) => n + 1)}>重新加载</button></div> : !document ? <div className="feishu-empty" role="status"><span className="agent-os-spinner"/><p>正在加载文档…</p></div> : <>
     <div className="feishu-document-toolbar"><span>工作资料 / 星流科技</span><button type="button" aria-label="刷新正文" onClick={() => setRevision((n) => n + 1)}><Glyph name="refresh"/>刷新</button></div>

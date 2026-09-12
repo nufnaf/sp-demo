@@ -4,6 +4,8 @@ import { presentationRoot } from "@/lib/presentation-runtime";
 import { NextResponse } from "next/server";
 import { FeishuDocumentsError, getFeishuDocuments } from "@/lib/feishu-cli";
 import { isApiRequestAllowed } from "@/lib/request-security";
+import { readJson } from "@/lib/feishu-workspace";
+import { join } from "node:path";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,12 @@ export async function GET(request: Request) {
       const status = error.kind === "not_authenticated" ? 401 : error.kind === "missing_scope" ? 403 : 502;
       return NextResponse.json({ error: error.message, kind: error.kind, consoleUrl: error.consoleUrl }, { status });
     }
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    if (presentationRoot() && (message.includes("请先完成飞书资料准备") || message.includes("飞书账号已变化"))) {
+      const binding = await readJson<{ ready?: boolean }>(join(presentationRoot()!, "feishu-account.json"));
+      if (!binding?.ready) return NextResponse.json({ error: "正在准备飞书资料，请稍候。", kind: "preparing" }, { status: 503 });
+      if (message.includes("飞书账号已变化")) return NextResponse.json({ error: message, kind: "account_changed" }, { status: 409 });
+    }
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
